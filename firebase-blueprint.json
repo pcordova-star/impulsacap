@@ -1,0 +1,237 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with authentication and company details",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Email address of the user"
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "Full name or representative name"
+        },
+        "companyName": {
+          "type": "string",
+          "maxLength": 160,
+          "description": "Name of the represented company"
+        },
+        "companyRut": {
+          "type": "string",
+          "maxLength": 20,
+          "description": "Chilean RUT of the company"
+        },
+        "phone": {
+          "type": "string",
+          "maxLength": 30,
+          "description": "Contact phone number"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["company", "consultant", "admin"],
+          "description": "User role in the platform"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Account creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Last update timestamp"
+        }
+      },
+      "required": ["email", "displayName", "role"]
+    },
+    "Company": {
+      "title": "Company",
+      "description": "Registered company profile and eligibility data",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the company owner"
+        },
+        "rut": {
+          "type": "string",
+          "maxLength": 20,
+          "description": "RUT of the company"
+        },
+        "companyName": {
+          "type": "string",
+          "maxLength": 160,
+          "description": "Legal or commercial company name"
+        },
+        "companyType": {
+          "type": "string",
+          "enum": ["persona_natural", "spa", "srl", "eirl", "sa", "sin_iniciar"],
+          "description": "Legal structure type"
+        },
+        "sector": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "Industrial or economic sector"
+        },
+        "region": {
+          "type": "string",
+          "maxLength": 80,
+          "description": "Chilean geographic region"
+        },
+        "salesBracket": {
+          "type": "string",
+          "enum": ["sin_ventas", "menor_60m", "micro_200_a_2400uf", "pequena_2400_a_25000uf", "mediana_25000_a_100000uf", "grande_mayor_100000uf"],
+          "description": "Sales bracket for Corfo/Sercotec classification"
+        },
+        "annualSalesCLP": {
+          "type": "number",
+          "description": "Annual sales in Chilean pesos"
+        },
+        "isFemaleLed": {
+          "type": "boolean",
+          "description": "Whether majority owned or led by women"
+        },
+        "femaleEquityPct": {
+          "type": "number",
+          "description": "Female equity participation percentage"
+        },
+        "trlStage": {
+          "type": "string",
+          "enum": ["idea_concepto", "prototipo_lab", "mvp_validado", "primeras_ventas", "escalamiento_global"],
+          "description": "Technology readiness level stage"
+        },
+        "taxFolderUploaded": {
+          "type": "boolean",
+          "description": "Whether Carpeta Tributaria SII is uploaded"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Update timestamp"
+        }
+      },
+      "required": ["ownerId", "companyName", "companyType"]
+    },
+    "Application": {
+      "title": "Application",
+      "description": "Fund application record for an active grant postulation",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the owner"
+        },
+        "fundId": {
+          "type": "string",
+          "maxLength": 80,
+          "description": "Target fund identifier"
+        },
+        "fundName": {
+          "type": "string",
+          "maxLength": 160,
+          "description": "Target fund official title"
+        },
+        "companyName": {
+          "type": "string",
+          "maxLength": 160,
+          "description": "Company applying"
+        },
+        "companyRut": {
+          "type": "string",
+          "maxLength": 20,
+          "description": "Company RUT"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["draft", "in_review", "ready_to_submit", "submitted"],
+          "description": "Current status of the postulation dossier"
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 1000,
+          "description": "Optional notes or comments"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Created timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Updated timestamp"
+        }
+      },
+      "required": ["ownerId", "fundId", "fundName", "status"]
+    },
+    "TaxFolder": {
+      "title": "TaxFolder",
+      "description": "Metadata for Carpeta Tributaria SII uploaded by the company",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the owner"
+        },
+        "companyRut": {
+          "type": "string",
+          "maxLength": 20,
+          "description": "Company RUT validated"
+        },
+        "fileName": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "File name of uploaded PDF/SII dossier"
+        },
+        "fileSize": {
+          "type": "number",
+          "description": "File size in bytes"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["processing", "verified", "error"],
+          "description": "Validation status"
+        },
+        "summary": {
+          "type": "string",
+          "maxLength": 1000,
+          "description": "Extracted summary of annual sales and F29 counts"
+        },
+        "f29Periods": {
+          "type": "number",
+          "description": "Number of F29 periods extracted"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Upload timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Update timestamp"
+        }
+      },
+      "required": ["ownerId", "fileName", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Private user profiles restricted to the authenticated user"
+    },
+    "/companies/{companyId}": {
+      "schema": "Company",
+      "description": "Company profile details owned and managed by the authenticated user"
+    },
+    "/applications/{applicationId}": {
+      "schema": "Application",
+      "description": "Saved fund postulations and formulation drafts for users"
+    },
+    "/tax_folders/{folderId}": {
+      "schema": "TaxFolder",
+      "description": "Carpeta tributaria metadata and validation states"
+    }
+  }
+}

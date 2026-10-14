@@ -1,0 +1,110 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Common security helpers
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // User Profile Validation
+    function isValidUserProfile(data) {
+      return data.email is string && data.email.size() <= 120
+        && (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 120))
+        && (!('companyName' in data) || (data.companyName is string && data.companyName.size() <= 160))
+        && (!('companyRut' in data) || (data.companyRut is string && data.companyRut.size() <= 20))
+        && (!('phone' in data) || (data.phone is string && data.phone.size() <= 30))
+        && (data.role in ['company', 'consultant', 'admin']);
+    }
+
+    // Company Validation
+    function isValidCompany(data) {
+      return data.ownerId is string && data.ownerId.size() <= 128
+        && data.companyName is string && data.companyName.size() <= 160
+        && (!('rut' in data) || (data.rut is string && data.rut.size() <= 20))
+        && (!('companyType' in data) || (data.companyType is string && data.companyType.size() <= 40))
+        && (!('sector' in data) || (data.sector is string && data.sector.size() <= 120))
+        && (!('region' in data) || (data.region is string && data.region.size() <= 80))
+        && (!('salesBracket' in data) || (data.salesBracket is string && data.salesBracket.size() <= 50))
+        && (!('annualSalesCLP' in data) || (data.annualSalesCLP is number))
+        && (!('isFemaleLed' in data) || (data.isFemaleLed is bool))
+        && (!('trlStage' in data) || (data.trlStage is string && data.trlStage.size() <= 40));
+    }
+
+    // Application Validation
+    function isValidApplication(data) {
+      return data.ownerId is string && data.ownerId.size() <= 128
+        && data.fundId is string && data.fundId.size() <= 80
+        && data.fundName is string && data.fundName.size() <= 160
+        && (data.status in ['draft', 'in_review', 'ready_to_submit', 'submitted'])
+        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 2000));
+    }
+
+    // TaxFolder Validation
+    function isValidTaxFolder(data) {
+      return data.ownerId is string && data.ownerId.size() <= 128
+        && data.fileName is string && data.fileName.size() <= 200
+        && (data.status in ['processing', 'verified', 'error'])
+        && (!('companyRut' in data) || (data.companyRut is string && data.companyRut.size() <= 20))
+        && (!('summary' in data) || (data.summary is string && data.summary.size() <= 2000));
+    }
+
+    // 1. Users collection
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow list: if false; // Blanket reads prohibited
+      allow create: if isValidId(userId) && isOwner(userId) && isValidUserProfile(incoming());
+      allow update: if isValidId(userId) && isOwner(userId) && isValidUserProfile(incoming())
+                    && incoming().email == existing().email;
+      allow delete: if isValidId(userId) && isOwner(userId);
+    }
+
+    // 2. Companies collection
+    match /companies/{companyId} {
+      allow get: if isValidId(companyId) && isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isValidId(companyId) && isSignedIn() && incoming().ownerId == request.auth.uid && isValidCompany(incoming());
+      allow update: if isValidId(companyId) && isSignedIn() && existing().ownerId == request.auth.uid && incoming().ownerId == existing().ownerId && isValidCompany(incoming());
+      allow delete: if isValidId(companyId) && isSignedIn() && existing().ownerId == request.auth.uid;
+    }
+
+    // 3. Applications collection
+    match /applications/{applicationId} {
+      allow get: if isValidId(applicationId) && isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isValidId(applicationId) && isSignedIn() && incoming().ownerId == request.auth.uid && isValidApplication(incoming());
+      allow update: if isValidId(applicationId) && isSignedIn() && existing().ownerId == request.auth.uid && incoming().ownerId == existing().ownerId && isValidApplication(incoming());
+      allow delete: if isValidId(applicationId) && isSignedIn() && existing().ownerId == request.auth.uid;
+    }
+
+    // 4. Tax Folders collection
+    match /tax_folders/{folderId} {
+      allow get: if isValidId(folderId) && isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isValidId(folderId) && isSignedIn() && incoming().ownerId == request.auth.uid && isValidTaxFolder(incoming());
+      allow update: if isValidId(folderId) && isSignedIn() && existing().ownerId == request.auth.uid && incoming().ownerId == existing().ownerId && isValidTaxFolder(incoming());
+      allow delete: if isValidId(folderId) && isSignedIn() && existing().ownerId == request.auth.uid;
+    }
+  }
+}
