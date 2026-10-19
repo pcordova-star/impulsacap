@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
 import { ChileanFund, BlindAuditResult, FormulationOutput } from '../types/funds';
+import { apiFetch } from '../utils/apiFetch';
+import { usePlan } from '../hooks/usePlan';
+import { PlanPaywallCard } from './PlanPaywallCard';
 import { CHILEAN_FUNDS } from '../data/chileanFunds';
 import { 
   ShieldAlert, 
@@ -41,12 +44,20 @@ export const BlindAuditor: React.FC<BlindAuditorProps> = ({
   const [loading, setLoading] = useState(false);
   const [auditResult, setAuditResult] = useState<BlindAuditResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { hasActivePlan, isExpired } = usePlan();
+  const [showPaywall, setShowPaywall] = useState<boolean>(false);
 
   const handleRunAudit = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/gemini/audit', {
+      if (!hasActivePlan) {
+        setShowPaywall(true);
+        setLoading(false);
+        return;
+      }
+
+      const response = await apiFetch('/api/gemini/audit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -55,6 +66,19 @@ export const BlindAuditor: React.FC<BlindAuditorProps> = ({
           projectSummary: inputText.substring(0, 1000)
         })
       });
+
+      if (response.status === 402) {
+        setShowPaywall(true);
+        setLoading(false);
+        return;
+      }
+
+      if (response.status === 429) {
+        const errJson = await response.json().catch(() => ({}));
+        setError(errJson.error || 'Puedes tener hasta 3 postulaciones activas a la vez. Archiva una para comenzar otra.');
+        setLoading(false);
+        return;
+      }
 
       if (!response.ok) {
         const errJson = await response.json().catch(() => ({}));
@@ -74,6 +98,13 @@ export const BlindAuditor: React.FC<BlindAuditorProps> = ({
 
   return (
     <div className="space-y-6">
+      {(showPaywall || !hasActivePlan) && (
+        <div className="mb-6 animate-fade-in">
+          <PlanPaywallCard
+            highlightText="La Auditoría Ciega oficial con rúbrica de comités CORFO / SERCOTEC requiere el Plan Semestral ImpulsaCap. Simula evaluaciones reales y detecta alertas rojas antes de enviar tu postulación."
+          />
+        </div>
+      )}
       {/* Back to Dashboard Navigation */}
       {onNavigateTab && (
         <div className="flex items-center justify-between pb-2 border-b border-slate-800">

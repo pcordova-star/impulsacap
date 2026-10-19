@@ -106,5 +106,16 @@ service cloud.firestore {
       allow update: if isValidId(folderId) && isSignedIn() && existing().ownerId == request.auth.uid && incoming().ownerId == existing().ownerId && isValidTaxFolder(incoming());
       allow delete: if isValidId(folderId) && isSignedIn() && existing().ownerId == request.auth.uid;
     }
+    // 5. Entitlements collection (Plan Semestral)
+    match /entitlements/{uid} {
+      allow get: if isValidId(uid) && isOwner(uid);
+      allow list: if false; // Blanket reads prohibited
+      allow write: if false; // Strictly writable by server with firebase-admin
+    }
+
+    // 6. Payments collection (Mercado Pago transactions)
+    match /payments/{paymentId} {
+      allow read, write: if false; // Strictly managed by server webhook
+    }
   }
 }

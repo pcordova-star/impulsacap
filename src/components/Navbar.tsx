@@ -2,7 +2,8 @@ import React from 'react';
 import { 
   Award, 
   FileText, 
-  ShieldAlert, 
+  ShieldAlert,
+  ShieldCheck, 
   MessageSquareCode, 
   Sparkles, 
   Building2,
@@ -38,15 +39,15 @@ export const Navbar: React.FC<NavbarProps> = ({
   onLogout
 }) => {
   // Mobile bottom tabs
-  const mobileNavTabs = [
-    { id: 'diagnostic', label: 'Inicio', icon: Zap },
-    ...(currentUser ? [
-      { id: 'my-application', label: 'Mi Postulación', icon: Clock },
-      { id: 'formulator', label: 'Formular', icon: Sparkles },
-      { id: 'documents', label: 'Trámites', icon: FileText },
-    ] : [
-      { id: 'catalog', label: 'Fondos', icon: Award },
-    ]),
+  const mobileNavTabs = currentUser ? [
+    { id: 'my-application', label: 'Mi Postulación', icon: Clock },
+    { id: 'catalog', label: 'Catálogo', icon: Award },
+    { id: 'formulator', label: 'Formulador', icon: Sparkles },
+    { id: 'documents', label: 'Carpeta SII', icon: FileText },
+    { id: 'auditor', label: 'Auditor', icon: ShieldCheck },
+  ] : [
+    { id: 'diagnostic', label: 'Diagnóstico', icon: Zap },
+    { id: 'catalog', label: 'Catálogo', icon: Award },
     { id: 'advisor', label: 'Asesor', icon: MessageSquareCode },
   ];
 

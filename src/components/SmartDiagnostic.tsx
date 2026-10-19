@@ -1,3 +1,4 @@
+import { apiFetch } from '../utils/apiFetch';
 import React, { useState } from 'react';
 import { CompanyProfile, ChileanFund, FundMatchResult } from '../types/funds';
 import { CHILEAN_FUNDS } from '../data/chileanFunds';
@@ -140,7 +141,7 @@ export const SmartDiagnostic: React.FC<SmartDiagnosticProps> = ({
     setLoading(true);
     setIsEstimatedWithoutAi(false);
     try {
-      const response = await fetch('/api/gemini/diagnose', {
+      const response = await apiFetch('/api/gemini/diagnose', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -15,11 +15,18 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { CompanyUser } from '../types/funds';
-import { loginCompanyUser, registerCompanyUser, getRegisteredUsers, setCurrentUser } from '../utils/storage';
 import { validateRut } from '../utils/rutValidator';
-import { auth, googleProvider } from '../firebase';
-import { signInWithPopup } from 'firebase/auth';
-import { syncUserProfileToFirestore } from '../utils/firebaseSync';
+import { auth, googleProvider, db } from '../firebase';
+import { 
+  signInWithPopup, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  sendPasswordResetEmail 
+} from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { syncUserProfileToFirestore, syncCompanyToFirestore } from '../utils/firebaseSync';
+import { getFirebaseAuthErrorMessage } from '../utils/authErrors';
+import { setCurrentUser } from '../utils/storage';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -41,6 +48,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
 
   // Login form state
   const [loginEmail, setLoginEmail] = useState('');
@@ -56,65 +65,138 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     setSuccessMsg(null);
+    setIsSubmitting(true);
 
-    const res = loginCompanyUser(loginEmail, loginPassword);
-    if (!res.success || !res.user) {
-      setErrorMsg(res.error || 'Credenciales inválidas.');
-      return;
+    try {
+      const cred = await signInWithEmailAndPassword(auth, loginEmail.trim().toLowerCase(), loginPassword);
+      const fbUser = cred.user;
+
+      let companyName = fbUser.displayName ? `${fbUser.displayName} SpA` : 'Mi Empresa SpA';
+      let rut = '';
+      let repName = fbUser.displayName || '';
+      let phone = '';
+
+      try {
+        const userDoc = await getDoc(doc(db, 'users', fbUser.uid));
+        if (userDoc.exists()) {
+          const uData = userDoc.data();
+          if (uData.companyName) companyName = uData.companyName;
+          if (uData.companyRut) rut = uData.companyRut;
+          if (uData.displayName) repName = uData.displayName;
+          if (uData.phone) phone = uData.phone;
+        }
+      } catch (err) {
+        console.warn('Could not read user profile doc:', err);
+      }
+
+      const companyUser: CompanyUser = {
+        id: fbUser.uid,
+        email: fbUser.email || loginEmail.trim().toLowerCase(),
+        companyName,
+        rut,
+        representativeName: repName,
+        phone,
+        createdAt: fbUser.metadata.creationTime || new Date().toISOString(),
+        lastLogin: new Date().toISOString()
+      };
+
+      setCurrentUser(companyUser);
+      setSuccessMsg(`¡Bienvenido de vuelta, ${companyUser.companyName}!`);
+      setTimeout(() => {
+        onAuthSuccess(companyUser);
+        onClose();
+      }, 500);
+    } catch (err: any) {
+      setErrorMsg(getFirebaseAuthErrorMessage(err));
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setSuccessMsg(`¡Bienvenido de vuelta, ${res.user.companyName}!`);
-    setTimeout(() => {
-      onAuthSuccess(res.user!);
-      onClose();
-    }, 600);
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     setSuccessMsg(null);
 
-    if (regRut && !validateRut(regRut)) {
+    const cleanRut = regRut?.trim() || '';
+    if (cleanRut && !validateRut(cleanRut)) {
       setErrorMsg('El RUT ingresado no es válido según el algoritmo del Registro Civil.');
       return;
     }
 
-    const res = registerCompanyUser({
-      email: regEmail,
-      password: regPassword,
-      companyName: regCompanyName,
-      rut: regRut,
-      representativeName: regRepName,
-      phone: regPhone
-    });
+    setIsSubmitting(true);
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, regEmail.trim().toLowerCase(), regPassword);
+      const fbUser = cred.user;
 
-    if (!res.success || !res.user) {
-      setErrorMsg(res.error || 'No se pudo crear la cuenta.');
-      return;
+      const cleanCompanyName = regCompanyName.trim() || 'Mi Empresa SpA';
+      const cleanRepName = regRepName.trim() || '';
+      const cleanPhone = regPhone.trim() || '';
+
+      const companyUser: CompanyUser = {
+        id: fbUser.uid,
+        email: fbUser.email || regEmail.trim().toLowerCase(),
+        companyName: cleanCompanyName,
+        rut: cleanRut,
+        representativeName: cleanRepName,
+        phone: cleanPhone,
+        createdAt: fbUser.metadata.creationTime || new Date().toISOString(),
+        lastLogin: new Date().toISOString()
+      };
+
+      // Point 4: Save profile in Firestore at users/{uid} and companies/{id} respecting firestore.rules
+      await syncUserProfileToFirestore(companyUser);
+      await syncCompanyToFirestore({
+        companyName: cleanCompanyName,
+        rut: cleanRut,
+        companyType: 'spa',
+        monthsActive: 6,
+        salesBracket: 'menor_60m',
+        annualSalesCLP: 0,
+        sector: 'Tecnología, Innovación y Servicios',
+        region: 'Región Metropolitana',
+        isFemaleLed: false,
+        femaleEquityPct: 0,
+        trlStage: 'mvp_validado',
+        innovationLevel: 'incremental',
+        projectSummary: `Plataforma y proyecto de innovación de ${cleanCompanyName}.`,
+        coreTech: 'Tecnología digital y desarrollo de soluciones.',
+        customerValidationCount: 0
+      }, fbUser.uid);
+
+      setCurrentUser(companyUser);
+      setSuccessMsg(`¡Empresa ${cleanCompanyName} registrada exitosamente!`);
+      setTimeout(() => {
+        onAuthSuccess(companyUser);
+        onClose();
+      }, 600);
+    } catch (err: any) {
+      setErrorMsg(getFirebaseAuthErrorMessage(err));
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setSuccessMsg(`¡Empresa ${res.user.companyName} registrada exitosamente! Bóveda privada creada.`);
-    setTimeout(() => {
-      onAuthSuccess(res.user!);
-      onClose();
-    }, 700);
   };
 
-  const handleQuickDemoLogin = (email: string) => {
-    setLoginEmail(email);
-    setLoginPassword('password123');
-    const res = loginCompanyUser(email, 'password123');
-    if (res.success && res.user) {
-      setSuccessMsg(`Sesión iniciada como ${res.user.companyName}`);
-      setTimeout(() => {
-        onAuthSuccess(res.user!);
-        onClose();
-      }, 500);
+  const handleForgotPassword = async () => {
+    const emailToReset = loginEmail.trim().toLowerCase();
+    if (!emailToReset) {
+      setErrorMsg('Por favor ingresa tu correo electrónico en el campo para enviarte el enlace de recuperación.');
+      return;
+    }
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    setIsResettingPassword(true);
+    try {
+      await sendPasswordResetEmail(auth, emailToReset);
+      setSuccessMsg('Se ha enviado un correo con instrucciones para restablecer tu contraseña. Revisa tu bandeja de entrada o spam.');
+    } catch (err: any) {
+      setErrorMsg(getFirebaseAuthErrorMessage(err));
+    } finally {
+      setIsResettingPassword(false);
     }
   };
 
@@ -125,28 +207,64 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     try {
       const cred = await signInWithPopup(auth, googleProvider);
       const fbUser = cred.user;
+
+      let companyName = fbUser.displayName ? `${fbUser.displayName} SpA` : 'Mi Empresa SpA';
+      let rut = '';
+      let repName = fbUser.displayName || '';
+      let phone = '';
+
+      try {
+        const userDoc = await getDoc(doc(db, 'users', fbUser.uid));
+        if (userDoc.exists()) {
+          const uData = userDoc.data();
+          if (uData.companyName) companyName = uData.companyName;
+          if (uData.companyRut) rut = uData.companyRut;
+          if (uData.displayName) repName = uData.displayName;
+          if (uData.phone) phone = uData.phone;
+        }
+      } catch (err) {
+        console.warn('Could not read user profile doc on Google sign in:', err);
+      }
+
       const companyUser: CompanyUser = {
         id: fbUser.uid,
         email: fbUser.email || '',
-        password: '',
-        companyName: fbUser.displayName ? `${fbUser.displayName} SpA` : 'Mi Empresa SpA',
-        rut: '',
-        representativeName: fbUser.displayName || '',
-        createdAt: new Date().toISOString(),
+        companyName,
+        rut,
+        representativeName: repName,
+        phone,
+        createdAt: fbUser.metadata.creationTime || new Date().toISOString(),
         lastLogin: new Date().toISOString()
       };
-      setCurrentUser(companyUser);
+
+      // Ensure user profile in Firestore exists
       await syncUserProfileToFirestore(companyUser);
-      setSuccessMsg(`¡Autenticado con Firebase Auth como ${companyUser.companyName}!`);
+      await syncCompanyToFirestore({
+        companyName,
+        rut,
+        companyType: 'spa',
+        monthsActive: 6,
+        salesBracket: 'menor_60m',
+        annualSalesCLP: 0,
+        sector: 'Tecnología, Innovación y Servicios',
+        region: 'Región Metropolitana',
+        isFemaleLed: false,
+        femaleEquityPct: 0,
+        trlStage: 'mvp_validado',
+        innovationLevel: 'incremental',
+        projectSummary: `Plataforma y proyecto de innovación de ${companyName}.`,
+        coreTech: 'Tecnología digital y desarrollo de soluciones.',
+        customerValidationCount: 0
+      }, fbUser.uid);
+
+      setCurrentUser(companyUser);
+      setSuccessMsg(`¡Autenticado con Google exitosamente como ${companyUser.companyName}!`);
       setTimeout(() => {
         onAuthSuccess(companyUser);
         onClose();
       }, 500);
     } catch (err: any) {
-      console.error('Firebase Auth Error:', err);
-      if (err.code !== 'auth/popup-closed-by-user') {
-        setErrorMsg(err.message || 'Error al iniciar sesión con Google Firebase.');
-      }
+      setErrorMsg(getFirebaseAuthErrorMessage(err));
     } finally {
       setIsGoogleLoading(false);
     }
@@ -184,7 +302,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         <div className="space-y-3">
           <button
             type="button"
-            disabled={isGoogleLoading}
+            disabled={isGoogleLoading || isSubmitting}
             onClick={handleGoogleSignIn}
             className="w-full py-2.5 px-4 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs flex items-center justify-center gap-2.5 transition-all shadow-xs cursor-pointer active:scale-95 disabled:opacity-50"
           >
@@ -221,7 +339,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         <div className="grid grid-cols-2 p-1 rounded-xl bg-slate-100 border border-slate-200 text-xs font-bold">
           <button
             type="button"
-            onClick={() => { setMode('login'); setErrorMsg(null); }}
+            onClick={() => { setMode('login'); setErrorMsg(null); setSuccessMsg(null); }}
             className={`py-2 rounded-lg transition-all cursor-pointer ${
               mode === 'login'
                 ? 'bg-blue-600 text-white shadow-xs'
@@ -232,7 +350,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </button>
           <button
             type="button"
-            onClick={() => { setMode('register'); setErrorMsg(null); }}
+            onClick={() => { setMode('register'); setErrorMsg(null); setSuccessMsg(null); }}
             className={`py-2 rounded-lg transition-all cursor-pointer ${
               mode === 'register'
                 ? 'bg-emerald-600 text-white shadow-xs font-bold'
@@ -279,9 +397,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Contraseña
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-semibold text-slate-700">
+                  Contraseña
+                </label>
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  disabled={isResettingPassword}
+                  className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 transition-colors cursor-pointer"
+                >
+                  {isResettingPassword ? 'Enviando...' : '¿Olvidaste tu contraseña?'}
+                </button>
+              </div>
               <div className="relative">
                 <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
                 <input
@@ -304,10 +432,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
             <button
               type="submit"
-              className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm shadow-md shadow-blue-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+              disabled={isSubmitting}
+              className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm shadow-md shadow-blue-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
             >
               <Lock className="w-4 h-4" />
-              <span>Acceder a Mi Bóveda Empresarial</span>
+              <span>{isSubmitting ? 'Verificando con Firebase...' : 'Acceder a Mi Bóveda Empresarial'}</span>
             </button>
           </form>
         )}
@@ -425,10 +554,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <div className="pt-2">
               <button
                 type="submit"
-                className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-md shadow-emerald-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                disabled={isSubmitting}
+                className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-md shadow-emerald-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
               >
                 <Sparkles className="w-4 h-4" />
-                <span>Registrar Empresa y Proteger Bóveda</span>
+                <span>{isSubmitting ? 'Registrando en Firebase Auth...' : 'Registrar Empresa y Proteger Bóveda'}</span>
               </button>
             </div>
           </form>
@@ -441,7 +571,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <strong className="text-slate-900">Garantía de Privacidad Exclusiva:</strong> Los balances tributarios F29, la formulación confidencial y el estado del expediente están estrictamente encriptados y solo pueden ser consultados mediante tu correo y contraseña.
           </div>
         </div>
-
       </div>
     </div>
   );

@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { REQUIRED_DOCUMENTS_GUIDE } from '../data/chileanFunds';
 import { CompanyProfile } from '../types/funds';
+import { apiFetch } from '../utils/apiFetch';
+import { usePlan } from '../hooks/usePlan';
+import { PlanPaywallCard } from './PlanPaywallCard';
 import { 
   FileText, 
   ExternalLink, 
@@ -45,7 +48,10 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
   const [projectName, setProjectName] = useState<string>(profile.projectSummary.slice(0, 60) || 'Solución de Optimización con Inteligencia Artificial');
   const [fundTarget, setFundTarget] = useState<string>('CORFO Semilla Inicia / Expande');
   const [generatingDoc, setGeneratingDoc] = useState<boolean>(false);
+  const { hasActivePlan } = usePlan();
+  const [showPaywall, setShowPaywall] = useState<boolean>(false);
   const [generatedDocText, setGeneratedDocText] = useState<string | null>(null);
+  const [docError, setDocError] = useState<string | null>(null);
   const [copied, setCopied] = useState<boolean>(false);
 
   const toggleStatus = (id: string) => {
@@ -57,8 +63,15 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
 
   const handleGenerateDocument = async () => {
     setGeneratingDoc(true);
+    setDocError(null);
     try {
-      const response = await fetch('/api/gemini/generate-doc', {
+      if (!hasActivePlan) {
+        setShowPaywall(true);
+        setGeneratingDoc(false);
+        return;
+      }
+
+      const response = await apiFetch('/api/gemini/generate-doc', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -76,54 +89,30 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
         })
       });
 
+      if (response.status === 402) {
+        setShowPaywall(true);
+        setGeneratingDoc(false);
+        return;
+      }
+
+      if (response.status === 429) {
+        const errJson = await response.json().catch(() => ({}));
+        setDocError(errJson.error || 'Puedes tener hasta 3 postulaciones activas a la vez. Archiva una para comenzar otra.');
+        setGeneratingDoc(false);
+        return;
+      }
+
       if (!response.ok) {
-        throw new Error('Error al generar el documento legal');
+        const errJson = await response.json().catch(() => ({}));
+        throw new Error(errJson.error || 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.');
       }
 
       const data = await response.json();
       setGeneratedDocText(data.documentText);
     } catch (err: any) {
-      console.error(err);
-      // High-standard fallback legal document
-      const fallback = `
-# CARTA DE MANIFESTACIÓN DE INTERÉS COMERCIAL Y COMPROMISO DE PILOTAJE
-
-**A: COMITÉ DE ASIGNACIÓN DE FONDOS - ${fundTarget.toUpperCase()}**  
-**PRESENTE**  
-
-Santiago de Chile, ${new Date().toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' })}  
-
-De nuestra consideración:
-
-Por medio de la presente, yo, **${clientContactName}**, en representación de **${clientName}**, manifiesto formalmente nuestro alto interés comercial e institucional en el proyecto titulado:
-
-> **"${projectName}"**,  
-desarrollado por la empresa **${profile.companyName}** (RUT: ${profile.rut || 'En trámite'}).
-
-### 1. RECONOCIMIENTO DEL PROBLEMA Y DOLOR EN LA INDUSTRIA
-En nuestra experiencia como empresa activa en el mercado chileno, confirmamos que los problemas de ineficiencia y falta de digitalización en el sector representan un dolor crítico que genera sobrecostos operacionales sustanciales y retrasos productivos. Actualmente no encontramos en el mercado nacional soluciones tecnológicas integradas que atiendan este requerimiento con la flexibilidad y costo adecuado.
-
-### 2. COMPROMISO DE VALIDACIÓN Y PILOTAJE
-Tras haber sostenido reuniones de trabajo con el equipo de **${profile.companyName}** y conocer su propuesta técnica, declaramos que nuestra compañía está dispuesta a:
-1. Actuar como **Empresa Piloto / Early Adopter** durante el período de ejecución del proyecto financiado por ${fundTarget}.
-2. Facilitar el acceso controlado a datos de prueba y entorno operativo para validar el desempeño de la solución.
-3. Evaluar formalmente la contratación o adquisición comercial de la solución una vez verificado el cumplimiento de los estándares técnicos comprometidos.
-
-### 3. RESPALDO A LA POSTULACIÓN
-Consideramos que este proyecto presenta un alto mérito innovador y un impacto significativo para la productividad en Chile, por lo que respaldamos decididamente su postulación a los fondos públicos cofinanciados por el Estado.
-
-Sin otro particular, saluda atentamente a ustedes,
-
-___________________________________________________  
-**${clientContactName}**  
-Representante / Cargo Directivo  
-**${clientName}**  
-RUT Institucional: _____________________________  
-Teléfono / Contacto: __________________________  
-Email Corporativo: ____________________________  
-*(Firma y Timbre de la Empresa Interesada)*
-`;
-      setGeneratedDocText(fallback.trim());
+      console.error('Doc generation error:', err);
+      setGeneratedDocText(null);
+      setDocError(err?.message || 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.');
     } finally {
       setGeneratingDoc(false);
     }
@@ -293,6 +282,24 @@ Email Corporativo: ____________________________
             )}
           </button>
         </div>
+
+        {/* Error Banner with Retry */}
+        {docError && (
+          <div className="mt-4 p-4 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
+            <div className="flex items-center gap-2.5 text-xs font-semibold">
+              <AlertCircle className="w-5 h-5 text-red-400 shrink-0" />
+              <span>{docError}</span>
+            </div>
+            <button
+              onClick={handleGenerateDocument}
+              disabled={generatingDoc}
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs transition-all cursor-pointer shrink-0"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reintentar</span>
+            </button>
+          </div>
+        )}
 
         {/* Generated Output Preview */}
         {generatedDocText && (

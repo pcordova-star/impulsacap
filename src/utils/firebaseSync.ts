@@ -5,11 +5,10 @@ import {
   collection, 
   query, 
   where, 
-  getDocs,
-  serverTimestamp 
+  getDocs 
 } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType, testConnection } from '../firebase';
-import { CompanyProfile, FormulationOutput, BlindAuditResult, CompanyUser } from '../types/funds';
+import { CompanyProfile, CompanyUser } from '../types/funds';
 import { SavedApplication } from './storage';
 
 /**
@@ -20,20 +19,27 @@ export async function initFirebaseService() {
 }
 
 /**
- * Sync user profile to Firestore
+ * Sync user profile to Firestore at users/{uid}
+ * Strictly complies with isValidUserProfile in firestore.rules
  */
 export async function syncUserProfileToFirestore(user: CompanyUser) {
-  if (!auth.currentUser) return;
-  const path = `users/${auth.currentUser.uid}`;
+  const uid = auth.currentUser?.uid || user.id;
+  if (!uid) return;
+  const path = `users/${uid}`;
   try {
-    await setDoc(doc(db, 'users', auth.currentUser.uid), {
-      email: auth.currentUser.email || user.email,
-      displayName: auth.currentUser.displayName || user.representativeName || user.companyName,
-      companyName: user.companyName,
-      companyRut: user.rut,
-      phone: user.phone || '',
-      role: 'company',
-      updatedAt: new Date().toISOString()
+    const email = (auth.currentUser?.email || user.email || '').trim().toLowerCase().slice(0, 120);
+    const displayName = (auth.currentUser?.displayName || user.representativeName || user.companyName || '').slice(0, 120);
+    const companyName = (user.companyName || 'Mi Empresa SpA').slice(0, 160);
+    const companyRut = (user.rut || '').slice(0, 20);
+    const phone = (user.phone || '').slice(0, 30);
+
+    await setDoc(doc(db, 'users', uid), {
+      email,
+      displayName,
+      companyName,
+      companyRut,
+      phone,
+      role: 'company'
     }, { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
@@ -41,28 +47,27 @@ export async function syncUserProfileToFirestore(user: CompanyUser) {
 }
 
 /**
- * Sync company profile to Firestore
+ * Sync company profile to Firestore at companies/{companyId}
+ * Strictly complies with isValidCompany in firestore.rules
  */
 export async function syncCompanyToFirestore(profile: CompanyProfile, customOwnerId?: string) {
   const uid = customOwnerId || auth.currentUser?.uid;
   if (!uid) return;
-  const companyDocId = profile.rut ? profile.rut.replace(/[^a-zA-Z0-9]/g, '_') : `comp_${uid}`;
+  const cleanRut = (profile.rut || '').trim();
+  const companyDocId = cleanRut ? cleanRut.replace(/[^a-zA-Z0-9_-]/g, '_') : `comp_${uid}`;
   const path = `companies/${companyDocId}`;
   try {
     await setDoc(doc(db, 'companies', companyDocId), {
       ownerId: uid,
-      rut: profile.rut || '',
-      companyName: profile.companyName || 'Mi Empresa SpA',
+      rut: cleanRut.slice(0, 20),
+      companyName: (profile.companyName || 'Mi Empresa SpA').slice(0, 160),
       companyType: profile.companyType || 'spa',
-      sector: profile.sector || 'Tecnología e Innovación',
-      region: profile.region || 'Región Metropolitana',
+      sector: (profile.sector || 'Tecnología, Innovación y Servicios').slice(0, 120),
+      region: (profile.region || 'Región Metropolitana').slice(0, 80),
       salesBracket: profile.salesBracket || 'menor_60m',
       annualSalesCLP: Number(profile.annualSalesCLP) || 0,
       isFemaleLed: Boolean(profile.isFemaleLed),
-      femaleEquityPct: Number(profile.femaleEquityPct) || 0,
-      trlStage: profile.trlStage || 'mvp_validado',
-      taxFolderUploaded: Boolean(profile.taxFolderUploaded),
-      updatedAt: new Date().toISOString()
+      trlStage: profile.trlStage || 'mvp_validado'
     }, { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
@@ -70,7 +75,7 @@ export async function syncCompanyToFirestore(profile: CompanyProfile, customOwne
 }
 
 /**
- * Sync application / postulation to Firestore
+ * Sync application / postulation to Firestore at applications/{appId}
  */
 export async function syncApplicationToFirestore(appData: SavedApplication, customOwnerId?: string) {
   const uid = customOwnerId || auth.currentUser?.uid;
@@ -81,12 +86,11 @@ export async function syncApplicationToFirestore(appData: SavedApplication, cust
     await setDoc(doc(db, 'applications', appId), {
       ownerId: uid,
       fundId: appData.fundId || 'semilla-inicia',
-      fundName: appData.name || 'Postulación a Fondo',
-      companyName: appData.profile.companyName || '',
-      companyRut: appData.profile.rut || '',
+      fundName: (appData.name || 'Postulación a Fondo').slice(0, 160),
+      companyName: (appData.profile.companyName || '').slice(0, 160),
+      companyRut: (appData.profile.rut || '').slice(0, 20),
       status: 'draft',
-      notes: appData.notes || '',
-      updatedAt: new Date().toISOString()
+      notes: (appData.notes || '').slice(0, 1000)
     }, { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
@@ -94,7 +98,7 @@ export async function syncApplicationToFirestore(appData: SavedApplication, cust
 }
 
 /**
- * Sync uploaded tax folder record to Firestore
+ * Sync uploaded tax folder record to Firestore at tax_folders/{folderId}
  */
 export async function syncTaxFolderToFirestore(taxInfo: {
   fileName: string;
@@ -111,12 +115,9 @@ export async function syncTaxFolderToFirestore(taxInfo: {
     await setDoc(doc(db, 'tax_folders', folderId), {
       ownerId: uid,
       fileName: taxInfo.fileName.slice(0, 180),
-      fileSize: taxInfo.fileSize || 1024,
-      companyRut: taxInfo.companyRut || '',
+      companyRut: (taxInfo.companyRut || '').slice(0, 20),
       status: 'verified',
-      summary: taxInfo.summary.slice(0, 950),
-      f29Periods: taxInfo.f29Periods || 12,
-      updatedAt: new Date().toISOString()
+      summary: taxInfo.summary.slice(0, 950)
     });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);

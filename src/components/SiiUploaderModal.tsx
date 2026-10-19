@@ -1,3 +1,4 @@
+import { apiFetch } from '../utils/apiFetch';
 import React, { useState, useRef } from 'react';
 import { CompanyProfile } from '../types/funds';
 import { validateRut, formatRut } from '../utils/rutValidator';
@@ -106,25 +107,42 @@ export const SiiUploaderModal: React.FC<SiiUploaderModalProps> = ({
         reader.onload = async () => {
           const base64 = reader.result as string;
           try {
-            const response = await fetch('/api/gemini/parse-tax-folder', {
+            const response = await apiFetch('/api/gemini/parse-tax-folder', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+              },
               body: JSON.stringify({
                 fileBase64: base64,
                 mimeType: 'application/pdf',
                 fileName: file.name
               })
             });
-            if (!response.ok) {
-              const errJson = await response.json().catch(() => ({}));
-              throw new Error(errJson.error || 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.');
+
+            const contentType = response.headers.get('content-type') || '';
+            let data: any = null;
+            if (contentType.includes('application/json')) {
+              data = await response.json();
+            } else {
+              const textResp = await response.text();
+              console.warn('Non-JSON response from parse-tax-folder:', textResp.slice(0, 150));
+              throw new Error('Hubo un problema al procesar el archivo PDF. Intenta nuevamente.');
             }
-            const data = await response.json();
+
+            if (!response.ok) {
+              throw new Error(data?.error || 'No se pudo procesar la Carpeta Tributaria. Intenta nuevamente en unos minutos.');
+            }
             setParsedData(data);
           } catch (err: any) {
             console.error('PDF parsing error:', err);
             setParsedData(null);
-            setError(err?.message || 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.');
+            const msg = err?.message || 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.';
+            if (msg.includes('Unexpected token') || msg.includes('<!doctype') || msg.includes('is not valid JSON')) {
+              setError('Hubo un problema al procesar el archivo PDF. Intenta nuevamente.');
+            } else {
+              setError(msg);
+            }
           } finally {
             setLoading(false);
           }
@@ -135,24 +153,41 @@ export const SiiUploaderModal: React.FC<SiiUploaderModalProps> = ({
         reader.onload = async () => {
           const text = reader.result as string;
           try {
-            const response = await fetch('/api/gemini/parse-tax-folder', {
+            const response = await apiFetch('/api/gemini/parse-tax-folder', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+              },
               body: JSON.stringify({
                 rawText: text,
                 fileName: file.name
               })
             });
-            if (!response.ok) {
-              const errJson = await response.json().catch(() => ({}));
-              throw new Error(errJson.error || 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.');
+
+            const contentType = response.headers.get('content-type') || '';
+            let data: any = null;
+            if (contentType.includes('application/json')) {
+              data = await response.json();
+            } else {
+              const textResp = await response.text();
+              console.warn('Non-JSON response from parse-tax-folder text:', textResp.slice(0, 150));
+              throw new Error('Hubo un problema al procesar el archivo. Intenta nuevamente.');
             }
-            const data = await response.json();
+
+            if (!response.ok) {
+              throw new Error(data?.error || 'No se pudo procesar la Carpeta Tributaria. Intenta nuevamente en unos minutos.');
+            }
             setParsedData(data);
           } catch (err: any) {
             console.error('Text parsing error:', err);
             setParsedData(null);
-            setError(err?.message || 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.');
+            const msg = err?.message || 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.';
+            if (msg.includes('Unexpected token') || msg.includes('<!doctype') || msg.includes('is not valid JSON')) {
+              setError('Hubo un problema al procesar el archivo. Intenta nuevamente.');
+            } else {
+              setError(msg);
+            }
           } finally {
             setLoading(false);
           }
@@ -174,7 +209,7 @@ export const SiiUploaderModal: React.FC<SiiUploaderModalProps> = ({
     setApplied(false);
     setError(null);
     try {
-      const response = await fetch('/api/gemini/parse-tax-folder', {
+      const response = await apiFetch('/api/gemini/parse-tax-folder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rawText: textToProcess })

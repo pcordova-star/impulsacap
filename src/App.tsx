@@ -11,6 +11,7 @@ import { DocumentManager } from './components/DocumentManager';
 import { ExpertChat } from './components/ExpertChat';
 import { SiiUploaderModal } from './components/SiiUploaderModal';
 import { MyActiveApplication } from './components/MyActiveApplication';
+import { PaymentResult } from './components/PaymentResult';
 import { AuthModal } from './components/AuthModal';
 import { AuthGateView } from './components/AuthGateView';
 import { validateRut, formatRut } from './utils/rutValidator';
@@ -23,10 +24,12 @@ import {
   loadActiveAudit,
   getCurrentUser,
   logoutCompanyUser,
-  repairAllRegisteredCompanyProfiles,
   getCleanDefaultProfile
 } from './utils/storage';
 import { initFirebaseService, syncCompanyToFirestore } from './utils/firebaseSync';
+import { auth, db } from './firebase';
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 import { 
   Building2, 
   X, 
@@ -64,7 +67,24 @@ const DEFAULT_PROFILE: CompanyProfile = {
 };
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<string>('diagnostic');
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/pago/resultado')) {
+      return 'pago-resultado';
+    }
+    return getCurrentUser() ? 'my-application' : 'diagnostic';
+  });
+
+  // URL sync for /pago/resultado
+  useEffect(() => {
+    const handleUrlRoute = () => {
+      if (typeof window !== 'undefined' && window.location.pathname.startsWith('/pago/resultado')) {
+        setActiveTab('pago-resultado');
+      }
+    };
+    handleUrlRoute();
+    window.addEventListener('popstate', handleUrlRoute);
+    return () => window.removeEventListener('popstate', handleUrlRoute);
+  }, []);
   const [selectedFund, setSelectedFund] = useState<ChileanFund>(CHILEAN_FUNDS[0]);
 
   // Authenticated Company Session
@@ -84,10 +104,67 @@ export default function App() {
   const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
   const [showSiiModal, setShowSiiModal] = useState<boolean>(false);
 
-  // Self-heal on mount: ensure no registered company has OmniSaaS data & test Firebase connection
+  // Firebase Auth listener: session driven by onAuthStateChanged
   useEffect(() => {
-    repairAllRegisteredCompanyProfiles();
     initFirebaseService();
+
+    const unsubscribe = onAuthStateChanged(auth, async (fbUser: FirebaseUser | null) => {
+      if (fbUser) {
+        let cached: Partial<CompanyUser> = {};
+        try {
+          const raw = localStorage.getItem(`impulsacap_user_meta_${fbUser.uid}`);
+          if (raw) cached = JSON.parse(raw);
+        } catch {}
+
+        let companyName = cached.companyName || fbUser.displayName || 'Mi Empresa SpA';
+        let rut = cached.rut || '';
+        let representativeName = cached.representativeName || fbUser.displayName || '';
+        let phone = cached.phone || '';
+
+        try {
+          const userDoc = await getDoc(doc(db, 'users', fbUser.uid));
+          if (userDoc.exists()) {
+            const uData = userDoc.data();
+            if (uData.companyName) companyName = uData.companyName;
+            if (uData.companyRut) rut = uData.companyRut;
+            if (uData.displayName) representativeName = uData.displayName;
+            if (uData.phone) phone = uData.phone;
+          }
+        } catch (e) {
+          console.warn('Could not read user profile from Firestore:', e);
+        }
+
+        const user: CompanyUser = {
+          id: fbUser.uid,
+          email: fbUser.email || '',
+          companyName,
+          rut,
+          representativeName,
+          phone,
+          createdAt: fbUser.metadata.creationTime || new Date().toISOString(),
+          lastLogin: new Date().toISOString()
+        };
+
+        try {
+          localStorage.setItem(`impulsacap_user_meta_${fbUser.uid}`, JSON.stringify(user));
+        } catch {}
+
+        activeUserIdRef.current = user.id;
+        setCurrentUser(user);
+        setProfile(loadActiveProfile(getCleanDefaultProfile(user), user.id));
+        setActiveFormulation(loadActiveFormulation(user.id));
+        setAuditResult(loadActiveAudit(user.id));
+        setActiveTab(prev => (prev === 'diagnostic' ? 'my-application' : prev));
+      } else {
+        activeUserIdRef.current = undefined;
+        setCurrentUser(null);
+        setProfile(getCleanDefaultProfile(null));
+        setActiveFormulation(null);
+        setAuditResult(null);
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
 
   // Track the user ID that owns the currently active in-memory profile
@@ -99,7 +176,7 @@ export default function App() {
     return loadActiveProfile(getCleanDefaultProfile(user), user?.id);
   });
 
-  // Auto-save changes strictly under current user scope (prevent saving old profile to new user ID)
+  // Auto-save changes strictly under current user scope
   useEffect(() => {
     if (activeUserIdRef.current === currentUser?.id) {
       saveActiveProfile(profile, currentUser?.id);
@@ -120,30 +197,6 @@ export default function App() {
       saveActiveAudit(auditResult, currentUser?.id);
     }
   }, [auditResult]);
-
-  // Synchronize when authentication state changes globally
-  useEffect(() => {
-    const handleAuthChange = (e: any) => {
-      const user: CompanyUser | null = e.detail || getCurrentUser();
-      activeUserIdRef.current = user?.id;
-      setCurrentUser(user);
-      if (user) {
-        setProfile(loadActiveProfile(getCleanDefaultProfile(user), user.id));
-        setActiveFormulation(loadActiveFormulation(user.id));
-        setAuditResult(loadActiveAudit(user.id));
-      } else {
-        setProfile(getCleanDefaultProfile(null));
-        setActiveFormulation(null);
-        setAuditResult(null);
-      }
-    };
-    window.addEventListener('impulsacap_auth_changed', handleAuthChange);
-    window.addEventListener('inki_auth_changed', handleAuthChange);
-    return () => {
-      window.removeEventListener('impulsacap_auth_changed', handleAuthChange);
-      window.removeEventListener('inki_auth_changed', handleAuthChange);
-    };
-  }, []);
 
   const handleAuthSuccess = (user: CompanyUser) => {
     activeUserIdRef.current = user.id;
@@ -214,10 +267,7 @@ export default function App() {
               </button>
             )}
 
-            <span className="text-slate-600 hidden sm:inline">•</span>
-            <span className="hidden sm:inline whitespace-nowrap">
-              UF Ref: <strong className="text-white">$38.540 CLP</strong>
-            </span>
+
             <span className="text-slate-600 hidden sm:inline">•</span>
             <span className="hidden sm:inline whitespace-nowrap">
               Bono Género: <strong className="text-emerald-300">+10% Subsidio Estatal</strong>
@@ -312,6 +362,15 @@ export default function App() {
               <span>Volver a Mi Postulación</span>
             </button>
           </div>
+        )}
+
+        {activeTab === 'pago-resultado' && (
+          <PaymentResult
+            onNavigateToRoadmap={() => {
+              window.history.pushState({}, '', '/');
+              setActiveTab('my-application');
+            }}
+          />
         )}
 
         {activeTab === 'diagnostic' && (

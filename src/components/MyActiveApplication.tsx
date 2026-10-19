@@ -29,7 +29,8 @@ import {
   ShieldAlert,
   Flame,
   Check,
-  RotateCcw
+  RotateCcw,
+  Archive
 } from 'lucide-react';
 import { validateRut } from '../utils/rutValidator';
 import { getGoogleCalendarUrl, downloadIcsFile } from '../utils/calendarExport';
@@ -37,6 +38,9 @@ import { CHILEAN_FUNDS } from '../data/chileanFunds';
 import { OfficialDossierModal } from './OfficialDossierModal';
 import { AdmissibilityChecker } from './AdmissibilityChecker';
 import { GuaranteesCalculator } from './GuaranteesCalculator';
+import { usePlan } from '../hooks/usePlan';
+import { PlanPaywallCard } from './PlanPaywallCard';
+import { apiFetch } from '../utils/apiFetch';
 
 interface MyActiveApplicationProps {
   profile: CompanyProfile;
@@ -62,8 +66,47 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
   onSelectFund
 }) => {
   const [activeView, setActiveView] = useState<'timeline' | 'admissibility' | 'guarantees'>('timeline');
+  const { hasActivePlan, expiresAt, daysLeft, isExpiringSoon, isExpired, refresh } = usePlan();
+  const [archiving, setArchiving] = useState<boolean>(false);
+
+  const handleArchivePostulation = async () => {
+    if (!window.confirm(`¿Deseas archivar la postulación al fondo "${selectedFund.name}" para liberar uno de tus 3 cupos simultáneos?`)) return;
+    setArchiving(true);
+    try {
+      const res = await apiFetch('/api/postulaciones/archivar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fundId: selectedFund.id })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert('Postulación archivada con éxito. Cupo liberado.');
+        refresh();
+      } else {
+        alert(data.error || 'Error al archivar la postulación.');
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Error de conexión al archivar postulación.');
+    } finally {
+      setArchiving(false);
+    }
+  };
+
+  const handleRenewPlan = async () => {
+    try {
+      const res = await apiFetch('/api/pagos/crear', { method: 'POST' });
+      const data = await res.json();
+      if (res.ok && data.init_point) {
+        window.location.href = data.init_point;
+      } else {
+        alert(data.error || 'Error al conectar con Mercado Pago.');
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Error de conexión.');
+    }
+  };
   const [showDossierModal, setShowDossierModal] = useState<boolean>(false);
-  const [expandedStep, setExpandedStep] = useState<number | null>(null);
+  const [expandedStep, setExpandedStep] = useState<number>(1);
   const [showFundSelector, setShowFundSelector] = useState<boolean>(false);
 
   // Agency official URL
@@ -157,6 +200,32 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
   }, [hasFutureCloseDate, selectedFund.closeDate]);
 
   // Define the 6 sequential steps of the application roadmap
+  // Compute current active step: only ONE step open at a time (first incomplete step)
+  const currentStepNumber = useMemo(() => {
+    const s1Done = isRutValid && confirmedInicioActividades && hasTaxFolder;
+    if (!s1Done) return 1;
+
+    const s2Done = confirmedEstatutoSocial && hasLetters;
+    if (!s2Done) return 2;
+
+    const s3Done = hasFormulation;
+    if (!s3Done) return 3;
+
+    const s4Done = hasBudget && confirmedGarantia;
+    if (!s4Done) return 4;
+
+    const s5Done = isAuditApproved;
+    if (!s5Done) return 5;
+
+    return 6;
+  }, [isRutValid, confirmedInicioActividades, hasTaxFolder, confirmedEstatutoSocial, hasLetters, hasFormulation, hasBudget, confirmedGarantia, isAuditApproved]);
+
+  // Persist current active step for the user
+  useEffect(() => {
+    const storageKey = `impulsacap_${userKey}_active_step`;
+    localStorage.setItem(storageKey, String(currentStepNumber));
+  }, [currentStepNumber, userKey]);
+
   const steps = useMemo(() => [
     {
       stepNumber: 1,
@@ -265,12 +334,10 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
   // Identify the immediate next action to prevent user confusion
   const nextStep = steps.find(s => s.status === 'in_progress') || steps.find(s => s.status === 'pending') || steps[steps.length - 1];
 
-  // Auto-expand the active next step by default
+  // Requirement 3: Only ONE step open at a time: the current step!
   useEffect(() => {
-    if (expandedStep === null && nextStep) {
-      setExpandedStep(nextStep.stepNumber);
-    }
-  }, [nextStep]);
+    setExpandedStep(currentStepNumber);
+  }, [currentStepNumber]);
 
   return (
     <div className="space-y-6 animate-fade-in max-w-5xl mx-auto">
@@ -363,8 +430,19 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
             </p>
           </div>
 
-          {/* Quick PDF Dossier Action */}
+          {/* Quick PDF Dossier & Archive Actions */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+            {currentUser && (
+              <button
+                onClick={handleArchivePostulation}
+                disabled={archiving}
+                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-3 rounded-2xl bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs border border-slate-300 transition-all cursor-pointer disabled:opacity-50"
+                title="Archivar postulación para liberar uno de tus 3 cupos simultáneos"
+              >
+                <Archive className="w-4 h-4 text-slate-500" />
+                <span>{archiving ? 'Archivando...' : 'Archivar Cupo'}</span>
+              </button>
+            )}
             <button
               onClick={() => setShowDossierModal(true)}
               className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs sm:text-sm shadow-md shadow-blue-600/20 transition-all cursor-pointer active:scale-95"
@@ -375,6 +453,55 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
           </div>
         </div>
       </div>
+
+      {/* AVISOS DE VIGENCIA DEL PLAN SEMESTRAL */}
+      {isExpiringSoon && expiresAt && (
+        <div className="p-4 rounded-3xl bg-gradient-to-r from-amber-500/20 via-amber-500/10 to-orange-500/20 border-2 border-amber-400 text-slate-900 shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fade-in">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-amber-400 text-slate-950 font-black">
+              <Clock className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-sm font-black text-slate-900">
+                Tu plan vence el {new Date(expiresAt).toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' })} ({daysLeft} {daysLeft === 1 ? 'día restante' : 'días restantes'}).
+              </h4>
+              <p className="text-xs text-slate-600">
+                Renueva para no perder el acceso a las herramientas de formulación, auditoría y dossier oficial.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleRenewPlan}
+            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs shadow-md transition-all cursor-pointer shrink-0"
+          >
+            Renovar Plan Semestral
+          </button>
+        </div>
+      )}
+
+      {isExpired && expiresAt && (
+        <div className="p-4 rounded-3xl bg-gradient-to-r from-rose-500/20 via-rose-500/10 to-pink-500/20 border-2 border-rose-400 text-slate-900 shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fade-in">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-rose-500 text-white font-black">
+              <Lock className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-sm font-black text-slate-900">
+                Tu plan semestral venció el {new Date(expiresAt).toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' })}.
+              </h4>
+              <p className="text-xs text-slate-600">
+                Conservas acceso de solo lectura a lo que ya generaste, pero no puedes generar contenido nuevo con IA.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleRenewPlan}
+            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs shadow-md transition-all cursor-pointer shrink-0"
+          >
+            Reactivar Plan Semestral
+          </button>
+        </div>
+      )}
 
       {/* 2. PROMINENT DEADLINE COUNTDOWN: "NO QUEDAR FUERA DE PLAZO" */}
       <div className="p-6 rounded-3xl bg-gradient-to-r from-blue-50/90 via-white to-emerald-50/80 border border-blue-200 shadow-sm relative overflow-hidden">
@@ -584,19 +711,29 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
 
           <div className="relative pl-6 sm:pl-8 space-y-4 before:content-[''] before:absolute before:left-3 sm:before:left-4 before:top-4 before:bottom-4 before:w-0.5 before:bg-slate-800">
             {steps.map((step) => {
-              const isExpanded = expandedStep === step.stepNumber;
-              const isCompleted = step.status === 'completed';
-              const isInProgress = step.status === 'in_progress';
+              const requiresPlan = step.stepNumber >= 3;
+              const isPlanLocked = requiresPlan && !hasActivePlan;
+              const isCurrent = step.stepNumber === currentStepNumber && !isPlanLocked;
+              const isCompleted = (step.stepNumber < currentStepNumber || step.status === 'completed') && !isPlanLocked;
+              const isLocked = isPlanLocked || (step.stepNumber > currentStepNumber);
+              const isExpanded = isCurrent || (!isLocked && expandedStep === step.stepNumber);
 
               return (
-                <div
-                  key={step.id}
+                <React.Fragment key={step.id}>
+                  {step.stepNumber === 3 && !hasActivePlan && (
+                    <div id="plan-paywall-step" className="my-6">
+                      <PlanPaywallCard
+                        highlightText="Desbloquea el Formulador Técnico por Secciones, la Auditoría Ciega oficial y la generación del Dossier Oficial para postular a este fondo."
+                      />
+                    </div>
+                  )}
+                  <div
                   className={`relative rounded-3xl transition-all border ${
-                    isInProgress
-                      ? 'bg-slate-900/90 border-cyan-500/50 shadow-lg shadow-cyan-950/20'
+                    isCurrent
+                      ? 'bg-slate-900/95 border-emerald-500/60 shadow-xl shadow-emerald-950/20 ring-1 ring-emerald-500/30'
                       : isCompleted
                       ? 'bg-slate-900/60 border-slate-800/90'
-                      : 'bg-slate-950/50 border-slate-800/50 opacity-80'
+                      : 'bg-slate-950/40 border-slate-900 opacity-60'
                   }`}
                 >
                   {/* Step Timeline Indicator Node */}
@@ -604,18 +741,23 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
                     className={`absolute -left-6 sm:-left-8 top-5 -translate-x-1/2 w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs shadow-md border-2 ${
                       isCompleted
                         ? 'bg-emerald-500 border-emerald-400 text-slate-950'
-                        : isInProgress
-                        ? 'bg-cyan-500 border-cyan-300 text-slate-950 animate-pulse'
-                        : 'bg-slate-900 border-slate-700 text-slate-400'
+                        : isCurrent
+                        ? 'bg-emerald-500 border-emerald-300 text-slate-950 ring-4 ring-emerald-500/20 animate-pulse'
+                        : 'bg-slate-900 border-slate-800 text-slate-500'
                     }`}
                   >
-                    {isCompleted ? <Check className="w-4 h-4 stroke-[3]" /> : step.stepNumber}
+                    {isCompleted ? <Check className="w-4 h-4 stroke-[3]" /> : isLocked ? <Lock className="w-3.5 h-3.5 text-slate-500" /> : step.stepNumber}
                   </div>
 
-                  {/* Step Header (Clickable Accordion) */}
+                  {/* Step Header (Clickable Accordion for unlocked steps only) */}
                   <div
-                    onClick={() => setExpandedStep(isExpanded ? null : step.stepNumber)}
-                    className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer select-none"
+                    onClick={() => {
+                      if (isLocked) return;
+                      setExpandedStep(isExpanded ? 0 : step.stepNumber);
+                    }}
+                    className={`p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 select-none ${
+                      isLocked ? 'cursor-not-allowed opacity-75' : 'cursor-pointer'
+                    }`}
                   >
                     <div className="space-y-1">
                       <div className="flex flex-wrap items-center gap-2">
@@ -626,11 +768,11 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                           isCompleted
                             ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                            : isInProgress
-                            ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30'
+                            : isCurrent
+                            ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
                             : 'bg-slate-800 text-slate-400 border border-slate-700'
                         }`}>
-                          {step.badge}
+                          {isLocked ? 'Bloqueado' : step.badge}
                         </span>
 
                         {isCompleted && (
@@ -639,49 +781,79 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
                             Completado
                           </span>
                         )}
-                        {isInProgress && (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-cyan-300">
-                            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
-                            En Curso
+                        {isCurrent && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-300">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                            Paso Actual en Curso
+                          </span>
+                        )}
+                        {isLocked && (
+                          <span className={`inline-flex items-center gap-1 text-[11px] font-semibold ${isPlanLocked ? 'text-amber-300' : 'text-slate-500'}`}>
+                            <Lock className={`w-3 h-3 ${isPlanLocked ? 'text-amber-400' : 'text-slate-500'}`} />
+                            {isPlanLocked ? 'Requiere Plan Semestral' : 'Completa el paso anterior'}
                           </span>
                         )}
                       </div>
 
-                      <h4 className="text-base sm:text-lg font-bold text-white">
+                      <h4 className={`text-base sm:text-lg font-bold ${isLocked ? 'text-slate-400' : 'text-white'}`}>
                         {step.title}
                       </h4>
                       <p className="text-xs text-slate-400">
-                        {step.subtitle}
+                        {isLocked ? (isPlanLocked ? 'Esta herramienta requiere el Plan Semestral activo.' : 'Completa el paso anterior para desbloquear esta etapa.') : step.subtitle}
                       </p>
                     </div>
 
+                    {/* Single Main Action Button per step */}
                     <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          step.onAction();
-                        }}
-                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                          isInProgress
-                            ? 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-md shadow-cyan-600/20'
-                            : isCompleted
-                            ? 'bg-slate-800 hover:bg-slate-700 text-slate-200'
-                            : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
-                        }`}
-                      >
-                        <span>{step.actionLabel}</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </button>
-
-                      <div className="p-1.5 rounded-lg text-slate-500 hover:text-slate-300">
-                        <ChevronDown className={`w-5 h-5 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
-                      </div>
+                      {isLocked ? (
+                        isPlanLocked ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              document.getElementById('plan-paywall-step')?.scrollIntoView({ behavior: 'smooth' });
+                            }}
+                            className="px-4 py-2 rounded-xl text-xs font-bold bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-300 cursor-pointer flex items-center gap-1.5 transition-all shadow-sm"
+                          >
+                            <Lock className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Desbloquear con Plan</span>
+                          </button>
+                        ) : (
+                          <button
+                            disabled
+                            className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 border border-slate-800 text-slate-500 cursor-not-allowed flex items-center gap-1.5 opacity-60"
+                          >
+                            <Lock className="w-3.5 h-3.5" />
+                            <span>Completa el paso anterior</span>
+                          </button>
+                        )
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            step.onAction();
+                          }}
+                          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                            isCurrent
+                              ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-md shadow-emerald-950/40 active:scale-95'
+                              : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+                          }`}
+                        >
+                          <span>{step.actionLabel}</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {!isLocked && (
+                        <div className="p-1.5 rounded-lg text-slate-500 hover:text-slate-300">
+                          <ChevronDown className={`w-5 h-5 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                        </div>
+                      )}
                     </div>
                   </div>
 
                   {/* Step Expanded Content (Checklist of documents and processes) */}
-                  {isExpanded && (
+                  {isExpanded && !isLocked && (
                     <div className="px-5 pb-5 pt-2 border-t border-slate-800/70 space-y-4 animate-in fade-in">
                       <div className="bg-slate-950/70 p-4 rounded-2xl border border-slate-800/80 space-y-3">
                         <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
@@ -740,6 +912,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
                     </div>
                   )}
                 </div>
+                </React.Fragment>
               );
             })}
           </div>

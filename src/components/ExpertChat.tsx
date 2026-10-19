@@ -1,5 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { CompanyProfile, ChileanFund } from '../types/funds';
+import { apiFetch } from '../utils/apiFetch';
+import { usePlan } from '../hooks/usePlan';
+import { PlanPaywallCard } from './PlanPaywallCard';
 import { 
   Send, 
   Sparkles, 
@@ -48,6 +51,8 @@ Estoy analizando tu empresa: **${profile.companyName || 'Tu Empresa'}** (${profi
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
+  const { hasActivePlan } = usePlan();
+  const [showPaywall, setShowPaywall] = useState<boolean>(false);
   const [failedText, setFailedText] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -75,7 +80,13 @@ Estoy analizando tu empresa: **${profile.companyName || 'Tu Empresa'}** (${profi
     setLoading(true);
 
     try {
-      const response = await fetch('/api/gemini/chat', {
+      if (!hasActivePlan) {
+        setShowPaywall(true);
+        setLoading(false);
+        return;
+      }
+
+      const response = await apiFetch('/api/gemini/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -84,6 +95,19 @@ Estoy analizando tu empresa: **${profile.companyName || 'Tu Empresa'}** (${profi
           currentFund: currentFund || null
         })
       });
+
+      if (response.status === 402) {
+        setShowPaywall(true);
+        setLoading(false);
+        return;
+      }
+
+      if (response.status === 429) {
+        const errJson = await response.json().catch(() => ({}));
+        setChatError(errJson.error || 'Puedes tener hasta 3 postulaciones activas a la vez. Archiva una para comenzar otra.');
+        setLoading(false);
+        return;
+      }
 
       if (!response.ok) {
         const errJson = await response.json().catch(() => ({}));
