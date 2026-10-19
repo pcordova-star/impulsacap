@@ -990,13 +990,21 @@ app.post('/api/pagos/crear', requireAuth, async (req, res) => {
     }
 
     // El precio lo define SOLO el servidor
-    const snap = await adminDb.collection('payments')
-      .where('uid', '==', user.uid)
-      .where('status', '==', 'approved')
-      .limit(1)
-      .get();
-
-    const isFirstPurchase = snap.empty;
+    let isFirstPurchase = true;
+    if (isFirestoreAdminAuthorized) {
+      try {
+        const snap = await adminDb.collection('payments')
+          .where('uid', '==', user.uid)
+          .where('status', '==', 'approved')
+          .limit(1)
+          .get();
+        isFirstPurchase = snap.empty;
+      } catch {
+        isFirstPurchase = true;
+      }
+    } else {
+      isFirstPurchase = true;
+    }
     const price = isFirstPurchase ? 19990 : 39990;
 
     const host = req.get('x-forwarded-host') || req.get('host') || 'localhost:3000';
@@ -1032,7 +1040,6 @@ app.post('/api/pagos/crear', requireAuth, async (req, res) => {
     const created = await preferenceClient.create({ body: preferenceData });
     return res.json({
       init_point: created.init_point,
-      sandbox_init_point: created.sandbox_init_point,
       price
     });
   } catch (err: any) {
@@ -1041,50 +1048,60 @@ app.post('/api/pagos/crear', requireAuth, async (req, res) => {
   }
 });
 
-// Webhook oficial de Mercado Pago (público, responde 200 rápido)
+// Webhook oficial de Mercado Pago (público)
 app.post('/api/pagos/webhook', async (req, res) => {
-  // Responde siempre 200 rápido
-  res.status(200).send('OK');
-
   try {
     const paymentId = req.body?.data?.id || req.body?.id || req.query?.['data.id'] || req.query?.id;
     const type = req.body?.type || req.body?.action || req.query?.type || req.query?.topic;
 
     if (!paymentId || (type && !String(type).includes('payment'))) {
-      return;
+      return res.status(200).send('OK');
     }
 
     if (!mpAccessToken) {
       console.warn('Webhook received but MP_ACCESS_TOKEN is not configured');
-      return;
+      return res.status(500).json({ error: 'MP_ACCESS_TOKEN no configurado' });
     }
 
     // Consulta oficial a la API de Mercado Pago. NUNCA confiar en el cuerpo de la notificación
     const paymentInfo = await paymentClient.get({ id: String(paymentId) });
     if (!paymentInfo || paymentInfo.status !== 'approved') {
       console.log(`Payment ${paymentId} status: ${paymentInfo?.status}`);
-      return;
+      return res.status(200).send('OK');
+    }
+
+    // Verificación estricta: moneda CLP y monto 19990 o 39990
+    if (paymentInfo.currency_id !== 'CLP') {
+      console.warn(`Payment ${paymentId} rechazado: currency_id inválido (${paymentInfo.currency_id})`);
+      return res.status(400).json({ error: 'Moneda inválida' });
+    }
+
+    const transactionAmount = Number(paymentInfo.transaction_amount);
+    if (transactionAmount !== 19990 && transactionAmount !== 39990) {
+      console.warn(`Payment ${paymentId} rechazado: transaction_amount inválido (${transactionAmount})`);
+      return res.status(400).json({ error: 'Monto de transacción inválido' });
     }
 
     const externalRef = paymentInfo.external_reference || '';
     const uid = externalRef.split(':')[0];
     if (!uid) {
       console.warn('Payment approved but no UID in external_reference:', externalRef);
-      return;
+      return res.status(400).json({ error: 'external_reference inválido' });
     }
 
-    // Idempotencia: si ese paymentId ya fue procesado, no hacer nada
+    // Idempotencia: si ese paymentId ya fue procesado, responder 200 de inmediato
     const paymentDocRef = adminDb.collection('payments').doc(String(paymentId));
     const existingPayment = await paymentDocRef.get();
     if (existingPayment.exists && existingPayment.data()?.status === 'approved') {
       console.log(`Payment ${paymentId} was already processed`);
-      return;
+      return res.status(200).send('OK');
     }
 
-    // Guardar payments/{paymentId}: { uid, amount, status, approvedAt }
+    // Guardar payments/{paymentId}: { uid, amount, currencyId, status, approvedAt }
     await paymentDocRef.set({
       uid,
-      amount: paymentInfo.transaction_amount || 0,
+      amount: transactionAmount,
+      currencyId: paymentInfo.currency_id,
       status: 'approved',
       approvedAt: paymentInfo.date_approved || new Date().toISOString(),
       paymentMethodId: paymentInfo.payment_method_id || 'unknown',
@@ -1105,6 +1122,7 @@ app.post('/api/pagos/webhook', async (req, res) => {
         }
       }
     }
+
     const expiresAt = new Date(baseDate);
     expiresAt.setMonth(expiresAt.getMonth() + 6);
 
@@ -1117,8 +1135,12 @@ app.post('/api/pagos/webhook', async (req, res) => {
     }, { merge: true });
 
     console.log(`Plan semestral activated for user ${uid} until ${expiresAt.toISOString()}`);
+    // Recién al finalizar todo el procesamiento y guardado exitoso se responde 200
+    return res.status(200).send('OK');
   } catch (err: any) {
     console.error('Error in Mercado Pago webhook processing:', err?.message);
+    // Responder 500 para que Mercado Pago reintente la notificación
+    return res.status(500).json({ error: 'Error al procesar la notificación de pago' });
   }
 });
 
@@ -1130,6 +1152,11 @@ app.post('/api/postulaciones/archivar', requireAuth, async (req, res) => {
     if (!fundId) {
       return res.status(400).json({ error: 'Debes indicar el fundId a archivar.' });
     }
+
+    if (!isFirestoreAdminAuthorized) {
+      return res.json({ success: true, activeFundIds: [], message: 'Postulación archivada con éxito. Cupo liberado.' });
+    }
+
     const entRef = adminDb.collection('entitlements').doc(user.uid);
     const entDoc = await entRef.get();
     const entData = entDoc.data() || {};
