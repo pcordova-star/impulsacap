@@ -1,6 +1,8 @@
 {
-  "name": "INKI - Fondos Concursables Chile con IA",
-  "description": "INKI (Buena Suerte). Plataforma de inteligencia artificial para diagnóstico, formulación técnica, auditoría y postulación a fondos concursables en Chile (CORFO, SERCOTEC, ANID, Start-Up Chile, FIA y ProChile).",
+  "name": "ImpulsaCap - Fondos Concursables Chile con IA",
+  "description": "ImpulsaCap. Plataforma de inteligencia artificial para diagnóstico, formulación técnica, auditoría y postulación a fondos concursables en Chile (CORFO, SERCOTEC, ANID, Start-Up Chile, FIA y ProChile).",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

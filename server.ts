@@ -4,6 +4,9 @@ import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { CHILEAN_FUNDS } from './src/data/chileanFunds';
+import { evaluateChileanGrantMatch, isNonActivityQuery } from './src/utils/grantMatcher';
+import { validateRut, formatRut } from './src/utils/rutValidator';
 
 dotenv.config();
 
@@ -13,7 +16,8 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Shared Gemini client utility (User-Agent header required for telemetry)
 const apiKey = process.env.GEMINI_API_KEY || '';
@@ -28,418 +32,135 @@ const ai = new GoogleGenAI({
 
 const MODEL_NAME = 'gemini-3.8-flash';
 
-// 0. Match Inmediato WOW (Efecto de Entrada: 1 sola respuesta / pregunta del usuario)
+// 0. Match Inmediato Rápido
 app.post('/api/gemini/instant-match', async (req, res) => {
   try {
-    const { userPrompt, availableFunds } = req.body;
+    const userPrompt = String(req.body?.userPrompt || req.body?.query || '').trim().slice(0, 2000);
+    const targetFundHint = req.body?.targetFundHint;
+    const availableFunds = Array.isArray(req.body?.availableFunds) && req.body.availableFunds.length > 0
+      ? req.body.availableFunds
+      : CHILEAN_FUNDS.map(f => ({
+          id: f.id,
+          name: f.name,
+          agency: f.agency,
+          maxSubsidyCLP: f.maxSubsidyCLP,
+          maxCoFinancePct: f.maxCoFinancePct,
+          femaleBonusPct: f.femaleBonusPct,
+          salesRequirement: f.salesRequirement,
+          status: f.status,
+          callSchedule: f.callSchedule,
+          callStatus: f.callStatus,
+          closeDate: f.closeDate
+        }));
 
-    const prompt = `Eres el especialista sénior en fondos concursables en Chile (CORFO, SERCOTEC, ANID, Start-Up Chile, FIA).
-El usuario acaba de ingresar a la plataforma y responde a la pregunta de entrada sobre su proyecto o empresa:
+    if (!userPrompt) {
+      return res.status(400).json({ error: 'Debes ingresar una descripción de tu proyecto o empresa.' });
+    }
 
-RESPUESTA DEL USUARIO:
-"${userPrompt}"
+    if (isNonActivityQuery(userPrompt)) {
+      const nonAct = evaluateChileanGrantMatch(userPrompt, targetFundHint);
+      return res.json({ ...nonAct, analizadoCon: 'reglas' });
+    }
 
-FONDOS DE REFERENCIA DISPONIBLES EN CHILE:
+    const systemInstruction = `Eres el especialista sénior en fondos públicos y subsidios concursables de Chile (CORFO, SERCOTEC, ANID, Start-Up Chile, FIA).
+Tu misión es recomendar el fondo más adecuado para el usuario basándote EXCLUSIVAMENTE en la lista de fondos oficiales permitidos en 'availableFunds'.
+
+REGLAS ESTRICTAS DE NEGOCIO Y ADMISIBILIDAD:
+1. SOLO puedes recomendar fondos presentes en 'availableFunds'. Usa EXACTAMENTE su 'id' y 'name' oficial tal como aparecen en los datos. Está ESTRICTAMENTE PROHIBIDO inventar nombres de fondos (por ejemplo, NUNCA uses "Semilla Inicia para Empresas Lideradas por Mujeres y Startups" ni variantes no existentes).
+2. NO puedes inventar fechas ni plazos. Para las fechas ('whenToApply') y el estado ('status'), debes usar EXACTAMENTE los valores que vienen en 'callSchedule' y 'status' del fondo en 'availableFunds'. Si no hay fecha o callStatus es 'por_confirmar', responde "Próxima convocatoria por confirmar".
+3. 'femaleBonusEligible': debe ser true ÚNICAMENTE si el usuario declaró EXPLÍCITAMENTE en su texto que la empresa está liderada por mujeres, que es una emprendedora mujer o que cuenta con socias mayoritarias. NUNCA lo asumas si el texto no lo dice expresamente.
+4. Si el fondo recomendado es 'sercotec_abeja_emprende', este fondo es exclusivo de mujeres.
+5. Devuelve un JSON estructurado con el match principal y alternativas válidas de 'availableFunds'.`;
+
+    const prompt = `FONDOS OFICIALES DISPONIBLES:
 ${JSON.stringify(availableFunds, null, 2)}
 
-Tu misión WOW:
-Determinar INMEDIATAMENTE a qué fondos chilenos puede postular, cuánto dinero puede ganarse (en CLP no reembolsables) y EXACTAMENTE CUÁNDO SE POSTULA (fechas del calendario de convocatorias 2026).
+DESCRIPCIÓN DEL USUARIO:
+"""${userPrompt}"""
+${targetFundHint ? `(Preferencia indicada: ${targetFundHint})` : ''}
 
-Responde ÚNICAMENTE en formato JSON con la siguiente estructura:
+Responde ÚNICAMENTE en JSON con este formato estricto:
 {
-  "wowHeadline": "¡Calificas directamente para fondos CORFO y SERCOTEC!",
+  "isValidProject": true,
+  "wowHeadline": "¡Calificas directamente para [Nombre exacto del fondo en availableFunds]!",
   "primaryFund": {
-    "fundId": "id_del_fondo_principal",
-    "fundName": "Nombre oficial",
-    "agency": "CORFO / SERCOTEC / etc.",
-    "subsidyFormatted": "$15.000.000 CLP",
+    "fundId": "id_del_fondo_en_availableFunds",
+    "fundName": "Nombre exacto del fondo en availableFunds",
+    "agency": "CORFO | SERCOTEC | ANID | START-UP CHILE | FIA",
+    "subsidyFormatted": "$XX.XXX.XXX CLP",
     "maxSubsidyCLP": 15000000,
     "coFinancePct": 75,
-    "whenToApply": "Convocatoria Abierta 2026 - Cierre el 28 de Abril (¡Postula ahora!)",
-    "status": "Abierto",
-    "matchScore": 96,
-    "whyYouQualify": "Explicación directa de por qué su perfil es ideal para este fondo.",
-    "femaleBonusEligible": true,
-    "femaleBonusText": "+10% adicional por liderazgo femenino"
+    "whenToApply": "Valor exacto de callSchedule o 'Próxima convocatoria por confirmar'",
+    "status": "Valor exacto de status",
+    "matchScore": 94,
+    "whyYouQualify": "Explicación concreta de calce según rubro y ventas.",
+    "femaleBonusEligible": false,
+    "femaleBonusText": "+10% Bonificación Género CORFO/SERCOTEC (solo si aplica explícitamente)"
   },
   "secondaryFunds": [
     {
-      "fundId": "id_del_fondo_secundario",
-      "fundName": "Nombre",
+      "fundId": "id_alternativa",
+      "fundName": "Nombre exacto alternativa en availableFunds",
       "agency": "CORFO",
-      "subsidyFormatted": "$25.000.000 CLP",
-      "whenToApply": "Próxima apertura: Mayo 2026",
-      "status": "Próxima Convocatoria",
-      "matchScore": 84
+      "subsidyFormatted": "$XX.XXX.XXX CLP",
+      "whenToApply": "Valor exacto de callSchedule o 'Próxima convocatoria por confirmar'",
+      "status": "Valor exacto de status",
+      "matchScore": 82
     }
   ],
-  "inferredProfile": {
-    "companyName": "Nombre extraído o sugerido",
-    "companyType": "spa",
-    "monthsActive": 6,
-    "salesBracket": "menor_60m",
-    "sector": "Sector inferido",
-    "isFemaleLed": false,
-    "trlStage": "mvp_validado",
-    "innovationLevel": "tech_disruptive",
-    "projectSummary": "Resumen conciso del proyecto"
-  },
-  "actionCallout": "Tu proyecto cumple con el examen de admisibilidad. El siguiente paso es formular la propuesta técnica con IA."
+  "actionCallout": "Acción recomendada"
 }`;
 
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
       contents: prompt,
       config: {
-        responseMimeType: 'application/json',
-        temperature: 0.2,
-      },
-    });
-
-    const text = response.text || '{}';
-    const parsed = JSON.parse(text);
-    return res.json(parsed);
-  } catch (error: any) {
-    console.warn('Gemini temporary high demand, utilizing deterministic Chilean matching engine:', error.message);
-    const q = (req.body?.query || '').toLowerCase();
-    
-    let fund = {
-      id: 'corfo_semilla_inicia',
-      name: 'Semilla Inicia para Empresas Lideradas por Mujeres y Startups (CORFO)',
-      agency: 'CORFO',
-      subsidyFormatted: '$15.000.000 - $17.000.000 CLP',
-      maxSubsidyCLP: 17000000,
-      coFinancePct: 85,
-      whenToApply: 'Convocatoria Nacional 2026: Abierta hasta el 30 de Abril a las 13:00 hrs',
-      femaleBonus: true
-    };
-
-    if (q.includes('mujer') || q.includes('abeja') || q.includes('emprendedora')) {
-      fund = {
-        id: 'sercotec_abeja_emprende',
-        name: 'Capital Abeja Emprende (SERCOTEC)',
-        agency: 'SERCOTEC',
-        subsidyFormatted: '$3.500.000 CLP',
-        maxSubsidyCLP: 3500000,
-        coFinancePct: 95,
-        whenToApply: 'Convocatoria Regional 2026: Abierta entre Abril y Junio',
-        femaleBonus: true
-      };
-    } else if (q.includes('expande') || (q.includes('ventas') && !q.includes('sin ventas'))) {
-      fund = {
-        id: 'corfo_semilla_expande',
-        name: 'Semilla Expande (CORFO)',
-        agency: 'CORFO',
-        subsidyFormatted: '$25.000.000 CLP (+ $20.000.000 Etapa 2)',
-        maxSubsidyCLP: 45000000,
-        coFinancePct: 75,
-        whenToApply: 'Convocatoria Nacional 2026: Abierta hasta el 15 de Mayo',
-        femaleBonus: true
-      };
-    } else if (q.includes('pyme') || q.includes('crece') || q.includes('maquinaria')) {
-      fund = {
-        id: 'sercotec_crece',
-        name: 'Fondo Crece para Empresas Formalizadas (SERCOTEC)',
-        agency: 'SERCOTEC',
-        subsidyFormatted: '$5.000.000 CLP',
-        maxSubsidyCLP: 5000000,
-        coFinancePct: 80,
-        whenToApply: 'Convocatoria Regional 2026: Ventanilla Mayo a Julio',
-        femaleBonus: false
-      };
-    }
-
-    return res.json({
-      wowHeadline: `¡Calificas directamente para ${fund.name}!`,
-      primaryFund: {
-        fundId: fund.id,
-        fundName: fund.name,
-        agency: fund.agency,
-        subsidyFormatted: fund.subsidyFormatted,
-        maxSubsidyCLP: fund.maxSubsidyCLP,
-        coFinancePct: fund.coFinancePct,
-        whenToApply: fund.whenToApply,
-        status: 'Abierto',
-        matchScore: 95,
-        whyYouQualify: 'Tu perfil cumple con las bases del concurso: tipo de postulante admisible, nivel de facturación ante SII compatible y alto potencial de impacto en Chile.',
-        femaleBonusEligible: fund.femaleBonus,
-        femaleBonusText: fund.femaleBonus ? '+10% Adicional por Liderazgo Femenino' : undefined
-      },
-      secondaryFunds: [
-        {
-          fundId: 'start_up_chile_build',
-          fundName: 'Build (Start-Up Chile / CORFO)',
-          agency: 'START-UP CHILE',
-          subsidyFormatted: '$15.000.000 CLP',
-          whenToApply: 'Próxima convocatoria: Junio 2026',
-          status: 'Próxima Convocatoria',
-          matchScore: 84
-        }
-      ],
-      actionCallout: 'Tienes los requisitos clave para postular. Regístrate a continuación para proteger tus datos y activar el Formulador IA.'
-    });
-  }
-});
-
-// 0.1 Lector Inteligente de Carpeta Tributaria Electrónica SII (F29 / F22)
-app.post('/api/gemini/parse-tax-folder', async (req, res) => {
-  try {
-    const { rawText } = req.body;
-
-    const prompt = `Actúa como un contador auditor especialista en tributación chilena y admisibilidad CORFO / SERCOTEC.
-Analiza la siguiente información o fragmentos de texto provenientes de una "Carpeta Tributaria Electrónica para Solicitar Créditos / Fondos Públicos" o declaraciones de F29 del SII de Chile:
-
-CONTENIDO DE LA CARPETA TRIBUTARIA:
-"""
-${rawText}
-"""
-
-Extrae rigurosamente los siguientes datos oficiales:
-1. RUT de la empresa (formato con puntos y guion, ej: 77.123.456-K).
-2. Razón Social o Nombre del Contribuyente.
-3. Tipo de persona jurídica ('spa', 'srl', 'eirl', 'sa', 'persona_natural').
-4. Fecha aproximada de Inicio de Actividades y cálculo de meses activo ante el SII.
-5. Estimación de ventas netas anuales en pesos chilenos ($ CLP) sumando los códigos de débito fiscal / facturación de los F29.
-6. Clasificación de tramo de ventas según UF (UF ~$38.500 CLP):
-   - 'sin_ventas' (si no registra facturación o es $0)
-   - 'menor_60m' (ventas < $60.000.000 CLP, ideal Corfo Semilla)
-   - 'micro_200_a_2400uf' (entre 200 y 2.400 UF)
-   - 'pequena_2400_a_25000uf' (entre 2.400 y 25.000 UF, ideal Sercotec Crece)
-   - 'mediana_25000_a_100000uf'
-   - 'grande_mayor_100000uf'
-7. Detección de "Red Flags" de admisibilidad (ej: si hay algún mes con F29 "No Declarado" o morosidad que pueda causar rechazo inmediato).
-8. Resumen ejecutivo del estado tributario para postulación.
-
-Responde ÚNICAMENTE en formato JSON con la siguiente estructura:
-{
-  "rut": "77.123.456-K",
-  "companyName": "Razón Social Encontrada",
-  "companyType": "spa",
-  "monthsActive": 14,
-  "annualSalesCLP": 18500000,
-  "salesBracket": "menor_60m",
-  "hasMissingF29": false,
-  "siiStatusObservations": "Declaraciones de F29 al día en los últimos 12 meses. Sin inconsistencias detectadas.",
-  "admissibilityVerdict": "100% Admisible para Fondos Concursables",
-  "bestFitFundRecommendation": "CORFO Semilla Inicia / Expande"
-}`;
-
-    const response = await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: prompt,
-      config: {
+        systemInstruction,
         responseMimeType: 'application/json',
         temperature: 0.1,
       },
     });
 
-    const text = response.text || '{}';
+    const text = response.text || '';
+    if (!text) throw new Error('Respuesta vacía de Gemini');
     const parsed = JSON.parse(text);
-    return res.json(parsed);
-  } catch (error: any) {
-    console.error('Error in /api/gemini/parse-tax-folder:', error);
-    return res.status(500).json({ error: error.message || 'Error al procesar carpeta tributaria' });
+    return res.json({ ...parsed, analizadoCon: 'ia' });
+  } catch (err: any) {
+    console.error('Error in /api/gemini/instant-match:', err?.message);
+    return res.status(503).json({ error: 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.' });
   }
 });
 
-// 1. Diagnóstico y Calce Inteligente de Fondos
-app.post('/api/gemini/diagnose', async (req, res) => {
-  try {
-    const { profile, availableFunds } = req.body;
-
-    const prompt = `Eres el especialista sénior en fondos concursables en Chile (CORFO, SERCOTEC, ANID, Start-Up Chile, FIA, ProChile).
-Analiza el perfil de esta empresa chilena y evalúa su compatibilidad contra los fondos disponibles.
-
-PERFIL DE LA EMPRESA:
-${JSON.stringify(profile, null, 2)}
-
-FONDOS DE REFERENCIA DISPONIBLES EN CHILE:
-${JSON.stringify(availableFunds, null, 2)}
-
-Tu tarea:
-1. Para cada fondo, calcula un matchScore de 0 a 100 y determina si es eligible (cumple requisitos de antigüedad, ventas en UF o CLP, tipo de persona jurídica, nivel TRL e innovación).
-2. Considera si aplica bonificación de género (+10% de cofinanciamiento para empresas lideradas por mujeres según normativa CORFO/SERCOTEC).
-3. Calcula el aporte empresarial mínimo en efectivo (pecuniario) y valorado según bases oficiales.
-4. Entrega motivos concretos de elegibilidad o bloqueadores excluyentes.
-5. Brinda un consejo estratégico específico para maximizar opciones de adjudicación en Chile.
-
-Responde ÚNICAMENTE en formato JSON con la siguiente estructura:
-{
-  "matches": [
-    {
-      "fundId": "id_del_fondo",
-      "fundName": "Nombre",
-      "agency": "CORFO",
-      "matchScore": 92,
-      "isEligible": true,
-      "maxSubsidyCLP": 15000000,
-      "maxSubsidyFormatted": "$15.000.000 CLP",
-      "femaleBonusApplied": true,
-      "coFinancePct": 85,
-      "companyContributionPct": 15,
-      "companyCashRequiredCLP": 2250000,
-      "reasonsEligible": ["Motivo 1", "Motivo 2"],
-      "blockers": [],
-      "strategicAdvice": "Consejo de postulación",
-      "recommendedFocus": ["Foco 1", "Foco 2"]
-    }
-  ],
-  "topRecommendationId": "id_del_fondo_con_mejor_calce",
-  "overallReadinessSummary": "Resumen ejecutivo del estado de madurez de la empresa para postular hoy en Chile.",
-  "requiredNextSteps": ["Paso 1: Tramitar carpeta tributaria SII", "Paso 2: ..."]
-}`;
-
-    const response = await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-        temperature: 0.2,
-      },
-    });
-
-    const text = response.text || '{}';
-    const parsed = JSON.parse(text);
-    return res.json(parsed);
-  } catch (error: any) {
-    console.error('Error in /api/gemini/diagnose:', error);
-    return res.status(500).json({ error: error.message || 'Error al diagnosticar fondos' });
-  }
-});
-
-// 2. Formulación Técnica Completa para Postulación
-app.post('/api/gemini/formulate', async (req, res) => {
-  try {
-    const { profile, fund, specificInstructions } = req.body;
-
-    const prompt = `Eres el redactor y formulador de proyectos número 1 de Chile, con un récord de más de 85% de adjudicaciones en CORFO (Semilla Inicia, Semilla Expande, Crea y Valida), SERCOTEC y Start-Up Chile.
-
-Redacta la formulación técnica oficial para este proyecto, adaptada con máxima precisión a los criterios y formularios de evaluación de ${fund.name} (${fund.agency}).
-
-DATOS DE LA EMPRESA / POSTULANTE:
-${JSON.stringify(profile, null, 2)}
-
-BASES Y CRITERIOS DEL FONDO:
-${JSON.stringify(fund, null, 2)}
-
-INSTRUCCIONES ADICIONALES:
-${specificInstructions || 'Ninguna'}
-
-REGLAS DE ORO CORFO/SERCOTEC:
-- Lenguaje riguroso, asertivo, cuantitativo con métricas comprobables de dolor y mercado chileno.
-- Prohibido usar clichés vacíos ("somos la mejor solución", "revolucionario sin datos").
-- En el Problema: magnitud del dolor en Chile/Latam, costo de la ineficiencia, alternativas actuales y por qué fallan.
-- En la Solución: grado de novedad, barreras de entrada técnicas, por qué es difícil de replicar.
-- Mercado: TAM, SAM, SOM con cifras razonables en CLP / USD y perfil del cliente B2B o B2C.
-- Plan de Trabajo: 3 o 4 hitos críticos a 9-12 meses con entregables verificables (TRL objetivo).
-- Presupuesto: Desglose por cuentas CORFO (Recursos Humanos, Gastos de Operación, Inversión, Administración) respetando los topes porcentuales del fondo.
-
-Responde ÚNICAMENTE en formato JSON con la siguiente estructura exacta:
-{
-  "fundId": "${fund.id}",
-  "fundName": "${fund.name}",
-  "projectTitle": "Título llamativo y técnico del proyecto",
-  "pitchSummary30s": "Elevator pitch de 30 segundos para el comité evaluador",
-  "problemStatement": "Descripción profunda del dolor, causas, costos para el cliente y alternativas existentes",
-  "solutionAndInnovation": "Descripción técnica de la solución, arquitectura tecnológica y factores diferenciales",
-  "noveltyVsCompetitors": "Análisis comparativo de competidores en Chile y el mundo, y ventajas competitivas sostenibles",
-  "marketAnalysisTAM": {
-    "tam": "Mercado Total Direccionable con fuente y cálculo",
-    "sam": "Mercado Disponible que la empresa puede atender",
-    "som": "Mercado Objetivo para los primeros 12-24 meses",
-    "clientArchetype": "Perfil detallado del decisor o buyer persona chileno"
-  },
-  "businessModel": "Estrategia de monetización (SaaS, comisión, B2B enterprise, etc.), canales de captación y unit economics",
-  "workPlanMilestones": [
-    {
-      "month": "Mes 1 a 3",
-      "title": "Hito 1: Prototipo funcional y pruebas de laboratorio",
-      "description": "Detalle de actividades operativas",
-      "deliverable": "Entregable verificable",
-      "criticalRisk": "Riesgo técnico o comercial y plan de mitigación"
-    },
-    {
-      "month": "Mes 4 a 7",
-      "title": "Hito 2: Validación en entorno real con clientes piloto",
-      "description": "Detalle de actividades",
-      "deliverable": "Informes de pilotaje y cartas de conformidad",
-      "criticalRisk": "Riesgo y mitigación"
-    },
-    {
-      "month": "Mes 8 a 10",
-      "title": "Hito 3: Empaquetamiento comercial y primeras ventas",
-      "description": "Detalle de actividades",
-      "deliverable": "Facturación o pre-contratos comerciales",
-      "criticalRisk": "Riesgo y mitigación"
-    }
-  ],
-  "budgetBreakdown": [
-    {
-      "account": "Recursos Humanos",
-      "item": "Líder Técnico / Desarrollador Full-Stack",
-      "corfoContributionCLP": 6000000,
-      "companyPecuniaryCLP": 500000,
-      "companyValuedCLP": 1000000,
-      "justification": "Dedicado al desarrollo de la plataforma y arquitectura"
-    },
-    {
-      "account": "Gastos de Operación",
-      "item": "Servicios Cloud e Infraestructura IA (GCP/AWS)",
-      "corfoContributionCLP": 3000000,
-      "companyPecuniaryCLP": 400000,
-      "companyValuedCLP": 0,
-      "justification": "Despliegue y procesamiento de modelos"
-    },
-    {
-      "account": "Gastos de Operación",
-      "item": "Marketing digital y prospección comercial B2B",
-      "corfoContributionCLP": 3500000,
-      "companyPecuniaryCLP": 600000,
-      "companyValuedCLP": 0,
-      "justification": "Campañas de prospección de clientes piloto"
-    },
-    {
-      "account": "Gastos de Administración",
-      "item": "Gestión contable y rendición de cuentas pública",
-      "corfoContributionCLP": 1000000,
-      "companyPecuniaryCLP": 200000,
-      "companyValuedCLP": 0,
-      "justification": "Rendición mensual en sistema de Corfo y auditoría"
-    }
-  ],
-  "teamCapabilities": "Experiencia del equipo fundador, complementariedad técnica y de negocios, dedicación horaria",
-  "bonusFemaleJustification": "Justificación de liderazgo femenino y porcentaje de participación social para el 10% adicional de bonificación"
-}`;
-
-    const response = await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-        temperature: 0.3,
-      },
-    });
-
-    const text = response.text || '{}';
-    const parsed = JSON.parse(text);
-    return res.json(parsed);
-  } catch (error: any) {
-    console.error('Error in /api/gemini/formulate:', error);
-    return res.status(500).json({ error: error.message || 'Error al formular el proyecto' });
-  }
-});
-
-// 2.5 Lector Inteligente de Carpeta Tributaria SII (PDF o Texto / XML)
+// 0.1 Lector Inteligente de Carpeta Tributaria Electrónica SII (PDF o Texto)
 app.post('/api/gemini/parse-tax-folder', async (req, res) => {
   try {
-    const { rawText, fileBase64, mimeType, fileName } = req.body;
+    const { rawText, fileBase64, mimeType, fileName } = req.body || {};
+
+    let contents: any;
+    if (fileBase64 && mimeType) {
+      const cleanBase64 = fileBase64.includes('base64,') ? fileBase64.split('base64,')[1] : fileBase64;
+      contents = [
+        {
+          inlineData: {
+            mimeType: mimeType === 'application/pdf' ? 'application/pdf' : 'text/plain',
+            data: cleanBase64,
+          },
+        },
+        {
+          text: `Analiza esta Carpeta Tributaria Electrónica SII (${fileName || 'documento'}). Extrae RUT de la empresa con guión y dígito verificador, Razón Social oficial completa, inicio de actividades, tipo societario ('spa'|'srl'|'eirl'|'sa'|'persona_natural') y facturación anual F29 en CLP.`,
+        },
+      ];
+    } else if (rawText && typeof rawText === 'string' && rawText.trim().length > 0) {
+      contents = `Analiza la siguiente información de Carpeta Tributaria Electrónica / F29 del SII de Chile:
+
+${rawText.slice(0, 15000)}`;
+    } else {
+      return res.status(400).json({ error: 'Debes proporcionar un archivo PDF o el texto de la Carpeta Tributaria.' });
+    }
 
     const systemInstruction = `Eres un auditor tributario y analista de admisibilidad experto en el Servicio de Impuestos Internos de Chile (SII) y fondos concursables (CORFO, SERCOTEC, ANID).
 Analiza el documento o texto de la "Carpeta Tributaria Electrónica para Solicitar Créditos / Subsidios" o Formulario 29 del SII.
 Extrae los datos tributarios oficiales de la empresa con exactitud matemática y legal.
-
-Si no se especifica algún dato, calcula la estimación más coherente basada en los periodos F29.
-
 Responde ÚNICAMENTE un JSON con este formato estricto:
 {
   "rut": "XX.XXX.XXX-X",
@@ -457,26 +178,6 @@ Responde ÚNICAMENTE un JSON con este formato estricto:
   "firstCategory": true
 }`;
 
-    let contents: any;
-
-    if (fileBase64 && mimeType) {
-      // Clean base64 prefix if present
-      const cleanBase64 = fileBase64.includes('base64,') ? fileBase64.split('base64,')[1] : fileBase64;
-      contents = [
-        {
-          inlineData: {
-            mimeType: mimeType === 'application/pdf' ? 'application/pdf' : 'text/plain',
-            data: cleanBase64,
-          },
-        },
-        {
-          text: `Analiza esta Carpeta Tributaria Electrónica SII (${fileName || 'documento'}). Extrae RUT, Razón Social, inicio de actividades, tipo societario y facturación anual F29.`,
-        },
-      ];
-    } else {
-      contents = `Analiza el siguiente texto de Carpeta Tributaria SII:\n\n${rawText || ''}`;
-    }
-
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
       contents,
@@ -487,76 +188,79 @@ Responde ÚNICAMENTE un JSON con este formato estricto:
       },
     });
 
-    const text = response.text || '{}';
+    const text = response.text || '';
+    if (!text) {
+      throw new Error('Respuesta vacía de Gemini');
+    }
     const parsed = JSON.parse(text);
+    if (parsed.rut && validateRut(parsed.rut)) {
+      parsed.rut = formatRut(parsed.rut);
+    }
     return res.json(parsed);
   } catch (error: any) {
-    console.warn('Gemini tax folder parser fallback:', error?.message);
-    // Intelligent heuristic fallback
-    const raw = (req.body?.rawText || req.body?.fileName || '').toLowerCase();
-    return res.json({
-      rut: '77.842.109-K',
-      companyName: req.body?.fileName ? req.body.fileName.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ') : 'Empresa Acreditada SpA',
-      companyType: 'spa',
-      monthsActive: 16,
-      annualSalesCLP: 21500000,
-      salesBracket: 'menor_60m',
-      hasMissingF29: false,
-      siiStatusObservations: 'Carpeta Tributaria SII validada. 1ª Categoría vigente con 12 meses continuos de F29.',
-      admissibilityVerdict: '100% Admisible para Fondos CORFO y SERCOTEC',
-      bestFitFundRecommendation: 'CORFO Semilla Inicia / Expande',
-      periodsFound: 12,
-      verificationCode: 'SII-CHILE-OK',
-      firstCategory: true
-    });
+    console.error('Error in /api/gemini/parse-tax-folder:', error?.message);
+    return res.status(503).json({ error: 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.' });
   }
 });
 
-// 3. Auditor Ciego y Simulador de Rúbrica CORFO / SERCOTEC
-app.post('/api/gemini/audit', async (req, res) => {
+// 1. Diagnóstico y Calce Inteligente de Fondos
+app.post('/api/gemini/diagnose', async (req, res) => {
   try {
-    const { fund, formulationText, projectSummary } = req.body;
+    const { profile, availableFunds } = req.body;
 
-    const prompt = `Actúa como un Evaluador Experto del Comité de Asignación de Fondos de ${fund.agency} (CORFO / SERCOTEC).
-Tu misión es realizar una auditoría ciega estricta y sin condescendencia sobre la siguiente postulación para el fondo "${fund.name}".
+    const prompt = `Eres el especialista sénior en fondos concursables en Chile (CORFO, SERCOTEC, ANID, Start-Up Chile, FIA, ProChile).
+Analiza el perfil de esta empresa chilena y evalúa su compatibilidad contra los fondos disponibles.
 
-TEXTO Y CONTENIDO DE LA POSTULACIÓN:
-${JSON.stringify(formulationText || projectSummary, null, 2)}
+PERFIL DE LA EMPRESA:
+- Razón Social: ${profile.companyName}
+- RUT: ${profile.rut}
+- Tipo Societario: ${profile.companyType}
+- Antigüedad: ${profile.monthsActive} meses activo ante el SII
+- Ventas Anuales: ${profile.salesBracket} ($${profile.annualSalesCLP || 0} CLP)
+- Sector: ${profile.sector}
+- Región: ${profile.region}
+- Liderazgo Femenino: ${profile.isFemaleLed ? `Sí (${profile.femaleEquityPct}% participación de mujeres)` : 'No'}
+- Nivel TRL: ${profile.trlStage}
+- Nivel de Innovación: ${profile.innovationLevel}
+- Resumen del Proyecto: ${profile.projectSummary}
+- Tecnología Núcleo: ${profile.coreTech}
+- Validación Comercial (Cartas de Interés): ${profile.customerValidationCount} cartas firmadas
 
-CRITERIOS Y PONDERACIONES DEL FONDO:
-${JSON.stringify(fund.evaluationCriteria, null, 2)}
+FONDOS A EVALUAR:
+${JSON.stringify(availableFunds, null, 2)}
 
-Normas de evaluación en Chile:
-- La escala es de 1.0 a 5.0 (o 1.0 a 7.0 según Corfo). Usaremos escala estándar 1.0 a 5.0 donde el puntaje de corte de adjudicación habitualmente es >= 4.3.
-- Si hay frases genéricas sin datos concretos, penaliza el puntaje.
-- Si el presupuesto tiene gastos no elegibles o no cuadra el aporte de contraparte, alerta de inmediato.
-- Revisa si la innovación es real o solo digitalización básica de un proceso existente.
-
-Responde ÚNICAMENTE en formato JSON con la siguiente estructura:
+Devuelve una evaluación rigurosa en formato JSON con la siguiente estructura:
 {
-  "overallScore": 4.4,
-  "verdict": "Adjudicable Altamente Probable",
-  "criteriaScores": [
+  "matches": [
     {
-      "criterion": "Nombre del criterio",
-      "weight": 40,
-      "score": 4.5,
-      "observations": "Observaciones críticas del evaluador",
-      "improvementTips": "Cambio concreto que el postulante debe hacer para llegar a 5.0"
+      "fundId": "id_del_fondo",
+      "fundName": "Nombre del Fondo",
+      "agency": "CORFO | SERCOTEC | etc.",
+      "matchScore": 88,
+      "isEligible": true,
+      "maxSubsidyCLP": 15000000,
+      "maxSubsidyFormatted": "$15.000.000 CLP",
+      "femaleBonusApplied": true,
+      "coFinancePct": 85,
+      "companyContributionPct": 15,
+      "companyCashRequiredCLP": 2647058,
+      "reasonsEligible": [
+        "Cumple con tope de ventas menores a $60M",
+        "TRL compatible con fase de validación técnica"
+      ],
+      "blockers": [],
+      "strategicAdvice": "Consejo táctico clave para asegurar alta puntuación en el comité.",
+      "recommendedFocus": [
+        "Cuantificar el dolor de mercado en Chile",
+        "Adjuntar al menos 2 cartas de interés (LOI) de clientes reales"
+      ]
     }
   ],
-  "redFlags": [
-    "Alerta 1: Riesgo que podría causar rechazo o baja puntuación",
-    "Alerta 2: ..."
-  ],
-  "strengths": [
-    "Fortaleza 1 detectada",
-    "Fortaleza 2 detectada"
-  ],
-  "top3PriorityChanges": [
-    "Cambio 1 prioritario antes de enviar",
-    "Cambio 2 prioritario",
-    "Cambio 3 prioritario"
+  "overallReadinessSummary": "Diagnóstico general de la empresa para postular en 2026...",
+  "requiredNextSteps": [
+    "Paso 1...",
+    "Paso 2...",
+    "Paso 3..."
   ]
 }`;
 
@@ -569,16 +273,200 @@ Responde ÚNICAMENTE en formato JSON con la siguiente estructura:
       },
     });
 
-    const text = response.text || '{}';
+    const text = response.text || '';
+    if (!text) throw new Error('Respuesta vacía de Gemini');
     const parsed = JSON.parse(text);
     return res.json(parsed);
   } catch (error: any) {
-    console.error('Error in /api/gemini/audit:', error);
-    return res.status(500).json({ error: error.message || 'Error al auditar postulación' });
+    console.error('Error in /api/gemini/diagnose:', error?.message);
+    return res.status(503).json({ error: 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.' });
   }
 });
 
-// 4. Generación de Documentos Formales (Cartas de Interés LOI, Cartas de Compromiso, Resumen Ejecutivo)
+// 2. Formulación Técnica Completa para Postulación
+app.post('/api/gemini/formulate', async (req, res) => {
+  try {
+    const { profile, fund, specificInstructions } = req.body;
+
+    const prompt = `Eres el redactor y formulador de proyectos número 1 de Chile, con un récord de más de 85% de adjudicaciones en CORFO (Semilla Inicia, Semilla Expande, Crea y Valida), SERCOTEC y Start-Up Chile.
+Redacta la formulación técnica oficial para postular al fondo "${fund.name}" de ${fund.agency}.
+
+DATOS DE LA EMPRESA:
+- Nombre: ${profile.companyName}
+- RUT: ${profile.rut}
+- Tipo Societario: ${profile.companyType}
+- Sector: ${profile.sector}
+- Región: ${profile.region}
+- Ventas: ${profile.salesBracket}
+- Nivel TRL: ${profile.trlStage}
+- Resumen Base: ${profile.projectSummary}
+- Tecnología: ${profile.coreTech}
+- Liderazgo Femenino: ${profile.isFemaleLed ? `Sí (${profile.femaleEquityPct}%)` : 'No'}
+- Instrucciones específicas del usuario: ${specificInstructions || 'Ninguna'}
+
+REQUISITOS DEL FONDO ${fund.name}:
+- Subsidio Máximo: ${fund.subsidyFormatted}
+- Co-financiamiento: ${fund.maxCoFinancePct}%
+- Criterios de Evaluación: ${JSON.stringify(fund.evaluationCriteria)}
+- Cuentas Presupuestarias Aprobadas: ${JSON.stringify(fund.corfoAccountsBudget)}
+
+Responde ÚNICAMENTE en formato JSON con la siguiente estructura completa:
+{
+  "fundId": "${fund.id}",
+  "fundName": "${fund.name}",
+  "projectTitle": "Título potente y técnico del proyecto (máx 15 palabras)",
+  "pitchSummary30s": "Elevator pitch de alto impacto para el jurado (1 párrafo contundente)",
+  "problemStatement": "Descripción del problema u oportunidad en Chile, cuantificando el dolor económico y la pérdida de productividad.",
+  "solutionAndInnovation": "Descripción detallada de la solución, explicando por qué es innovadora y qué componentes tecnológicos la componen.",
+  "noveltyVsCompetitors": "Grado de novedad y barreras de entrada frente a alternativas existentes en Chile y el mundo.",
+  "marketAnalysisTAM": {
+    "tam": "Cálculo del Total Addressable Market en USD",
+    "sam": "Serviceable Addressable Market en Chile",
+    "som": "Mercado objetivo a capturar en los primeros 18 meses",
+    "clientArchetype": "Perfil detallado del comprador o usuario final B2B o B2C"
+  },
+  "businessModel": "Modelo de ingresos, estructura de precios (SaaS, fee, unit economics, LTV/CAC) y estrategia de comercialización 'Go-to-Market'.",
+  "workPlanMilestones": [
+    {
+      "month": "Mes 1 a 3",
+      "title": "Hito 1",
+      "description": "Actividades técnicas y de validación",
+      "deliverable": "Entregable tangible verificable por CORFO",
+      "criticalRisk": "Riesgo crítico y plan de mitigación"
+    },
+    {
+      "month": "Mes 4 a 8",
+      "title": "Hito 2",
+      "description": "Actividades",
+      "deliverable": "Entregable",
+      "criticalRisk": "Riesgo y mitigación"
+    },
+    {
+      "month": "Mes 9 a 12",
+      "title": "Hito 3",
+      "description": "Actividades",
+      "deliverable": "Entregable",
+      "criticalRisk": "Riesgo y mitigación"
+    }
+  ],
+  "budgetBreakdown": [
+    {
+      "account": "Recursos Humanos (Sueldos y Honorarios)",
+      "item": "Líder Técnico / Desarrollador",
+      "corfoContributionCLP": 6000000,
+      "companyPecuniaryCLP": 1500000,
+      "companyValuedCLP": 0,
+      "justification": "Dedicación 100% al desarrollo técnico del prototipo funcional."
+    },
+    {
+      "account": "Gastos de Operación (Prospección y Validación)",
+      "item": "Pilotos comerciales y marketing de validación",
+      "corfoContributionCLP": 4000000,
+      "companyPecuniaryCLP": 1000000,
+      "companyValuedCLP": 0,
+      "justification": "Cofinanciamiento de pruebas en terreno y captación de cartas de compra."
+    },
+    {
+      "account": "Gastos de Administración y Garantías",
+      "item": "Póliza de seguro de fianza y contabilidad técnica",
+      "corfoContributionCLP": 1250000,
+      "companyPecuniaryCLP": 350000,
+      "companyValuedCLP": 0,
+      "justification": "Costo de prima de seguro para solicitar el 100% de anticipo de fondos."
+    }
+  ],
+  "teamCapabilities": "Experiencia del equipo fundador, complementariedad técnica y de negocios, dedicación horaria",
+  "bonusFemaleJustification": "Justificación de liderazgo femenino y porcentaje de participación social para el 10% adicional de bonificación"
+}`;
+
+    const response = await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        temperature: 0.3,
+      },
+    });
+
+    const text = response.text || '';
+    if (!text) throw new Error('Respuesta vacía de Gemini');
+    const parsed = JSON.parse(text);
+    return res.json(parsed);
+  } catch (error: any) {
+    console.error('Error in /api/gemini/formulate:', error?.message);
+    return res.status(503).json({ error: 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.' });
+  }
+});
+
+// 3. Auditor Ciego y Simulador de Rúbrica CORFO / SERCOTEC
+app.post('/api/gemini/audit', async (req, res) => {
+  try {
+    const { fund, formulationText, projectSummary } = req.body;
+
+    const prompt = `Actúa como un Evaluador Experto del Comité de Asignación de Fondos de ${fund.agency} (CORFO / SERCOTEC).
+Tu misión es realizar una auditoría ciega estricta y sin condescendencia sobre la siguiente postulación para el fondo "${fund.name}".
+
+TEXTO Y CONTENIDO DE LA POSTULACIÓN:
+"""
+${formulationText || projectSummary}
+"""
+
+CRITERIOS OFICIALES DE EVALUACIÓN:
+${JSON.stringify(fund.evaluationCriteria, null, 2)}
+
+INSTRUCCIONES DE AUDITORÍA:
+1. Evalúa de 1.0 a 5.0 (escala estándar CORFO). Recuerda que la nota de corte suele estar sobre 3.8.
+2. Identifica "Red Flags" (alertas rojas que causarían rechazo o admisibilidad fallida).
+3. Entrega consejos quirúrgicos prioritarios para subir la nota antes de postular.
+
+Responde ÚNICAMENTE en formato JSON con la siguiente estructura:
+{
+  "overallScore": 4.2,
+  "verdict": "Adjudicable Altamente Probable | En Zona de Corte | Riesgo de Rechazo | No Elegible",
+  "criteriaScores": [
+    {
+      "criterion": "Nombre del criterio",
+      "weight": 40,
+      "score": 4.1,
+      "observations": "Comentario técnico de fortalezas y debilidades...",
+      "improvementTips": "Cómo mejorar este punto específico..."
+    }
+  ],
+  "redFlags": [
+    "Alerta 1...",
+    "Alerta 2..."
+  ],
+  "strengths": [
+    "Fortaleza 1...",
+    "Fortaleza 2..."
+  ],
+  "top3PriorityChanges": [
+    "Cambio 1...",
+    "Cambio 2...",
+    "Cambio 3..."
+  ]
+}`;
+
+    const response = await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        temperature: 0.2,
+      },
+    });
+
+    const text = response.text || '';
+    if (!text) throw new Error('Respuesta vacía de Gemini');
+    const parsed = JSON.parse(text);
+    return res.json(parsed);
+  } catch (error: any) {
+    console.error('Error in /api/gemini/audit:', error?.message);
+    return res.status(503).json({ error: 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.' });
+  }
+});
+
+// 4. Generación de Documentos Formales (Cartas LOI, Compromisos, etc.)
 app.post('/api/gemini/generate-doc', async (req, res) => {
   try {
     const { documentType, companyName, clientOrPartnerName, projectName, fundName, details } = req.body;
@@ -609,10 +497,11 @@ Genera el texto completo del documento en formato Markdown:`;
     });
 
     const markdownText = response.text || '';
+    if (!markdownText) throw new Error('Respuesta vacía de Gemini');
     return res.json({ documentText: markdownText });
   } catch (error: any) {
-    console.error('Error in /api/gemini/generate-doc:', error);
-    return res.status(500).json({ error: error.message || 'Error al generar documento' });
+    console.error('Error in /api/gemini/generate-doc:', error?.message);
+    return res.status(503).json({ error: 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.' });
   }
 });
 
@@ -621,7 +510,7 @@ app.post('/api/gemini/chat', async (req, res) => {
   try {
     const { messages, companyProfile, currentFund } = req.body;
 
-    const systemInstruction = `Eres "INKI AI" (INKI significa "buena suerte" en quechua), el consultor de fondos concursables más experimentado de Chile.
+    const systemInstruction = `Eres "ImpulsaCap AI", el consultor de fondos concursables más experimentado de Chile.
 Conoces en profundidad:
 - Todo el ecosistema de financiamiento público chileno: CORFO (Semilla Inicia, Semilla Expande, Innova Alta Tecnología, Crea y Valida, Súmate a Innovar), SERCOTEC (Capital Semilla, Abeja, Crece), ANID (Fondef), Start-Up Chile (Build, Ignite, Growth), FIA, Sence y ProChile.
 - Bases Administrativas Generales (BAG) y resoluciones exentas de CORFO.
@@ -631,6 +520,7 @@ Conoces en profundidad:
 
 Contexto actual de la empresa:
 ${JSON.stringify(companyProfile || {}, null, 2)}
+
 Fondo en consulta:
 ${JSON.stringify(currentFund || {}, null, 2)}
 
@@ -651,17 +541,18 @@ Sé conciso, empático, directo y ultra práctico. Habla con terminología chile
       },
     });
 
-    const reply = response.text || 'Disculpa, no pude procesar tu consulta en este momento.';
+    const reply = response.text || '';
+    if (!reply) throw new Error('Respuesta vacía de Gemini');
     return res.json({ reply });
   } catch (error: any) {
-    console.error('Error in /api/gemini/chat:', error);
-    return res.status(500).json({ error: error.message || 'Error en el consultor IA' });
+    console.error('Error in /api/gemini/chat:', error?.message);
+    return res.status(503).json({ error: 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.' });
   }
 });
 
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', service: 'INKI API', timestamp: new Date().toISOString() });
+  res.json({ status: 'ok', service: 'ImpulsaCap API', timestamp: new Date().toISOString() });
 });
 
 // Setup Vite middleware in dev or static files in production
@@ -682,10 +573,8 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`AdjudicaCL Server running on port ${PORT} (mode: ${isProduction ? 'production' : 'development'})`);
+    console.log(`ImpulsaCap Server running on port ${PORT} (mode: ${isProduction ? 'production' : 'development'})`);
   });
 }
 
-startServer().catch((err) => {
-  console.error('Failed to start server:', err);
-});
+startServer();

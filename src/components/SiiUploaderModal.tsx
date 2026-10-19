@@ -17,7 +17,8 @@ import {
   Check,
   FileType,
   FileCheck,
-  ArrowRight
+  ArrowRight,
+  RotateCcw
 } from 'lucide-react';
 
 interface SiiUploaderModalProps {
@@ -56,6 +57,7 @@ export const SiiUploaderModal: React.FC<SiiUploaderModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [parsedData, setParsedData] = useState<any | null>(null);
   const [applied, setApplied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -94,12 +96,12 @@ export const SiiUploaderModal: React.FC<SiiUploaderModalProps> = ({
     setLoading(true);
     setParsedData(null);
     setApplied(false);
+    setError(null);
 
     try {
       const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
       
       if (isPdf) {
-        // Read as base64 for Gemini multimodal parser
         const reader = new FileReader();
         reader.onload = async () => {
           const base64 = reader.result as string;
@@ -113,19 +115,22 @@ export const SiiUploaderModal: React.FC<SiiUploaderModalProps> = ({
                 fileName: file.name
               })
             });
-
-            if (!response.ok) throw new Error('Error al procesar PDF');
+            if (!response.ok) {
+              const errJson = await response.json().catch(() => ({}));
+              throw new Error(errJson.error || 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.');
+            }
             const data = await response.json();
             setParsedData(data);
-          } catch (err) {
-            fallbackParse(file.name);
+          } catch (err: any) {
+            console.error('PDF parsing error:', err);
+            setParsedData(null);
+            setError(err?.message || 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.');
           } finally {
             setLoading(false);
           }
         };
         reader.readAsDataURL(file);
       } else {
-        // Read text/xml directly
         const reader = new FileReader();
         reader.onload = async () => {
           const text = reader.result as string;
@@ -138,39 +143,28 @@ export const SiiUploaderModal: React.FC<SiiUploaderModalProps> = ({
                 fileName: file.name
               })
             });
-
-            if (!response.ok) throw new Error('Error al procesar texto/xml');
+            if (!response.ok) {
+              const errJson = await response.json().catch(() => ({}));
+              throw new Error(errJson.error || 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.');
+            }
             const data = await response.json();
             setParsedData(data);
-          } catch (err) {
-            fallbackParse(file.name);
+          } catch (err: any) {
+            console.error('Text parsing error:', err);
+            setParsedData(null);
+            setError(err?.message || 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.');
           } finally {
             setLoading(false);
           }
         };
         reader.readAsText(file);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('File process error:', err);
-      fallbackParse(file.name);
+      setParsedData(null);
+      setError(err?.message || 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.');
       setLoading(false);
     }
-  };
-
-  const fallbackParse = (filename: string) => {
-    const cleanName = filename.replace(/\.[^/.]+$/, '').replace(/carpeta_tributaria|carpeta|f29|sii/gi, '').trim() || 'Empresa Acreditada SpA';
-    setParsedData({
-      rut: '77.842.109-K',
-      companyName: cleanName.length > 3 ? cleanName : 'Empresa Postulante SpA',
-      companyType: 'spa',
-      monthsActive: 16,
-      annualSalesCLP: 18500000,
-      salesBracket: 'menor_60m',
-      hasMissingF29: false,
-      siiStatusObservations: 'Carpeta Tributaria SII oficial procesada. 1ª Categoría acreditada y 12 meses de F29 sin observaciones tributarias.',
-      admissibilityVerdict: '100% Admisible para Fondos CORFO y SERCOTEC',
-      bestFitFundRecommendation: 'CORFO Semilla Inicia / Expande'
-    });
   };
 
   const handleProcessText = async (textToProcess: string) => {
@@ -178,19 +172,23 @@ export const SiiUploaderModal: React.FC<SiiUploaderModalProps> = ({
     setLoading(true);
     setParsedData(null);
     setApplied(false);
-
+    setError(null);
     try {
       const response = await fetch('/api/gemini/parse-tax-folder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rawText: textToProcess })
       });
-
-      if (!response.ok) throw new Error('Error al procesar la carpeta tributaria');
+      if (!response.ok) {
+        const errJson = await response.json().catch(() => ({}));
+        throw new Error(errJson.error || 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.');
+      }
       const data = await response.json();
       setParsedData(data);
-    } catch (err) {
-      fallbackParse('ejemplo_f29.txt');
+    } catch (err: any) {
+      console.error('Process text error:', err);
+      setParsedData(null);
+      setError(err?.message || 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.');
     } finally {
       setLoading(false);
     }
@@ -383,6 +381,31 @@ export const SiiUploaderModal: React.FC<SiiUploaderModalProps> = ({
                 )}
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Error Banner with Retry */}
+        {error && (
+          <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
+            <div className="flex items-center gap-2.5 text-xs font-semibold">
+              <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
+              <span>{error}</span>
+            </div>
+            <button
+              onClick={() => {
+                setError(null);
+                if (activeTab === 'upload' && selectedFile) {
+                  processUploadedFile(selectedFile);
+                } else if (inputText) {
+                  handleProcessText(inputText);
+                }
+              }}
+              disabled={loading}
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-all cursor-pointer shrink-0"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reintentar</span>
+            </button>
           </div>
         )}
 

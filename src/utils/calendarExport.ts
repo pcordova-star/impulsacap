@@ -10,7 +10,7 @@ export const getGoogleCalendarUrl = (fund: ChileanFund): string => {
     `Subsidio Máximo: ${fund.subsidyFormatted}\n` +
     `Cofinanciamiento: ${fund.maxCoFinancePct}%\n\n` +
     `Recuerda enviar tu formulario en la plataforma oficial antes de las 16:00 hrs (hora de Chile Continental).\n` +
-    `Expediente preparado en INKI.`
+    `Expediente preparado en ImpulsaCap.`
   );
   const location = encodeURIComponent(`Plataforma Oficial ${fund.agency} Chile (online)`);
 
@@ -38,7 +38,7 @@ export const downloadIcsFile = (fund: ChileanFund): void => {
   const icsContent = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//INKI Chile//Postulaciones y Fondos//ES',
+    'PRODID:-//ImpulsaCap Chile//Postulaciones y Fondos//ES',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     'BEGIN:VEVENT',

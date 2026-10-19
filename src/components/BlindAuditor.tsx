@@ -12,7 +12,9 @@ import {
   Award,
   Flame,
   FileCheck2,
-  ArrowLeft
+  ArrowLeft,
+  RotateCcw,
+  AlertCircle
 } from 'lucide-react';
 
 interface BlindAuditorProps {
@@ -38,9 +40,11 @@ export const BlindAuditor: React.FC<BlindAuditorProps> = ({
   );
   const [loading, setLoading] = useState(false);
   const [auditResult, setAuditResult] = useState<BlindAuditResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const handleRunAudit = async () => {
     setLoading(true);
+    setError(null);
     try {
       const response = await fetch('/api/gemini/audit', {
         method: 'POST',
@@ -53,48 +57,16 @@ export const BlindAuditor: React.FC<BlindAuditorProps> = ({
       });
 
       if (!response.ok) {
-        throw new Error('Error al conectar con el auditor de IA');
+        const errJson = await response.json().catch(() => ({}));
+        throw new Error(errJson.error || 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.');
       }
 
       const data = await response.json();
       setAuditResult(data);
       onSaveAudit?.(data);
     } catch (err: any) {
-      console.error(err);
-      // Realistic fallback audit
-      const fallback: BlindAuditResult = {
-        overallScore: 4.4,
-        verdict: 'Adjudicable Altamente Probable',
-        criteriaScores: selectedFund.evaluationCriteria.map((c, idx) => ({
-          criterion: c.name,
-          weight: c.weight,
-          score: idx === 0 ? 4.5 : idx === 1 ? 4.3 : 4.4,
-          observations: idx === 0 
-            ? 'La propuesta de valor está claramente delimitada y la magnitud del dolor económico en Chile se cuantifica adecuadamente.'
-            : idx === 1
-            ? 'El cálculo de mercado TAM/SAM es coherente, pero se recomienda adjuntar 1 carta de manifestación de interés adicional para asegurar el 5.0.'
-            : 'El equipo fundador cuenta con dedicación horaria completa y complementariedad técnica.',
-          improvementTips: idx === 0
-            ? 'Especificar aún más las métricas de comparación frente a competidores directos en Latam.'
-            : 'Mencionar acuerdos de confidencialidad o avance en registro de propiedad intelectual (INAPI).'
-        })),
-        redFlags: [
-          'Verificar que el IVA de los gastos en servidores y asesorías no esté imputado al subsidio estatal (debe asumirlo la empresa con fondos propios).',
-          'Los evaluadores Corfo suelen penalizar proyectos que no presenten cartas de interés con logo y firma de decisores de compras.'
-        ],
-        strengths: [
-          'Cuantificación monetaria clara del dolor que sufren las empresas en Chile.',
-          'Diferenciación tecnológica verificable y arquitectura escalable.',
-          'Coherencia en los plazos de ejecución (Gantt a 10 meses con hitos tangibles).'
-        ],
-        top3PriorityChanges: [
-          '1. Adjuntar al menos 2 Cartas de Interés Comercial (LOI) firmadas por gerentes de clientes piloto.',
-          '2. Revisar la cuenta de Recursos Humanos para asegurar que ningún socio supere el 60% de tope asignado en las bases.',
-          '3. Reforzar el guion del video pitch de 90 segundos con los primeros 15 segundos enfocados exclusivamente en la tracción lograda.'
-        ]
-      };
-      setAuditResult(fallback);
-      onSaveAudit?.(fallback);
+      console.error('Audit error:', err);
+      setError(err?.message || 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.');
     } finally {
       setLoading(false);
     }

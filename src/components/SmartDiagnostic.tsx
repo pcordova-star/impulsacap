@@ -15,7 +15,8 @@ import {
   HelpCircle,
   TrendingUp,
   FileSearch,
-  Percent
+  Percent,
+  RotateCcw
 } from 'lucide-react';
 
 interface SmartDiagnosticProps {
@@ -120,6 +121,7 @@ export const SmartDiagnostic: React.FC<SmartDiagnosticProps> = ({
 }) => {
   const [loading, setLoading] = useState(false);
   const [matchResults, setMatchResults] = useState<FundMatchResult[] | null>(null);
+  const [isEstimatedWithoutAi, setIsEstimatedWithoutAi] = useState<boolean>(false);
   const [overallSummary, setOverallSummary] = useState<string>('');
   const [nextSteps, setNextSteps] = useState<string[]>([]);
   const [showAdvancedInputs, setShowAdvancedInputs] = useState(false);
@@ -136,6 +138,7 @@ export const SmartDiagnostic: React.FC<SmartDiagnosticProps> = ({
   // Run AI Diagnosis & Matching
   const handleRunDiagnosis = async () => {
     setLoading(true);
+    setIsEstimatedWithoutAi(false);
     try {
       const response = await fetch('/api/gemini/diagnose', {
         method: 'POST',
@@ -169,6 +172,7 @@ export const SmartDiagnostic: React.FC<SmartDiagnosticProps> = ({
       setNextSteps(data.requiredNextSteps || []);
     } catch (err: any) {
       console.error(err);
+      setIsEstimatedWithoutAi(true);
       // Deterministic fallback matching calculation if server error
       const calculatedMatches: FundMatchResult[] = CHILEAN_FUNDS.map(fund => {
         let score = 50;
@@ -530,6 +534,27 @@ export const SmartDiagnostic: React.FC<SmartDiagnosticProps> = ({
         </div>
       </div>
 
+      {/* Notice: Resultado estimado sin IA */}
+      {isEstimatedWithoutAi && (matchResults?.length || 0) > 0 && (
+        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
+          <div className="flex items-center gap-2.5 text-xs font-semibold">
+            <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
+            <div>
+              <p className="font-bold text-amber-200">Resultado estimado sin IA</p>
+              <p className="text-amber-300/80 text-[11px]">El servicio de IA no estuvo disponible. Se calcularon las compatibilidades de forma determinística con las bases oficiales.</p>
+            </div>
+          </div>
+          <button
+            onClick={handleRunDiagnosis}
+            disabled={loading}
+            className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs transition-all cursor-pointer shrink-0"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Reintentar con IA</span>
+          </button>
+        </div>
+      )}
+
       {/* Results Section */}
       {matchResults && (
         <div className="space-y-6 animate-fade-in">
@@ -541,7 +566,7 @@ export const SmartDiagnostic: React.FC<SmartDiagnosticProps> = ({
               </div>
               <div>
                 <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                  Diagnóstico Estratégico INKI
+                  Diagnóstico Estratégico ImpulsaCap
                   <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                     {matchResults.filter(m => m.isEligible).length} Fondos Compatibles
                   </span>

@@ -95,7 +95,7 @@ export const OfficialDossierModal: React.FC<OfficialDossierModalProps> = ({
 **Fondo:** ${fund.name}  
 **Convocatoria:** Ventanilla 2026  
 **Fecha de Generación:** ${nowStr}  
-**Plataforma de Certificación:** INKI (Asesoría Tecnológica de Fondos Públicos)
+**Plataforma de Certificación:** ImpulsaCap (Asesoría Tecnológica de Fondos Públicos)
 
 ---
 
@@ -166,7 +166,7 @@ ${formulation?.teamCapabilities || 'Equipo directivo multidisciplinario con expe
 # DOSSIER OFICIAL DE POSTULACIÓN - ${fund.agency} CHILE
 **Fondo:** ${fund.name}
 **Empresa:** ${profile.companyName} (RUT: ${profile.rut})
-**Generado con INKI:** ${nowStr}
+**Generado con ImpulsaCap:** ${nowStr}
 
 ${formulation?.projectTitle || 'Proyecto'}
 Pitch 30s: ${formulation?.pitchSummary30s || ''}
@@ -542,7 +542,7 @@ Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} CLP
             </div>
             <div className="space-y-1">
               <div className="w-48 mx-auto border-b border-slate-600 pb-1 print:border-black" />
-              <p className="font-bold text-amber-400 print:text-black">Plataforma INKI Chile</p>
+              <p className="font-bold text-amber-400 print:text-black">Plataforma ImpulsaCap Chile</p>
               <p className="text-[10px] text-slate-400 print:text-black">Certificación Técnica de Postulación</p>
             </div>
           </div>

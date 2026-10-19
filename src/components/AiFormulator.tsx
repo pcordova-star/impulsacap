@@ -17,7 +17,9 @@ import {
   Clock,
   Target,
   DollarSign,
-  ArrowLeft
+  ArrowLeft,
+  RotateCcw,
+  AlertCircle
 } from 'lucide-react';
 
 interface AiFormulatorProps {
@@ -48,6 +50,7 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
   );
   const [activeSection, setActiveSection] = useState<string>('problem');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [additionalNotes, setAdditionalNotes] = useState<string>('');
 
   const handleCopy = (text: string, key: string) => {
@@ -58,6 +61,7 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
 
   const handleGenerateFormulation = async () => {
     setLoading(true);
+    setError(null);
     try {
       const response = await fetch('/api/gemini/formulate', {
         method: 'POST',
@@ -70,102 +74,16 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
       });
 
       if (!response.ok) {
-        throw new Error('Error al conectar con el formulador IA');
+        const errJson = await response.json().catch(() => ({}));
+        throw new Error(errJson.error || 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.');
       }
 
       const data = await response.json();
       setFormulation(data);
       onSaveFormulation?.(data);
     } catch (err: any) {
-      console.error(err);
-      // High-quality fallback formulation
-      const fallback: FormulationOutput = {
-        fundId: currentFund.id,
-        fundName: currentFund.name,
-        projectTitle: `${profile.companyName || 'Proyecto Innovador'}: Plataforma de optimización con IA y tecnología escalable para Chile y Latam`,
-        pitchSummary30s: `En Chile y la región, más del 70% de las empresas pierden hasta un 25% de eficiencia por procesos manuales obsoletos. ${profile.companyName} desarrolló una solución propietaria que reduce mermas y automatiza flujos críticos en tiempo real. Con un mercado de USD $180M en Chile, un equipo multidisciplinario con dedicación full-time y validación técnica inicial, buscamos el apoyo de ${currentFund.name} para empaquetar comercialmente la solución y alcanzar USD $100K en ventas durante los primeros 12 meses.`,
-        problemStatement: `Actualmente en el sector de ${profile.sector || 'tecnología y productividad'}, las organizaciones enfrentan un grave cuello de botella operacional. En Chile, los sistemas legados no se comunican con arquitecturas modernas, provocando mermas promedio anuales de más de $45 millones de pesos por faena/operación. Las soluciones tradicionales importadas desde EE.UU. o Europa son excesivamente costosas (superando los USD $50.000 anuales de licenciamiento), con curvas de adopción lentas e incompatibles con las normativas locales (SII, facturación electrónica y regulaciones chilenas). Esto deja desprotegidas a cientos de empresas medianas y en crecimiento que requieren competitividad inmediata.`,
-        solutionAndInnovation: `${profile.companyName} propone una solución integral basada en arquitectura en la nube de alta disponibilidad y algoritmos propios. A diferencia de las alternativas existentes, nuestra tecnología ofrece integración nativa 'plug & play' en menos de 48 horas, reduciendo el costo total de implementación en un 60% y elevando la precisión operativa sobre el 94%. El componente innovador radica en nuestro motor algorítmico adaptativo entrenado con patrones de operación del mercado sudamericano.`,
-        noveltyVsCompetitors: `Frente a competidores tradicionales de la plaza local (consultorías manuales a medida o softwares monolíticos), nuestra propuesta introduce tres barreras de entrada críticas: 1) Modelo de machine learning propietario entrenado con datasets reales de Chile; 2) Estructura de costos SaaS hasta 5 veces más accesible para empresas B2B; 3) Tiempo de valor (Time-to-Value) de 3 días versus 6 meses de la competencia extranjera.`,
-        marketAnalysisTAM: {
-          tam: 'USD $850.000.000 (Mercado regional Latam de soluciones de automatización en nuestro segmento)',
-          sam: 'USD $95.000.000 (Mercado direccionable en Chile para empresas medianas y grandes del sector)',
-          som: 'USD $2.400.000 (Captura proyectada de 120 clientes en los primeros 24 meses de operación)',
-          clientArchetype: 'Gerentes de Operaciones, Directores de Tecnología (CTO) y Gerentes Generales de empresas con facturación entre 10.000 y 100.000 UF anuales que buscan reducir costos operativos.'
-        },
-        businessModel: `Modelo de suscripción B2B SaaS con cobro recurrente mensual (MRR) en UF. Plan Base de 15 UF/mes para operaciones medianas y Plan Enterprise de 45 UF/mes con analítica predictiva avanzada. Canales de venta directa mediante prospección Outbound (LinkedIn Sales Navigator, email cadences y alianzas con gremios sectoriales). Unit economics proyectados: CAC de $450.000 CLP y LTV de $5.400.000 CLP (Ratio LTV/CAC de 12:1).`,
-        workPlanMilestones: [
-          {
-            month: 'Mes 1 a 3',
-            title: 'Hito 1: Refinamiento técnico y arquitectura MVP',
-            description: 'Optimización de algoritmos base, despliegue en Google Cloud y pruebas de estrés de latencia.',
-            deliverable: 'Informe técnico de arquitectura, código en repositorio Git y test de estrés validado a 1.000 req/s.',
-            criticalRisk: 'Latencia de respuesta ante alto volumen. Mitigación: implementación de cache distribuido Redis.'
-          },
-          {
-            month: 'Mes 4 a 7',
-            title: 'Hito 2: Validación piloto con 3 clientes empresa',
-            description: 'Instalación en entornos de prueba con 3 empresas del rubro para medir KPIs de reducción de mermas.',
-            deliverable: '3 Informes de conformidad técnica y cartas de satisfacción firmadas por los decisores clientes.',
-            criticalRisk: 'Retraso en la integración de datos del cliente. Mitigación: desarrollo de conectores API estándar.'
-          },
-          {
-            month: 'Mes 8 a 10',
-            title: 'Hito 3: Lanzamiento comercial y primeras 5 ventas',
-            description: 'Campaña de prospección comercial, inbound marketing y cierre de los primeros contratos pagados.',
-            deliverable: 'Facturas de venta electrónicas SII y contratos de prestación de servicios por al menos $10M CLP.',
-            criticalRisk: 'Ciclos de venta B2B prolongados. Mitigación: oferta de pilotos de 30 días con garantía de satisfacción.'
-          }
-        ],
-        budgetBreakdown: [
-          {
-            account: 'Recursos Humanos',
-            item: 'Ingeniero de Software Senior / Arquitecto Cloud',
-            corfoContributionCLP: 6500000,
-            companyPecuniaryCLP: 500000,
-            companyValuedCLP: 1000000,
-            justification: 'Desarrollo de módulos core, APIs y seguridad'
-          },
-          {
-            account: 'Recursos Humanos',
-            item: 'Líder de Producto / Scrum Master',
-            corfoContributionCLP: 4500000,
-            companyPecuniaryCLP: 500000,
-            companyValuedCLP: 500000,
-            justification: 'Coordinación metodológica y relación con usuarios piloto'
-          },
-          {
-            account: 'Gastos de Operación',
-            item: 'Servidores e Infraestructura de Inteligencia Artificial',
-            corfoContributionCLP: 2000000,
-            companyPecuniaryCLP: 500000,
-            companyValuedCLP: 0,
-            justification: 'Instancias GPU en GCP para inferencia de modelos'
-          },
-          {
-            account: 'Gastos de Operación',
-            item: 'Prospección comercial B2B y Marketing de Adquisición',
-            corfoContributionCLP: 1000000,
-            companyPecuniaryCLP: 300000,
-            companyValuedCLP: 0,
-            justification: 'Campaña dirigida a decisores y eventos del sector'
-          },
-          {
-            account: 'Gastos de Administración',
-            item: 'Gestión contable y rendición de cuentas pública',
-            corfoContributionCLP: 1000000,
-            companyPecuniaryCLP: 200000,
-            companyValuedCLP: 0,
-            justification: 'Contador auditor para rendiciones mensuales en plataforma Corfo'
-          }
-        ],
-        teamCapabilities: `Equipo multidisciplinario compuesto por: 1) Director de Proyecto con más de 8 años de trayectoria en desarrollo tecnológico y gestión de proyectos de innovación; 2) Líder Comercial con amplia red de contactos en la industria y experiencia en ventas B2B corporativas; 3) Especialista en Ciencia de Datos con postgrado en Inteligencia Artificial y publicaciones en congresos internacionales. Dedicación horaria del equipo fundador del 100% durante los meses de ejecución.`,
-        bonusFemaleJustification: profile.isFemaleLed
-          ? `La empresa califica para el beneficio del 10% adicional de subsidio estatal (Bono Mujer CORFO/SERCOTEC), dado que cuenta con más del 50% de participación en manos de socias y el cargo de Gerencia General es detentado por una mujer fundadora según consta en el certificado de estatuto actualizado del Registro de Empresas y Sociedades.`
-          : undefined
-      };
-      setFormulation(fallback);
-      onSaveFormulation?.(fallback);
+      console.error('Formulation error:', err);
+      setError(err?.message || 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.');
     } finally {
       setLoading(false);
     }

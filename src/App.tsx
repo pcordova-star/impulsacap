@@ -196,11 +196,7 @@ export default function App() {
       <div className="bg-slate-900 border-b border-slate-800 px-4 py-2 text-xs">
         <div className="max-w-7xl mx-auto flex items-center justify-between text-slate-300">
           <div className="flex items-center gap-4 text-[11px] overflow-x-auto no-scrollbar">
-            <span className="flex items-center gap-1.5 text-white font-bold whitespace-nowrap">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              Chile Ventanilla 2026 Activa
-            </span>
-            <span className="text-slate-600 hidden sm:inline">•</span>
+
             
             {/* Authenticated User Status in Ticker */}
             {currentUser ? (

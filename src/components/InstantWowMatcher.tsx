@@ -23,6 +23,7 @@ import {
   Eye,
   EyeOff,
   AlertCircle,
+  RotateCcw,
   Clock
 } from 'lucide-react';
 import { getCurrentUser, registerCompanyUser, loginCompanyUser, getCleanDefaultProfile } from '../utils/storage';
@@ -85,6 +86,7 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
   const [loading, setLoading] = useState(false);
   const [scanStep, setScanStep] = useState<string>('');
   const [matchResult, setMatchResult] = useState<any | null>(null);
+  const [isEstimatedWithoutAi, setIsEstimatedWithoutAi] = useState<boolean>(false);
 
   // Active authenticated user
   const [activeUser, setActiveUser] = useState<CompanyUser | null>(propUser || getCurrentUser());
@@ -125,6 +127,7 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
     if (!query.trim()) return;
     setLoading(true);
     setMatchResult(null);
+    setIsEstimatedWithoutAi(false);
 
     setScanStep('Escaneando bases oficiales CORFO, SERCOTEC y Start-Up Chile 2026...');
     await new Promise(r => setTimeout(r, 400));
@@ -136,40 +139,55 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
       const response = await fetch('/api/gemini/instant-match', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query, targetFundHint })
+        body: JSON.stringify({
+          userPrompt: query,
+          targetFundHint,
+          availableFunds: CHILEAN_FUNDS.map(f => ({
+            id: f.id,
+            name: f.name,
+            agency: f.agency,
+            maxSubsidyCLP: f.maxSubsidyCLP,
+            maxCoFinancePct: f.maxCoFinancePct,
+            femaleBonusPct: f.femaleBonusPct,
+            salesRequirement: f.salesRequirement,
+            status: f.status,
+            callSchedule: f.callSchedule,
+            callStatus: f.callStatus,
+            closeDate: f.closeDate
+          }))
+        })
       });
 
       if (!response.ok) {
-        throw new Error('Fallback to deterministic matching engine');
+        throw new Error('Servicio de IA temporalmente no disponible');
       }
 
       const data = await response.json();
       setMatchResult(data);
+      setIsEstimatedWithoutAi(false);
     } catch (err) {
-      // Deterministic Chilean Grant Matcher Fallback
+      console.warn('Using deterministic matching fallback with official CHILEAN_FUNDS:', err);
+      setIsEstimatedWithoutAi(true);
+
       const lower = query.toLowerCase();
       let matchedFund = CHILEAN_FUNDS[0]; // Semilla Inicia default
-      let when = 'Convocatoria Nacional 2026: Abierta hasta el 30 de Abril a las 13:00 hrs';
-
       if (targetFundHint) {
         const found = CHILEAN_FUNDS.find(f => f.id === targetFundHint);
         if (found) matchedFund = found;
       } else if (lower.includes('mujer') || lower.includes('emprendedora')) {
         matchedFund = CHILEAN_FUNDS.find(f => f.id === 'sercotec_abeja_emprende') || matchedFund;
-        when = 'Convocatoria 2026: Abierta entre Abril y Junio en todas las regiones';
       } else if (lower.includes('primeras ventas') || lower.includes('expande') || (lower.includes('ventas') && !lower.includes('sin ventas'))) {
         matchedFund = CHILEAN_FUNDS.find(f => f.id === 'corfo_semilla_expande') || matchedFund;
-        when = 'Convocatoria Nacional 2026: Abierta hasta el 15 de Mayo';
       } else if (lower.includes('pyme') || lower.includes('200 uf') || lower.includes('maquinaria')) {
         matchedFund = CHILEAN_FUNDS.find(f => f.id === 'sercotec_crece') || matchedFund;
-        when = 'Llamado Regional Sercotec: Mayo a Julio 2026';
       } else if (lower.includes('i+d') || lower.includes('cient') || lower.includes('biotec')) {
         matchedFund = CHILEAN_FUNDS.find(f => f.id === 'corfo_crea_valida') || matchedFund;
-        when = 'Ventanilla Abierta Continua 2026 (Postulación en cualquier fecha)';
       }
 
+      const isExplicitFemale = lower.includes('mujer') || lower.includes('emprendedora') || lower.includes('fundadora') || lower.includes('socias');
+
       setMatchResult({
-        wowHeadline: `¡Calificas directamente para ${matchedFund.name}!`,
+        wowHeadline: '¡Calificas directamente para ' + matchedFund.name + '!',
         primaryFund: {
           fundId: matchedFund.id,
           fundName: matchedFund.name,
@@ -177,19 +195,19 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
           subsidyFormatted: matchedFund.subsidyFormatted,
           maxSubsidyCLP: matchedFund.maxSubsidyCLP,
           coFinancePct: matchedFund.maxCoFinancePct,
-          whenToApply: when,
+          whenToApply: matchedFund.callSchedule || 'Próxima convocatoria por confirmar',
           status: matchedFund.status,
           matchScore: 95,
-          whyYouQualify: `Tu perfil cumple con las bases de ${matchedFund.agency}: nivel de ventas admisible, tipo de beneficiario compatible y alto potencial de impacto en Chile.`,
-          femaleBonusEligible: true,
-          femaleBonusText: matchedFund.femaleBonusPct ? `+${matchedFund.femaleBonusPct}% adicional por liderazgo femenino` : undefined
+          whyYouQualify: 'Tu perfil cumple con las bases oficiales de ' + matchedFund.agency + ': nivel de ventas admisible, tipo de beneficiario compatible y alto potencial de impacto.',
+          femaleBonusEligible: isExplicitFemale,
+          femaleBonusText: isExplicitFemale && matchedFund.femaleBonusPct ? ('+' + matchedFund.femaleBonusPct + '% adicional por liderazgo femenino') : undefined
         },
         secondaryFunds: CHILEAN_FUNDS.filter(f => f.id !== matchedFund.id).slice(0, 2).map(f => ({
           fundId: f.id,
           fundName: f.name,
           agency: f.agency,
           subsidyFormatted: f.subsidyFormatted,
-          whenToApply: f.callSchedule,
+          whenToApply: f.callSchedule || 'Próxima convocatoria por confirmar',
           status: f.status,
           matchScore: 82
         })),
@@ -278,6 +296,24 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
     const f = CHILEAN_FUNDS.find(item => item.id === fundId) || CHILEAN_FUNDS[0];
     onSelectFundToFormulate(f);
   };
+
+  const renderFollowUp = (tone: 'amber' | 'blue') =>
+    matchResult?.followUp ? (
+      <div className={`p-4 rounded-2xl border space-y-2.5 ${tone === 'amber' ? 'bg-amber-50/60 border-amber-200' : 'bg-blue-50/60 border-blue-200'}`}>
+        <p className="text-sm font-bold text-slate-900">{matchResult.followUp.question}</p>
+        <div className="flex flex-wrap gap-2">
+          {matchResult.followUp.options.map((o: { label: string; append: string }) => (
+            <button
+              key={o.label}
+              onClick={() => { const q = `${inputText.trim()} ${o.append}`.trim(); setInputText(q); executeMatch(q); }}
+              className="px-3.5 py-2 rounded-xl bg-white border border-slate-300 hover:border-blue-500 hover:text-blue-700 text-xs font-semibold text-slate-800 cursor-pointer"
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    ) : null;
 
   const handleResetSearch = () => {
     setMatchResult(null);
@@ -415,7 +451,65 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
           */}
           {matchResult && !loading && (
             <div ref={resultsRef} className="mt-6 text-left space-y-5 animate-fade-in">
-              {/* Main Winning Card - Crisp Light Card */}
+              {matchResult.isValidProject === false ? (
+                <div className="relative overflow-hidden rounded-3xl bg-white border-2 border-amber-400 p-5 sm:p-7 shadow-xl space-y-4">
+                  <div className="flex items-center gap-2">
+                    <span className="px-3 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                      Orientación de Postulación
+                    </span>
+                  </div>
+
+                  <h2 className="text-xl sm:text-2xl font-black text-slate-900 leading-tight">
+                    {matchResult.followUp ? 'Necesitamos un dato más para recomendarte' : 'Cuéntanos un poco más de tu negocio'}
+                  </h2>
+
+                  <p className="text-sm text-slate-700 leading-relaxed">
+                    {matchResult.noMatchReason}
+                  </p>
+
+                  {renderFollowUp('amber')}
+
+                  {!matchResult.followUp && matchResult.guidanceSteps && matchResult.guidanceSteps.length > 0 && (
+                    <div className="p-4 rounded-2xl bg-amber-50/50 border border-amber-200/60 space-y-2">
+                      <h4 className="text-xs font-bold text-amber-900 uppercase tracking-wider">
+                        {matchResult.guidanceTitle || 'Pasos sugeridos:'}
+                      </h4>
+                      <ul className="text-xs text-slate-700 space-y-1.5">
+                        {matchResult.guidanceSteps.map((step: string, idx: number) => (
+                          <li key={idx} className="flex items-start gap-2">
+                            <span>{step}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {!matchResult.followUp && matchResult.suggestedPrompts && matchResult.suggestedPrompts.length > 0 && (
+                    <div className="space-y-2 pt-1">
+                      <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">
+                        Prueba buscando con estos ejemplos:
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        {matchResult.suggestedPrompts.map((prompt: string, idx: number) => (
+                          <button
+                            key={idx}
+                            onClick={() => {
+                              setInputText(prompt);
+                              executeMatch(prompt);
+                            }}
+                            className="text-left px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 text-xs text-slate-700 hover:text-amber-900 transition-all cursor-pointer"
+                          >
+                            &ldquo;{prompt}&rdquo;
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <>
+                {/* Main Winning Card - Crisp Light Card */}
               <div className="relative overflow-hidden rounded-3xl bg-white border-2 border-blue-500/80 p-5 sm:p-7 shadow-xl">
                 {/* Header Badge */}
                 <div className="flex flex-wrap items-center justify-between gap-2.5 mb-3">
@@ -512,6 +606,13 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
                   </div>
                 )}
               </div>
+
+              {matchResult.followUp && (
+                <div className="space-y-1">
+                  <p className="text-xs text-slate-500">Para afinar la recomendación:</p>
+                  {renderFollowUp('blue')}
+                </div>
+              )}
 
               {/* 
                 LUEGO DE VER LA INFO: ACCESO Y REGISTRO DE EMPRESAS CON MAIL Y CONTRASEÑA
@@ -834,6 +935,8 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
                   </div>
                 </div>
               </div>
+                </>
+              )}
             </div>
           )}
         </div>

@@ -41,6 +41,9 @@ export interface ChileanFund {
   requiresInnovation: boolean;
   requiresCommercialValidation: boolean;
   status: 'Abierto' | 'Próxima Convocatoria' | 'Ventanilla Abierta';
+  callStatus: 'abierta' | 'cerrada' | 'proxima' | 'por_confirmar';
+  closeDate: string | null;
+  lastVerified: string;
   callSchedule: string;
   summary: string;
   description: string;
@@ -165,4 +168,17 @@ export interface AuthSession {
   user: CompanyUser;
   token: string;
   loginAt: string;
+}
+
+export function getFundVisibleStatus(fund: { callStatus?: 'abierta' | 'cerrada' | 'proxima' | 'por_confirmar'; closeDate?: string | null }): 'Abierta' | 'Cerrada' | 'Próxima' | 'Por confirmar' {
+  if (fund.closeDate) {
+    const closeTime = new Date(fund.closeDate).getTime();
+    if (!isNaN(closeTime) && closeTime < Date.now()) {
+      return 'Cerrada';
+    }
+  }
+  if (fund.callStatus === 'abierta') return 'Abierta';
+  if (fund.callStatus === 'cerrada') return 'Cerrada';
+  if (fund.callStatus === 'proxima') return 'Próxima';
+  return 'Por confirmar';
 }

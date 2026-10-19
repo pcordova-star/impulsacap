@@ -95,7 +95,7 @@ export const AdmissibilityChecker: React.FC<AdmissibilityCheckerProps> = ({
   const handleDownloadCertificate = () => {
     const certText = `
 ========================================================================
-             CERTIFICADO DE PRE-ADMISIBILIDAD INKI CHILE
+             CERTIFICADO DE PRE-ADMISIBILIDAD ImpulsaCap CHILE
 ========================================================================
 Fecha de Evaluación: ${new Date().toLocaleDateString('es-CL')}
 Organismo: ${fund.agency}

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChileanFund, Agency } from '../types/funds';
+import { ChileanFund, Agency, getFundVisibleStatus } from '../types/funds';
 import { CHILEAN_FUNDS } from '../data/chileanFunds';
 import { 
   Search, 
@@ -192,6 +192,15 @@ export const FundCatalog: React.FC<FundCatalogProps> = ({
                       </span>
                       <span className="text-xs font-medium px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
                         {fund.category}
+                      </span>
+                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                        getFundVisibleStatus(fund) === 'Abierta'
+                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                          : getFundVisibleStatus(fund) === 'Cerrada'
+                          ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                          : 'bg-slate-800 text-slate-400 border border-slate-700'
+                      }`}>
+                        ● {getFundVisibleStatus(fund)}
                       </span>
                       {fund.femaleBonusPct && (
                         <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-pink-500/10 text-pink-300 border border-pink-500/20">

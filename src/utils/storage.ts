@@ -103,7 +103,7 @@ export const getCleanDefaultProfile = (user?: CompanyUser | null): CompanyProfil
       innovationLevel: 'incremental',
       projectSummary: `Plataforma y proyecto de innovación desarrollado por ${user.companyName.trim() || 'la empresa'}.`,
       coreTech: 'Tecnología digital y desarrollo de soluciones.',
-      customerValidationCount: 2
+      customerValidationCount: 0
     };
   }
 

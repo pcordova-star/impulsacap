@@ -15,7 +15,8 @@ import {
   UserCheck,
   FileCheck,
   ArrowLeft,
-  Upload
+  Upload,
+  RotateCcw
 } from 'lucide-react';
 
 interface DocumentManagerProps {

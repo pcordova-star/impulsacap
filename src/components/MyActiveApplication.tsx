@@ -66,6 +66,52 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
   const [expandedStep, setExpandedStep] = useState<number | null>(null);
   const [showFundSelector, setShowFundSelector] = useState<boolean>(false);
 
+  // Agency official URL
+  const agencyUrls: Record<string, string> = {
+    'CORFO': 'https://www.corfo.cl',
+    'SERCOTEC': 'https://www.sercotec.cl',
+    'ANID': 'https://www.anid.cl',
+    'START-UP CHILE': 'https://www.startupchile.org',
+    'FIA': 'https://www.fia.cl',
+    'PROCHILE': 'https://www.prochile.gob.cl',
+  };
+  const agencyUrl = agencyUrls[selectedFund.agency] || 'https://www.corfo.cl';
+
+  // User-confirmed steps (persisted in localStorage scoped to current user)
+  const userKey = currentUser?.id || 'guest';
+  const [confirmedInicioActividades, setConfirmedInicioActividades] = useState<boolean>(() => {
+    return localStorage.getItem(`confirmed_inicio_${userKey}`) === 'true';
+  });
+  const [confirmedEstatutoSocial, setConfirmedEstatutoSocial] = useState<boolean>(() => {
+    return localStorage.getItem(`confirmed_estatuto_${userKey}`) === 'true';
+  });
+  const [confirmedGarantia, setConfirmedGarantia] = useState<boolean>(() => {
+    return localStorage.getItem(`confirmed_garantia_${userKey}`) === 'true';
+  });
+
+  const toggleInicioActividades = () => {
+    const next = !confirmedInicioActividades;
+    setConfirmedInicioActividades(next);
+    localStorage.setItem(`confirmed_inicio_${userKey}`, String(next));
+  };
+  const toggleEstatutoSocial = () => {
+    const next = !confirmedEstatutoSocial;
+    setConfirmedEstatutoSocial(next);
+    localStorage.setItem(`confirmed_estatuto_${userKey}`, String(next));
+  };
+  const toggleGarantia = () => {
+    const next = !confirmedGarantia;
+    setConfirmedGarantia(next);
+    localStorage.setItem(`confirmed_garantia_${userKey}`, String(next));
+  };
+
+  // Close date check: only show countdown if closeDate exists and is in the future
+  const hasFutureCloseDate = useMemo(() => {
+    if (!selectedFund.closeDate) return false;
+    const t = new Date(selectedFund.closeDate).getTime();
+    return !isNaN(t) && t > Date.now();
+  }, [selectedFund.closeDate]);
+
   // Use the verified company name from session or profile, never a stale placeholder
   const activeCompanyName = currentUser?.companyName?.trim() || profile.companyName?.trim() || 'Mi Empresa';
   const activeRut = currentUser?.rut?.trim() || profile.rut?.trim() || '';
@@ -85,18 +131,16 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
     minutes: number;
     seconds: number;
     isPast: boolean;
-  }>({ days: 18, hours: 14, minutes: 25, seconds: 40, isPast: false });
+  }>({ days: 0, hours: 0, minutes: 0, seconds: 0, isPast: false });
 
   useEffect(() => {
-    // Target close date: 18 days from current local schedule, or end of month
-    const now = new Date();
-    // Deterministic deadline based on fund name to stay consistent across reloads
-    const targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 18, 16, 0, 0);
-
+    if (!hasFutureCloseDate || !selectedFund.closeDate) {
+      return;
+    }
+    const targetDate = new Date(selectedFund.closeDate);
     const updateTimer = () => {
       const current = new Date().getTime();
       const difference = targetDate.getTime() - current;
-
       if (difference <= 0) {
         setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0, isPast: true });
       } else {
@@ -107,11 +151,10 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
         setTimeLeft({ days, hours, minutes, seconds, isPast: false });
       }
     };
-
     updateTimer();
     const interval = setInterval(updateTimer, 1000);
     return () => clearInterval(interval);
-  }, [selectedFund.id]);
+  }, [hasFutureCloseDate, selectedFund.closeDate]);
 
   // Define the 6 sequential steps of the application roadmap
   const steps = useMemo(() => [
@@ -121,10 +164,10 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
       title: 'Validación Tributaria & Requisitos SII',
       subtitle: 'RUT verificado, antigüedad según bases e inicio de actividades en 1ª Categoría',
       badge: 'Requisito Excluyente',
-      status: (isRutValid && hasTaxFolder) ? ('completed' as const) : ('in_progress' as const),
+      status: (isRutValid && confirmedInicioActividades && hasTaxFolder) ? ('completed' as const) : ('in_progress' as const),
       items: [
         { label: 'RUT de la empresa válido (Módulo 11)', done: isRutValid, detail: isRutValid ? activeRut : 'Ingresa un RUT válido' },
-        { label: 'Inicio de actividades en 1ª Categoría', done: isRutValid, detail: profile.monthsActive ? `${profile.monthsActive} meses de antigüedad tributaria` : 'Acreditado para persona jurídica' },
+        { label: 'Inicio de actividades en 1ª Categoría', done: confirmedInicioActividades, interactive: true, onToggle: toggleInicioActividades, detail: confirmedInicioActividades ? 'Confirmado por la empresa' : 'Marca la casilla si ya cuentas con inicio de actividades en 1ª Categoría' },
         { 
           label: 'Carpeta Tributaria Electrónica F29', 
           done: hasTaxFolder, 
@@ -142,9 +185,9 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
       title: 'Acreditación Legal & Cartas de Interés (LOI)',
       subtitle: 'Estatutos actualizados y cartas de respaldo comercial firmadas por clientes o aliados',
       badge: 'Pertinencia Comercial',
-      status: hasLetters ? ('completed' as const) : (isRutValid ? ('in_progress' as const) : ('pending' as const)),
+      status: (confirmedEstatutoSocial && hasLetters) ? ('completed' as const) : ('in_progress' as const),
       items: [
-        { label: 'Estatuto social y poderes de representación', done: isRutValid, detail: 'Certificado de vigencia de sociedad' },
+        { label: 'Estatuto social y poderes de representación', done: confirmedEstatutoSocial, interactive: true, onToggle: toggleEstatutoSocial, detail: confirmedEstatutoSocial ? 'Confirmado por la empresa' : 'Marca la casilla si cuentas con estatuto social y poderes vigentes' },
         { label: 'Cartas de Intención de Compra / LOI', done: hasLetters, detail: hasLetters ? `${profile.customerValidationCount} cartas registradas` : 'Mínimo 2 cartas recomendadas' },
         { label: 'Acreditación de Liderazgo Femenino', done: profile.isFemaleLed, detail: profile.isFemaleLed ? `+${selectedFund.femaleBonusPct || 10}% cofinanciamiento adicional` : 'No postulado con bono de género' }
       ],
@@ -173,12 +216,12 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
       title: 'Presupuesto Oficial & Co-financiamiento',
       subtitle: 'Cuentas presupuestarias aprobadas sin IVA imputado y cálculo de garantías de anticipo',
       badge: 'Financiero',
-      status: hasBudget ? ('completed' as const) : (hasFormulation ? ('in_progress' as const) : ('pending' as const)),
+      status: (hasBudget && confirmedGarantia) ? ('completed' as const) : (hasFormulation ? ('in_progress' as const) : ('pending' as const)),
       items: [
         { label: 'Desglose en Cuentas Oficiales CORFO', done: hasBudget, detail: hasBudget ? `${formulation?.budgetBreakdown?.length} ítems presupuestados` : 'Recursos humanos, operaciones, difusión' },
         { label: 'Verificación de IVA no imputado al subsidio', done: hasBudget, detail: 'El subsidio fiscal no subsidia IVA recuperable' },
         { label: 'Aporte empresarial pecuniario', done: hasBudget, detail: `Hasta ${selectedFund.maxCoFinancePct}% subsidio / ${(100 - selectedFund.maxCoFinancePct)}% aporte privado` },
-        { label: 'Simulación de póliza de garantía para anticipo', done: true, detail: 'Permite recibir el 100% de los fondos sin esperar rendición' }
+        { label: 'Simulación de póliza de garantía para anticipo', done: confirmedGarantia, interactive: true, onToggle: toggleGarantia, detail: confirmedGarantia ? 'Simulación realizada y confirmada' : 'Marca la casilla o usa el simulador para estimar el anticipo' }
       ],
       actionLabel: hasBudget ? 'Revisar Presupuesto & Garantías' : 'Configurar Presupuesto en Formulador',
       onAction: () => onNavigateTab('formulator')
@@ -213,7 +256,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
       actionLabel: 'Ver / Descargar Dossier PDF Oficial',
       onAction: () => setShowDossierModal(true)
     }
-  ], [isRutValid, activeRut, hasLetters, profile.customerValidationCount, profile.isFemaleLed, selectedFund, hasFormulation, formulation, hasBudget, hasAudit, isAuditApproved, auditResult, onOpenSiiModal, onNavigateTab]);
+  ], [isRutValid, activeRut, hasLetters, profile.customerValidationCount, profile.isFemaleLed, selectedFund, hasFormulation, formulation, hasBudget, hasAudit, isAuditApproved, auditResult, onOpenSiiModal, onNavigateTab, confirmedInicioActividades, confirmedEstatutoSocial, confirmedGarantia]);
 
   // Calculate overall progress based on steps completed
   const completedStepsCount = steps.filter(s => s.status === 'completed').length;
@@ -676,7 +719,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
                       {/* Bottom action bar inside expanded step */}
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1 text-xs">
                         <span className="text-slate-400">
-                          ¿Dudas con este paso? El Asesor INKI puede orientarte según las bases 2026.
+                          ¿Dudas con este paso? El Asesor ImpulsaCap puede orientarte según las bases 2026.
                         </span>
                         <div className="flex items-center gap-2 w-full sm:w-auto">
                           <button

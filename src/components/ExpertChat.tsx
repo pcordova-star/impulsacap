@@ -8,9 +8,11 @@ import {
   HelpCircle, 
   RefreshCw,
   Lightbulb,
-  Building2
+  Building2,
+  RotateCcw,
+  AlertCircle
 } from 'lucide-react';
-import { InkiLogo } from './InkiLogo';
+import { ImpulsaCapLogo } from './ImpulsaCapLogo';
 
 interface ExpertChatProps {
   profile: CompanyProfile;
@@ -36,7 +38,7 @@ export const ExpertChat: React.FC<ExpertChatProps> = ({ profile, currentFund }) 
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: 'model',
-      content: `¡Hola! Soy **INKI AI** (*buena suerte* en quechua), tu asesor especialista en fondos concursables en Chile (CORFO, SERCOTEC, ANID, Start-Up Chile y FIA).
+      content: `¡Hola! Soy **ImpulsaCap AI** , tu asesor especialista en fondos concursables en Chile (CORFO, SERCOTEC, ANID, Start-Up Chile y FIA).
       
 Estoy analizando tu empresa: **${profile.companyName || 'Tu Empresa'}** (${profile.companyType.toUpperCase()}, ${profile.region}).
 ¿Qué duda tienes sobre bases administrativas, admisibilidad legal, rendición de cuentas o estrategia para ganar?`,
@@ -45,6 +47,8 @@ Estoy analizando tu empresa: **${profile.companyName || 'Tu Empresa'}** (${profi
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
+  const [failedText, setFailedText] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -54,6 +58,9 @@ Estoy analizando tu empresa: **${profile.companyName || 'Tu Empresa'}** (${profi
   const handleSend = async (userText: string) => {
     if (!userText.trim() || loading) return;
 
+    setChatError(null);
+    setFailedText(null);
+
     const newMessages: ChatMessage[] = [
       ...messages,
       {
@@ -62,6 +69,7 @@ Estoy analizando tu empresa: **${profile.companyName || 'Tu Empresa'}** (${profi
         timestamp: new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
       }
     ];
+
     setMessages(newMessages);
     setInput('');
     setLoading(true);
@@ -78,7 +86,8 @@ Estoy analizando tu empresa: **${profile.companyName || 'Tu Empresa'}** (${profi
       });
 
       if (!response.ok) {
-        throw new Error('Error en el asesor IA');
+        const errJson = await response.json().catch(() => ({}));
+        throw new Error(errJson.error || 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.');
       }
 
       const data = await response.json();
@@ -91,27 +100,9 @@ Estoy analizando tu empresa: **${profile.companyName || 'Tu Empresa'}** (${profi
         }
       ]);
     } catch (err: any) {
-      console.error(err);
-      // Realistic fallback response based on common Chilean grant questions
-      let answer = 'En los fondos públicos de Chile (CORFO y SERCOTEC), la normativa es sumamente rigurosa:';
-      if (userText.includes('IVA')) {
-        answer = 'En Chile, el IVA de las facturas NO es un gasto financiable por subsidio estatal. Si tu empresa es contribuyente de 1ª categoría con derecho a crédito fiscal, el subsidio CORFO solo cubre el valor neto. El 19% de IVA debe ser pagado por tu empresa con recursos propios (aunque luego lo recuperas como crédito fiscal contra tus ventas en el F29 del SII).';
-      } else if (userText.includes('sueldo') || userText.includes('socios')) {
-        answer = 'En CORFO, los socios fundadores sí pueden pagarse remuneraciones imputadas al proyecto en la cuenta de Recursos Humanos, siempre que tengan dedicación técnica o de gestión comprobable y no superen el tope porcentual establecido en las bases (típicamente hasta el 50% o 60% del subsidio total). Se respalda mensualmente con contrato de trabajo o boletas de honorarios, liquidaciones firmadas y certificado de cotizaciones previsionales al día.';
-      } else if (userText.includes('garantía') || userText.includes('fianza') || userText.includes('pagaré')) {
-        answer = 'Para que CORFO te transfiera los fondos en modalidad de anticipo, exige una garantía por el 100% del monto a girar. Las dos opciones más comunes son: 1) Póliza de Seguro de Fianza o Garantía a primer requerimiento (la emiten aseguradoras como HDI, AVLA o Mapfre con un costo de prima del ~1.5% al 3% anual, gasto que además es financiable con el proyecto en la cuenta de Administración); o 2) Boleta de Garantía Bancaria. En fondos menores de SERCOTEC, habitualmente basta con la firma de un pagaré notarial.';
-      } else {
-        answer = `Para el caso de ${profile.companyName}, la recomendación es verificar previamente que los F29 de los últimos 24 meses cuadren con la declaración de renta F22, y estructurar el presupuesto con al menos 3 hitos críticos verificables. ¿Te gustaría que revisemos un aspecto puntual de las bases o de las cuentas presupuestarias?`;
-      }
-
-      setMessages([
-        ...newMessages,
-        {
-          role: 'model',
-          content: answer,
-          timestamp: new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
-        }
-      ]);
+      console.error('Chat error:', err);
+      setChatError(err?.message || 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.');
+      setFailedText(userText);
     } finally {
       setLoading(false);
     }
@@ -122,10 +113,10 @@ Estoy analizando tu empresa: **${profile.companyName || 'Tu Empresa'}** (${profi
       {/* Chat Header */}
       <div className="p-4 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <InkiLogo size={36} />
+          <ImpulsaCapLogo size={36} />
           <div>
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              INKI AI • Consultor Experto en Subsidios
+              ImpulsaCap AI • Consultor Experto en Subsidios
               <span className="w-2 h-2 rounded-full bg-emerald-400" />
             </h3>
             <p className="text-xs text-slate-400">
@@ -188,7 +179,54 @@ Estoy analizando tu empresa: **${profile.companyName || 'Tu Empresa'}** (${profi
             <span>Consultando bases administrativas y normativas de Chile...</span>
           </div>
         )}
-        <div ref={scrollRef} />
+        {chatError && (
+            <div className="p-3.5 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 flex items-center justify-between gap-3 text-xs animate-in fade-in">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                <span>{chatError}</span>
+              </div>
+              {failedText && (
+                <button
+                  onClick={() => {
+                    const txt = failedText;
+                    setChatError(null);
+                    setFailedText(null);
+                    handleSend(txt);
+                  }}
+                  disabled={loading}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs transition-all cursor-pointer shrink-0"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Reintentar</span>
+                </button>
+              )}
+            </div>
+          )}
+          {chatError && (
+              <div className="p-3.5 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 flex items-center justify-between gap-3 text-xs animate-in fade-in">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                  <span>{chatError}</span>
+                </div>
+                {failedText && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const txt = failedText;
+                      setChatError(null);
+                      setFailedText(null);
+                      handleSend(txt);
+                    }}
+                    disabled={loading}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs transition-all cursor-pointer shrink-0"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Reintentar</span>
+                  </button>
+                )}
+              </div>
+            )}
+            <div ref={scrollRef} />
       </div>
 
       {/* Frequently Asked Question Pills */}
