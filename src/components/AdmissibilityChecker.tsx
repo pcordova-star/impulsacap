@@ -51,7 +51,7 @@ export const AdmissibilityChecker: React.FC<AdmissibilityCheckerProps> = ({
       id: 'sales_limit',
       title: 'Límite Máximo de Facturación Anual (F29)',
       description: `Exigencia de bases: ${fund.salesRequirement}`,
-      status: fund.salesBracketsEligible.includes(profile.salesBracket) ? 'pass' : 'fail',
+      status: (profile.salesBracket && fund.salesBracketsEligible.includes(profile.salesBracket as any)) ? 'pass' : (profile.salesBracket ? 'fail' : 'warning'),
       errorMsg: `Tus ventas (${profile.salesBracket}) superan el tope del fondo o no cumplen con el tramo requerido.`,
       passMsg: `Nivel de ventas califica dentro del tramo autorizado por ${fund.agency}.`
     },

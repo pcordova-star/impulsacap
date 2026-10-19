@@ -353,6 +353,134 @@
         "amount",
         "status"
       ]
+    },
+    "GeneratedDoc": {
+      "title": "GeneratedDoc",
+      "description": "Formal legal documents generated with AI (LOI letters, co-finance commitments, memorandums)",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the document owner"
+        },
+        "tipo": {
+          "type": "string",
+          "maxLength": 160,
+          "description": "Type of legal document"
+        },
+        "contraparte": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Client or counterpart partner organization"
+        },
+        "proyecto": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Project title"
+        },
+        "fondo": {
+          "type": "string",
+          "maxLength": 160,
+          "description": "Target fund"
+        },
+        "texto": {
+          "type": "string",
+          "description": "Markdown text content of the document"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "borrador",
+            "firmada"
+          ],
+          "description": "Status of the document: borrador (draft) or firmada (signed)"
+        },
+        "fecha": {
+          "type": "string",
+          "description": "Document generation or signing date"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Last update timestamp"
+        }
+      },
+      "required": [
+        "ownerId",
+        "tipo",
+        "texto",
+        "status"
+      ]
+    },
+    "Expediente": {
+      "title": "Expediente",
+      "description": "Unified postulation dossier per user and Chilean fund containing profile, tax folder, roadmap, documents, formulation and audit results",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID"
+        },
+        "fundId": {
+          "type": "string",
+          "description": "Fund ID"
+        },
+        "fundName": {
+          "type": "string",
+          "description": "Fund Name"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp"
+        },
+        "profile": {
+          "type": "object",
+          "description": "Company profile"
+        },
+        "taxFolder": {
+          "type": "object",
+          "description": "Tax folder details"
+        },
+        "roadmapConfirmations": {
+          "type": "object",
+          "description": "Roadmap item confirmations"
+        },
+        "docStatuses": {
+          "type": "object",
+          "description": "Document checklist statuses"
+        },
+        "generatedDocs": {
+          "type": "array",
+          "description": "Generated legal documents"
+        },
+        "answersBySection": {
+          "type": "object",
+          "description": "Formulation questions and user answers"
+        },
+        "generatedTextsBySection": {
+          "type": "object",
+          "description": "Formulation generated texts"
+        },
+        "formulation": {
+          "type": "object",
+          "description": "Complete assembled formulation"
+        },
+        "auditResult": {
+          "type": "object",
+          "description": "Blind audit result"
+        }
+      },
+      "required": [
+        "ownerId",
+        "fundId"
+      ]
     }
   },
   "firestore": {
@@ -379,6 +507,14 @@
     "/payments/{paymentId}": {
       "schema": "Payment",
       "description": "Payment transaction history recorded by server webhook. No client access"
+    },
+    "/generatedDocs/{docId}": {
+      "schema": "GeneratedDoc",
+      "description": "User generated legal documents and LOIs. Readable and writable only by owner"
+    },
+    "/expedientes/{expedienteId}": {
+      "schema": "Expediente",
+      "description": "User single source of truth postulation dossier per fund"
     }
   }
 }

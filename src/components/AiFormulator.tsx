@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ChileanFund, CompanyProfile, FormulationOutput } from '../types/funds';
+import { ExpedienteData } from '../types/expediente';
 import { apiFetch } from '../utils/apiFetch';
 import { usePlan } from '../hooks/usePlan';
 import { PlanPaywallCard } from './PlanPaywallCard';
@@ -23,7 +24,10 @@ import {
   Layers,
   PieChart,
   Edit3,
-  FileText
+  FileText,
+  Calculator,
+  Calendar,
+  AlertTriangle
 } from 'lucide-react';
 
 interface AiFormulatorProps {
@@ -31,6 +35,8 @@ interface AiFormulatorProps {
   setSelectedFund: (f: ChileanFund) => void;
   profile: CompanyProfile;
   initialFormulation?: FormulationOutput | null;
+  expediente?: ExpedienteData;
+  onSaveSectionAnswers?: (sectionId: string, answers: Record<string, string>, generatedText?: string) => void;
   onSaveFormulation?: (formulation: FormulationOutput) => void;
   onSendToAudit: (formulation: FormulationOutput, fund: ChileanFund) => void;
   onNavigateTab?: (tab: string) => void;
@@ -49,10 +55,31 @@ interface SectionDefinition {
   }[];
 }
 
+// 8 Sections covering: Título y pitch, Problema, Solución, Mercado, Modelo de Negocio, Plan de Trabajo, Equipo, Presupuesto
 const SECTIONS: SectionDefinition[] = [
   {
-    id: 'problem',
+    id: 'title_pitch',
     stepNumber: 1,
+    title: 'Título y Pitch',
+    badge: 'Identificación Oficial',
+    questions: [
+      {
+        key: 'projectTitle',
+        label: '¿Cuál es el título descriptivo de tu proyecto?',
+        placeholder: 'Ej: Plataforma IoT y Analítica Predictiva para Eficiencia Hídrica en Viñedos',
+        helpText: 'Debe sintetizar la tecnología, la aplicación y el sector objetivo según las bases del concurso.'
+      },
+      {
+        key: 'pitchSummary30s',
+        label: 'Elevator Pitch (30 segundos): describe en 2 o 3 oraciones qué hace, para quién y por qué es único:',
+        placeholder: 'Ej: Desarrollamos un sistema autónomo de sensores y modelos predictivos que permite a viticultores reducir un 30% el consumo de agua...',
+        helpText: 'Resumen ejecutivo de alto impacto que los evaluadores leen primero.'
+      }
+    ]
+  },
+  {
+    id: 'problem',
+    stepNumber: 2,
     title: 'Problema y Oportunidad',
     badge: 'Criterio Dolor de Mercado',
     questions: [
@@ -78,7 +105,7 @@ const SECTIONS: SectionDefinition[] = [
   },
   {
     id: 'solution',
-    stepNumber: 2,
+    stepNumber: 3,
     title: 'Solución y Grado de Innovación',
     badge: 'Criterio Novedad Técnica',
     questions: [
@@ -95,8 +122,8 @@ const SECTIONS: SectionDefinition[] = [
         helpText: 'Menciona las tecnologías clave que sustentan la novedad técnica.'
       },
       {
-        key: 'difference',
-        label: '¿Cuál es la diferencia o ventaja frente a lo existente en Chile?',
+        key: 'noveltyVsCompetitors',
+        label: '¿Cuál es la novedad y diferenciación frente a los competidores existentes en Chile o el mundo?',
         placeholder: 'Ej: Es 60% más económico de implementar y procesa alertas climáticas en tiempo real...',
         helpText: 'Destaca las barreras de entrada y factores diferenciadores.'
       }
@@ -104,7 +131,7 @@ const SECTIONS: SectionDefinition[] = [
   },
   {
     id: 'market',
-    stepNumber: 3,
+    stepNumber: 4,
     title: 'Mercado y Clientes Objetivo',
     badge: 'Criterio Potencial Comercial',
     questions: [
@@ -115,22 +142,74 @@ const SECTIONS: SectionDefinition[] = [
         helpText: 'Define quién toma la decisión de compra de tu solución.'
       },
       {
-        key: 'pricing',
-        label: '¿Cuál es el precio estimado o modelo de cobro?',
+        key: 'tam',
+        label: '¿Cuál es el tamaño total del mercado (TAM) estimado?',
+        placeholder: 'Ej: En Chile existen más de 12.000 empresas agrícolas; mercado potencial de $30 millones USD...',
+        helpText: 'Estimación del mercado total disponible.'
+      },
+      {
+        key: 'sam',
+        label: '¿Cuál es el mercado accesible y disponible (SAM)?',
+        placeholder: 'Ej: 2.500 empresas agrícolas tecnificadas en la zona centro-sur...',
+        helpText: 'Segmento del mercado al que realmente puedes acceder.'
+      },
+      {
+        key: 'som',
+        label: '¿Cuál es la meta comercial a 12-24 meses (SOM)?',
+        placeholder: 'Ej: Capturar 50 clientes pagando suscripción durante los primeros 18 meses...',
+        helpText: 'Objetivo de ventas concreto que planeas capturar con este subsidio.'
+      }
+    ]
+  },
+  {
+    id: 'model',
+    stepNumber: 5,
+    title: 'Modelo de Negocio y Monetización',
+    badge: 'Criterio Viabilidad Comercial',
+    questions: [
+      {
+        key: 'revenue',
+        label: '¿Cuáles serán las fuentes de ingresos y esquema de cobro?',
         placeholder: 'Ej: Suscripción SaaS mensual de $150.000 CLP por sucursal más costo de instalación único...',
         helpText: 'Modelo de monetización (SaaS, comisión, venta unitaria, etc.).'
       },
       {
-        key: 'size',
-        label: '¿Cuál es el tamaño aproximado de mercado en Chile o Latam?',
-        placeholder: 'Ej: En Chile existen más de 12.000 empresas agrícolas; mercado potencial de $30 millones USD...',
-        helpText: 'Si no tienes el dato exacto, la IA redactará [COMPLETAR: tamaño de mercado objetivo].'
+        key: 'salesStrategy',
+        label: '¿Cuál es la estrategia comercial y canales de venta (Go-to-Market)?',
+        placeholder: 'Ej: Venta directa a través de pilotos comerciales, inbound marketing y convenios gremiales...',
+        helpText: 'Canales y mecanismos para conseguir los primeros clientes con el subsidio.'
+      }
+    ]
+  },
+  {
+    id: 'workplan',
+    stepNumber: 6,
+    title: 'Plan de Trabajo e Hitos',
+    badge: 'Criterio Plan de Ejecución',
+    questions: [
+      {
+        key: 'milestone1',
+        label: 'Hito 1 (Meses 1-3): Objetivo, entregable verificable y riesgo crítico:',
+        placeholder: 'Ej: Mes 3: Prototipo funcional probado en laboratorio. Entregable: Informe técnico y métricas de calibración. Riesgo: Demora en insumos importados.',
+        helpText: 'Objetivo técnico inicial que Corfo o Sercotec exigen para aprobar el primer hito de avance.'
+      },
+      {
+        key: 'milestone2',
+        label: 'Hito 2 (Meses 4-8): Objetivo, entregable verificable y riesgo crítico:',
+        placeholder: 'Ej: Mes 7: Piloto en terreno con 3 clientes pagando. Entregable: Actas de conformidad y métricas de ahorro. Riesgo: Resistencia de usuarios.',
+        helpText: 'Hito intermedio de validación en entorno real de mercado.'
+      },
+      {
+        key: 'milestone3',
+        label: 'Hito 3 (Meses 9-12): Objetivo, entregable verificable y riesgo crítico:',
+        placeholder: 'Ej: Mes 12: Escalamiento comercial y primeras 5 ventas formales. Entregable: Facturas y contratos de venta firmados. Riesgo: Ciclos de compra lentos.',
+        helpText: 'Hito final de salida al mercado y cumplimiento de metas del fondo.'
       }
     ]
   },
   {
     id: 'team',
-    stepNumber: 4,
+    stepNumber: 7,
     title: 'Equipo y Capacidades',
     badge: 'Criterio Idoneidad del Postulante',
     questions: [
@@ -155,30 +234,38 @@ const SECTIONS: SectionDefinition[] = [
     ]
   },
   {
-    id: 'model',
-    stepNumber: 5,
-    title: 'Modelo de Negocio y Plan de Trabajo',
-    badge: 'Criterio Viabilidad y Ejecución',
-    questions: [
-      {
-        key: 'revenue',
-        label: '¿Cuáles serán las fuentes de ingresos y estrategia de ventas (Go-to-Market)?',
-        placeholder: 'Ej: Venta directa a través de pilotos comerciales, inbound marketing y convenios gremiales...',
-        helpText: 'Canales y mecanismos para conseguir los primeros clientes con el subsidio.'
-      },
-      {
-        key: 'milestones',
-        label: '¿Cuáles son los 3 hitos clave planificados para los primeros 12 meses?',
-        placeholder: 'Ej: Mes 3: Prototipo beta en laboratorio; Mes 7: Piloto con 3 clientes pagando; Mes 12: Escalamiento comercial...',
-        helpText: 'Entregables verificables que Corfo y Sercotec exigen en cada rendición.'
-      },
-      {
-        key: 'budget',
-        label: '¿Cuáles son los principales gastos en que se usará el subsidio estatal?',
-        placeholder: 'Ej: 60% en recursos humanos (desarrolladores), 25% en validación comercial y 15% en póliza de garantía...',
-        helpText: 'Se ajustará automáticamente a las cuentas presupuestarias permitidas del fondo.'
-      }
-    ]
+    id: 'budget',
+    stepNumber: 8,
+    title: 'Presupuesto Oficial',
+    badge: 'Criterio Co-financiamiento',
+    questions: [] // Handled via dedicated Budget Accounts UI
+  }
+];
+
+const STANDARD_BUDGET_ACCOUNTS = [
+  {
+    key: 'rh',
+    account: 'Recursos Humanos Críticos',
+    defaultItem: 'Personal técnico, desarrolladores e ingenieros de proyecto',
+    defaultJustification: 'Dedicación técnica directa al desarrollo y ejecución del proyecto.'
+  },
+  {
+    key: 'operaciones',
+    account: 'Gastos de Operación',
+    defaultItem: 'Materiales, insumos de prototipado, servicios cloud y pruebas de campo',
+    defaultJustification: 'Adquisición de insumos y servicios requeridos para validación en terreno.'
+  },
+  {
+    key: 'consultoria',
+    account: 'Asistencia Técnica y Consultoría',
+    defaultItem: 'Certificaciones, ensayos de laboratorio externos y auditoría técnica',
+    defaultJustification: 'Servicios de terceros especializados no disponibles internamente.'
+  },
+  {
+    key: 'administracion',
+    account: 'Gastos de Administración y Garantías',
+    defaultItem: 'Contabilidad de rendiciones y costo de póliza de garantía de anticipo',
+    defaultJustification: 'Garantizar el estricto cumplimiento administrativo y contractual de las bases.'
   }
 ];
 
@@ -187,6 +274,8 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
   setSelectedFund,
   profile,
   initialFormulation,
+  expediente,
+  onSaveSectionAnswers,
   onSaveFormulation,
   onSendToAudit,
   onNavigateTab
@@ -195,37 +284,99 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
     selectedFund || CHILEAN_FUNDS[0]
   );
 
-  // Active step index (0 to 4)
+  // Active step index (0 to 7)
   const [currentSectionIndex, setCurrentSectionIndex] = useState<number>(0);
-  const { hasActivePlan, isExpired } = usePlan();
+  const { hasActivePlan, loading: planLoading } = usePlan();
   const [showPaywall, setShowPaywall] = useState<boolean>(false);
 
-  // User input answers for each section
-  const [answersBySection, setAnswersBySection] = useState<Record<string, Record<string, string>>>({
-    problem: {},
-    solution: {},
-    market: {},
-    team: {},
-    model: {}
+  // User input answers for each section - Restored from unified Expediente (Requirement 11)
+  const [answersBySection, setAnswersBySection] = useState<Record<string, Record<string, string>>>(() => {
+    if (expediente?.answersBySection && Object.keys(expediente.answersBySection).length > 0) {
+      return expediente.answersBySection;
+    }
+    return {
+      title_pitch: {
+        projectTitle: initialFormulation?.projectTitle || '',
+        pitchSummary30s: initialFormulation?.pitchSummary30s || ''
+      },
+      problem: {
+        who: '',
+        cost: '',
+        alternatives: ''
+      },
+      solution: {
+        how: '',
+        tech: '',
+        noveltyVsCompetitors: initialFormulation?.noveltyVsCompetitors || ''
+      },
+      market: {
+        archetype: initialFormulation?.marketAnalysisTAM?.clientArchetype || '',
+        tam: initialFormulation?.marketAnalysisTAM?.tam || '',
+        sam: initialFormulation?.marketAnalysisTAM?.sam || '',
+        som: initialFormulation?.marketAnalysisTAM?.som || ''
+      },
+      model: {
+        revenue: '',
+        salesStrategy: ''
+      },
+      workplan: {
+        milestone1: initialFormulation?.workPlanMilestones?.[0]?.description || '',
+        milestone2: initialFormulation?.workPlanMilestones?.[1]?.description || '',
+        milestone3: initialFormulation?.workPlanMilestones?.[2]?.description || ''
+      },
+      team: {
+        members: '',
+        dedication: '',
+        skills: ''
+      },
+      budget: {}
+    };
+  });
+
+  // Dedicated Budget Accounts State (Requirement 10: Real amounts entered by user)
+  const [budgetAccounts, setBudgetAccounts] = useState<Record<string, {
+    corfoContributionCLP: number;
+    companyPecuniaryCLP: number;
+    item: string;
+    justification: string;
+  }>>(() => {
+    const existing = expediente?.formulation?.budgetBreakdown || initialFormulation?.budgetBreakdown;
+    const initialMap: Record<string, any> = {};
+
+    STANDARD_BUDGET_ACCOUNTS.forEach(acc => {
+      const found = existing?.find(b => b.account === acc.account);
+      initialMap[acc.key] = {
+        corfoContributionCLP: found ? found.corfoContributionCLP : 0,
+        companyPecuniaryCLP: found ? found.companyPecuniaryCLP : 0,
+        item: found?.item || acc.defaultItem,
+        justification: found?.justification || acc.defaultJustification
+      };
+    });
+    return initialMap;
   });
 
   // Generated texts per section (editable)
-  const [generatedTexts, setGeneratedTexts] = useState<Record<string, string>>({
-    problem: initialFormulation?.problemStatement || '',
-    solution: initialFormulation?.solutionAndInnovation || '',
-    market: initialFormulation?.marketAnalysisTAM 
-      ? `TAM: ${initialFormulation.marketAnalysisTAM.tam}
-SAM: ${initialFormulation.marketAnalysisTAM.sam}
-SOM: ${initialFormulation.marketAnalysisTAM.som}
-Arquetipo: ${initialFormulation.marketAnalysisTAM.clientArchetype}`
-      : '',
-    team: initialFormulation?.teamCapabilities || '',
-    model: initialFormulation?.businessModel || ''
+  const [generatedTexts, setGeneratedTexts] = useState<Record<string, string>>(() => {
+    if (expediente?.generatedTextsBySection && Object.keys(expediente.generatedTextsBySection).length > 0) {
+      return expediente.generatedTextsBySection;
+    }
+    return {
+      title_pitch: initialFormulation?.projectTitle ? `${initialFormulation.projectTitle}\n\n${initialFormulation.pitchSummary30s || ''}` : '',
+      problem: initialFormulation?.problemStatement || '',
+      solution: initialFormulation?.solutionAndInnovation || '',
+      market: initialFormulation?.marketAnalysisTAM?.tam
+        ? `TAM: ${initialFormulation.marketAnalysisTAM.tam}\nSAM: ${initialFormulation.marketAnalysisTAM.sam}\nSOM: ${initialFormulation.marketAnalysisTAM.som}\nArquetipo: ${initialFormulation.marketAnalysisTAM.clientArchetype}`
+        : '',
+      model: initialFormulation?.businessModel || '',
+      workplan: '',
+      team: initialFormulation?.teamCapabilities || '',
+      budget: ''
+    };
   });
 
   // Keep full formulation object
   const [fullFormulation, setFullFormulation] = useState<FormulationOutput | null>(
-    initialFormulation || null
+    expediente?.formulation || initialFormulation || null
   );
 
   const [loading, setLoading] = useState(false);
@@ -235,15 +386,100 @@ Arquetipo: ${initialFormulation.marketAnalysisTAM.clientArchetype}`
 
   const currentSection = SECTIONS[currentSectionIndex];
 
-  // Helper to handle answer changes
+  // Sync when selectedFund prop changes
+  useEffect(() => {
+    if (selectedFund && selectedFund.id !== currentFund.id) {
+      setCurrentFund(selectedFund);
+    }
+  }, [selectedFund]);
+
+  // Sync when expediente prop updates answers
+  useEffect(() => {
+    if (expediente?.answersBySection && Object.keys(expediente.answersBySection).length > 0) {
+      setAnswersBySection(prev => ({
+        ...prev,
+        ...expediente.answersBySection
+      }));
+    }
+    if (expediente?.generatedTextsBySection && Object.keys(expediente.generatedTextsBySection).length > 0) {
+      setGeneratedTexts(prev => ({
+        ...prev,
+        ...expediente.generatedTextsBySection
+      }));
+    }
+    if (expediente?.formulation) {
+      setFullFormulation(expediente.formulation);
+    }
+  }, [expediente]);
+
+  // Budget calculations and validations
+  const totalSubsidio = useMemo(() => {
+    return Object.values(budgetAccounts).reduce((acc, curr) => acc + (curr.corfoContributionCLP || 0), 0);
+  }, [budgetAccounts]);
+
+  const totalAporteEmpresa = useMemo(() => {
+    return Object.values(budgetAccounts).reduce((acc, curr) => acc + (curr.companyPecuniaryCLP || 0), 0);
+  }, [budgetAccounts]);
+
+  const totalProyecto = totalSubsidio + totalAporteEmpresa;
+
+  const maxAllowedSubsidy = currentFund.maxSubsidyCLP;
+  const maxAllowedPct = profile.isFemaleLed ? 85 : currentFund.maxCoFinancePct;
+  const currentSubsidioPct = totalProyecto > 0 ? (totalSubsidio / totalProjectSafe(totalProyecto)) * 100 : 0;
+
+  function totalProjectSafe(tp: number) {
+    return tp > 0 ? tp : 1;
+  }
+
+  const isSubsidyExceeded = totalSubsidio > maxAllowedSubsidy;
+  const isPctExceeded = totalProyecto > 0 && currentSubsidioPct > (maxAllowedPct + 0.05);
+  const isBudgetValid = totalSubsidio > 0 && !isSubsidyExceeded && !isPctExceeded;
+
+  // Helper to handle answer changes & persist (Requirement 11)
   const handleAnswerChange = (qKey: string, val: string) => {
-    setAnswersBySection(prev => ({
-      ...prev,
-      [currentSection.id]: {
-        ...(prev[currentSection.id] || {}),
-        [qKey]: val
+    const updatedSectionAnswers = {
+      ...(answersBySection[currentSection.id] || {}),
+      [qKey]: val
+    };
+
+    const nextAnswers = {
+      ...answersBySection,
+      [currentSection.id]: updatedSectionAnswers
+    };
+
+    setAnswersBySection(nextAnswers);
+
+    if (onSaveSectionAnswers) {
+      onSaveSectionAnswers(currentSection.id, updatedSectionAnswers, generatedTexts[currentSection.id]);
+    }
+  };
+
+  // Helper to handle budget inputs
+  const handleBudgetAccountChange = (accKey: string, field: 'corfoContributionCLP' | 'companyPecuniaryCLP' | 'item' | 'justification', val: any) => {
+    setBudgetAccounts(prev => {
+      const next = {
+        ...prev,
+        [accKey]: {
+          ...prev[accKey],
+          [field]: val
+        }
+      };
+
+      // Also persist to answersBySection for the budget step
+      const budgetAnswers: Record<string, string> = {};
+      Object.entries(next).forEach(([k, item]) => {
+        budgetAnswers[`${k}_corfo`] = String(item.corfoContributionCLP);
+        budgetAnswers[`${k}_empresa`] = String(item.companyPecuniaryCLP);
+        budgetAnswers[`${k}_item`] = item.item;
+        budgetAnswers[`${k}_justification`] = item.justification;
+      });
+
+      if (onSaveSectionAnswers) {
+        onSaveSectionAnswers('budget', budgetAnswers);
       }
-    }));
+
+      return next;
+    });
   };
 
   // Helper to handle generated text changes (user edits)
@@ -252,6 +488,10 @@ Arquetipo: ${initialFormulation.marketAnalysisTAM.clientArchetype}`
       ...prev,
       [currentSection.id]: val
     }));
+
+    if (onSaveSectionAnswers) {
+      onSaveSectionAnswers(currentSection.id, answersBySection[currentSection.id] || {}, val);
+    }
   };
 
   // Generate specific section with AI
@@ -314,7 +554,11 @@ Arquetipo: ${initialFormulation.marketAnalysisTAM.clientArchetype}`
       // Update full formulation draft
       updateFullFormulationDraft(currentSection.id, generated);
 
-      setSavedNotice(`¡Sección "${currentSection.title}" generada! Puedes editar el texto a continuación.`);
+      if (onSaveSectionAnswers) {
+        onSaveSectionAnswers(currentSection.id, sectionAns, generated);
+      }
+
+      setSavedNotice(`¡Sección "${currentSection.title}" generada con éxito!`);
       setTimeout(() => setSavedNotice(null), 4000);
     } catch (err: any) {
       console.error('Section formulation error:', err);
@@ -324,82 +568,102 @@ Arquetipo: ${initialFormulation.marketAnalysisTAM.clientArchetype}`
     }
   };
 
-  // Update full formulation draft
+  // Requirement 10: Assemble formulation WITHOUT inventing any fake data
   const updateFullFormulationDraft = (sectionId: string, text: string) => {
     const updatedTexts = { ...generatedTexts, [sectionId]: text };
 
-    const problem = updatedTexts.problem || 'Problema en desarrollo.';
-    const solution = updatedTexts.solution || 'Solución innovadora en desarrollo.';
-    const team = updatedTexts.team || 'Equipo interdisciplinario con dedicación técnica.';
-    const model = updatedTexts.model || 'Modelo de negocios orientado a validación.';
+    // Título y Pitch (Real, without generic placeholders)
+    const titleFromAns = answersBySection.title_pitch?.projectTitle?.trim();
+    const pitchFromAns = answersBySection.title_pitch?.pitchSummary30s?.trim();
+    const finalProjectTitle = titleFromAns || (updatedTexts.title_pitch?.split('\n')[0]?.trim()) || fullFormulation?.projectTitle || '';
+    const finalPitch = pitchFromAns || (updatedTexts.title_pitch?.split('\n').slice(1).join(' ').trim()) || fullFormulation?.pitchSummary30s || '';
+
+    // Problema y Solución
+    const problem = updatedTexts.problem || answersBySection.problem?.who || fullFormulation?.problemStatement || '';
+    const solution = updatedTexts.solution || answersBySection.solution?.how || fullFormulation?.solutionAndInnovation || '';
+    const novelty = answersBySection.solution?.noveltyVsCompetitors || fullFormulation?.noveltyVsCompetitors || '';
+
+    // Mercado TAM SAM SOM (Real, without fake numbers)
+    const marketAns = answersBySection.market || {};
+    const finalMarket = {
+      tam: marketAns.tam?.trim() || fullFormulation?.marketAnalysisTAM?.tam || '',
+      sam: marketAns.sam?.trim() || fullFormulation?.marketAnalysisTAM?.sam || '',
+      som: marketAns.som?.trim() || fullFormulation?.marketAnalysisTAM?.som || '',
+      clientArchetype: marketAns.archetype?.trim() || fullFormulation?.marketAnalysisTAM?.clientArchetype || ''
+    };
+
+    // Modelo y Equipo
+    const model = updatedTexts.model || answersBySection.model?.revenue || fullFormulation?.businessModel || '';
+    const team = updatedTexts.team || answersBySection.team?.members || fullFormulation?.teamCapabilities || '';
+
+    // Plan de Trabajo (Real from user answers, or empty array)
+    const workplanAns = answersBySection.workplan || {};
+    const realMilestones: {
+      month: string;
+      title: string;
+      description: string;
+      deliverable: string;
+      criticalRisk: string;
+    }[] = [];
+
+    if (workplanAns.milestone1?.trim()) {
+      realMilestones.push({
+        month: 'Mes 1 a 3',
+        title: 'Hito 1: Validación Técnica Inicial',
+        description: workplanAns.milestone1.trim(),
+        deliverable: 'Informe técnico de validación y prototipo funcional',
+        criticalRisk: 'Desviaciones en especificaciones; mitigado con iteraciones ágiles'
+      });
+    }
+
+    if (workplanAns.milestone2?.trim()) {
+      realMilestones.push({
+        month: 'Mes 4 a 8',
+        title: 'Hito 2: Pilotos en Entorno Real',
+        description: workplanAns.milestone2.trim(),
+        deliverable: 'Actas de conformidad de pruebas de campo y métricas de desempeño',
+        criticalRisk: 'Demoras en pruebas con clientes; mitigado con acuerdos previos'
+      });
+    }
+
+    if (workplanAns.milestone3?.trim()) {
+      realMilestones.push({
+        month: 'Mes 9 a 12',
+        title: 'Hito 3: Validación Comercial y Escalamiento',
+        description: workplanAns.milestone3.trim(),
+        deliverable: 'Facturas de venta o acuerdos comerciales de adopción',
+        criticalRisk: 'Ciclos de cierre de ventas; mitigado con planes piloto'
+      });
+    }
+
+    // Presupuesto (Real from entered budget accounts, or empty array)
+    const realBudgetItems = STANDARD_BUDGET_ACCOUNTS.map(acc => {
+      const data = budgetAccounts[acc.key];
+      return {
+        account: acc.account,
+        item: data?.item || acc.defaultItem,
+        corfoContributionCLP: Number(data?.corfoContributionCLP || 0),
+        companyPecuniaryCLP: Number(data?.companyPecuniaryCLP || 0),
+        companyValuedCLP: 0,
+        justification: data?.justification || acc.defaultJustification
+      };
+    }).filter(b => b.corfoContributionCLP > 0 || b.companyPecuniaryCLP > 0);
 
     const draft: FormulationOutput = {
       fundId: currentFund.id,
       fundName: currentFund.name,
-      projectTitle: fullFormulation?.projectTitle || `Proyecto de Innovación ${profile.companyName || 'Empresa Postulante'}`,
-      pitchSummary30s: fullFormulation?.pitchSummary30s || `${solution} Diseñado para resolver ${problem.slice(0, 100)}...`,
+      projectTitle: finalProjectTitle,
+      pitchSummary30s: finalPitch,
       problemStatement: problem,
       solutionAndInnovation: solution,
-      noveltyVsCompetitors: fullFormulation?.noveltyVsCompetitors || 'Diferenciación basada en tecnología propietaria y menores costos de adopción.',
-      marketAnalysisTAM: fullFormulation?.marketAnalysisTAM || {
-        tam: '$35.000.000 USD (Mercado Latinoamericano)',
-        sam: '$4.500.000 USD (Mercado Nacional)',
-        som: '$850.000 USD (Meta 18 meses)',
-        clientArchetype: 'Clientes empresariales B2B y personas con necesidad de automatización'
-      },
+      noveltyVsCompetitors: novelty,
+      marketAnalysisTAM: finalMarket,
       businessModel: model,
-      workPlanMilestones: fullFormulation?.workPlanMilestones || [
-        {
-          month: 'Mes 1 a 3',
-          title: 'Hito 1: Validación y Prototipado',
-          description: 'Desarrollo de especificaciones y pruebas de laboratorio.',
-          deliverable: 'Informe técnico de validación y prototipo funcional.',
-          criticalRisk: 'Demoras en adquisición de insumos; mitigado con proveedores locales.'
-        },
-        {
-          month: 'Mes 4 a 8',
-          title: 'Hito 2: Pilotos en Terreno',
-          description: 'Implementación con usuarios de prueba y primeras cartas LOI.',
-          deliverable: 'Actas de conformidad de pruebas piloto.',
-          criticalRisk: 'Ajustes en interfaz; mitigado con iteraciones semanales.'
-        },
-        {
-          month: 'Mes 9 a 12',
-          title: 'Hito 3: Comercialización y Escalamiento',
-          description: 'Campaña comercial y formalización de contratos de venta.',
-          deliverable: 'Facturas de venta o cartas de intención firmadas.',
-          criticalRisk: 'Ciclos de venta prolongados; mitigado con descuentos de entrada.'
-        }
-      ],
-      budgetBreakdown: fullFormulation?.budgetBreakdown || [
-        {
-          account: 'Recursos Humanos',
-          item: 'Equipo de desarrollo y líder técnico',
-          corfoContributionCLP: Math.round(currentFund.maxSubsidyCLP * 0.55),
-          companyPecuniaryCLP: Math.round(currentFund.maxSubsidyCLP * 0.12),
-          companyValuedCLP: 0,
-          justification: 'Dedicación al desarrollo de la solución.'
-        },
-        {
-          account: 'Gastos de Operación',
-          item: 'Validación en terreno y pilotos comerciales',
-          corfoContributionCLP: Math.round(currentFund.maxSubsidyCLP * 0.35),
-          companyPecuniaryCLP: Math.round(currentFund.maxSubsidyCLP * 0.08),
-          companyValuedCLP: 0,
-          justification: 'Insumos de prueba y prospección de clientes.'
-        },
-        {
-          account: 'Administración y Garantías',
-          item: 'Póliza de garantía de anticipo',
-          corfoContributionCLP: Math.round(currentFund.maxSubsidyCLP * 0.10),
-          companyPecuniaryCLP: 0,
-          companyValuedCLP: 0,
-          justification: 'Costo financiero para anticipar el 100% del subsidio.'
-        }
-      ],
+      workPlanMilestones: realMilestones.length > 0 ? realMilestones : (fullFormulation?.workPlanMilestones || []),
+      budgetBreakdown: realBudgetItems.length > 0 ? realBudgetItems : (fullFormulation?.budgetBreakdown || []),
       teamCapabilities: team,
       bonusFemaleJustification: profile.isFemaleLed
-        ? 'Empresa liderada por mujeres con participación societaria mayor al 50%, acreditada mediante estatuto social.'
+        ? 'Empresa liderada por mujeres con participación societaria acreditada.'
         : undefined
     };
 
@@ -409,14 +673,12 @@ Arquetipo: ${initialFormulation.marketAnalysisTAM.clientArchetype}`
 
   // Next section handler
   const handleNextSection = () => {
-    // Save current section text to full formulation
     updateFullFormulationDraft(currentSection.id, generatedTexts[currentSection.id] || '');
-
     if (currentSectionIndex < SECTIONS.length - 1) {
       setCurrentSectionIndex(prev => prev + 1);
       window.scrollTo({ top: 120, behavior: 'smooth' });
     } else {
-      setSavedNotice('¡Felicitaciones! Has completado todas las secciones de tu formulación técnica.');
+      setSavedNotice('¡Excelente! Has completado todas las secciones de tu formulación técnica.');
       setTimeout(() => setSavedNotice(null), 5000);
     }
   };
@@ -437,354 +699,541 @@ Arquetipo: ${initialFormulation.marketAnalysisTAM.clientArchetype}`
   // Export full markdown
   const handleExportMarkdown = () => {
     if (!fullFormulation) return;
+
     const md = `# FORMULACIÓN TÉCNICA OFICIAL PARA POSTULACIÓN
 ## FONDO: ${currentFund.name} (${currentFund.agency})
 ### POSTULANTE: ${profile.companyName || 'Empresa Postulante'} (${profile.rut || 'RUT Pendiente'})
+
 ---
+
 ### 1. TÍTULO DEL PROYECTO
-${fullFormulation.projectTitle}
+${fullFormulation.projectTitle || '[Sin completar]'}
 
 ### 2. ELEVATOR PITCH (30 SEGUNDOS)
-${fullFormulation.pitchSummary30s}
+${fullFormulation.pitchSummary30s || '[Sin completar]'}
 
 ---
+
 ### 3. PROBLEMA / OPORTUNIDAD Y MAGNITUD DEL DOLOR
-${generatedTexts.problem || fullFormulation.problemStatement}
+${generatedTexts.problem || fullFormulation.problemStatement || '[Sin completar]'}
 
 ---
+
 ### 4. SOLUCIÓN PROPUESTA Y GRADO DE INNOVACIÓN
-${generatedTexts.solution || fullFormulation.solutionAndInnovation}
+${generatedTexts.solution || fullFormulation.solutionAndInnovation || '[Sin completar]'}
 
 ---
+
 ### 5. ANÁLISIS DE MERCADO Y CLIENTES
-${generatedTexts.market}
+${generatedTexts.market || (fullFormulation.marketAnalysisTAM?.tam ? `TAM: ${fullFormulation.marketAnalysisTAM.tam}\nSAM: ${fullFormulation.marketAnalysisTAM.sam}\nSOM: ${fullFormulation.marketAnalysisTAM.som}` : '[Sin completar]')}
 
 ---
-### 6. CAPACIDADES DEL EQUIPO DE TRABAJO
-${generatedTexts.team || fullFormulation.teamCapabilities}
+
+### 6. MODELO DE NEGOCIO Y ESTRATEGIA COMERCIAL
+${generatedTexts.model || fullFormulation.businessModel || '[Sin completar]'}
 
 ---
-### 7. MODELO DE NEGOCIO Y PLAN DE TRABAJO
-${generatedTexts.model || fullFormulation.businessModel}
-`;
 
-    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8;' });
+### 7. PLAN DE TRABAJO E HITOS A 12 MESES
+${fullFormulation.workPlanMilestones?.map((m, i) => `${i + 1}. ${m.title} (${m.month}): ${m.description} | Entregable: ${m.deliverable} | Riesgo: ${m.criticalRisk}`).join('\n') || '[Sin completar]'}
+
+---
+
+### 8. EQUIPO DE TRABAJO Y CAPACIDADES
+${generatedTexts.team || fullFormulation.teamCapabilities || '[Sin completar]'}
+
+---
+
+### 9. PRESUPUESTO OFICIAL (CUENTAS ${currentFund.agency})
+${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfoContributionCLP.toLocaleString('es-CL')} CLP | Aporte Empresa: $${b.companyPecuniaryCLP.toLocaleString('es-CL')} CLP`).join('\n') || '[Sin completar]'}
+`.trim();
+
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `Formulacion_${currentFund.id}_${(profile.companyName || 'Proyecto').replace(/\s+/g, '_')}.md`;
+    link.setAttribute('download', `Formulacion_${currentFund.agency}_${(profile.companyName || 'Empresa').replace(/\s+/g, '_')}.md`);
+    document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
-  const currentSectionText = generatedTexts[currentSection.id] || '';
-  const currentAnswers = answersBySection[currentSection.id] || {};
-  const hasGeneratedCurrent = currentSectionText.trim().length > 0;
-  const isAllCompleted = SECTIONS.every(s => (generatedTexts[s.id] || '').trim().length > 0);
-
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
-      {/* Top Header & Navigation */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
-        <div className="flex items-center gap-3">
-          {onNavigateTab && (
-            <button
-              onClick={() => onNavigateTab('my-application')}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white border border-slate-300 hover:border-emerald-500 text-xs font-bold text-slate-700 hover:text-emerald-700 shadow-xs transition-all cursor-pointer"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Volver a Mi Hoja de Ruta</span>
-            </button>
-          )}
-          <span className="text-xs text-slate-500 hidden md:inline">
-            Fondo Objetivo: <strong className="text-slate-900">{currentFund.name}</strong>
-          </span>
+    <div className="space-y-6 max-w-6xl mx-auto pb-16 animate-fade-in">
+      
+      {/* Top Banner / Fund Context Bar */}
+      <div className="p-4 sm:p-6 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900 to-blue-950 border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xl">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-bold uppercase tracking-wider">
+              {currentFund.agency}
+            </span>
+            <span className="text-xs text-slate-400">
+              Tope Subsidio: <strong className="text-emerald-400">{currentFund.subsidyFormatted}</strong> (Hasta {profile.isFemaleLed ? 85 : currentFund.maxCoFinancePct}% Estatal)
+            </span>
+          </div>
+          <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
+            <span>Formulador Técnico:</span>
+            <span className="text-cyan-400">{currentFund.name}</span>
+          </h1>
+          <p className="text-xs text-slate-400">
+            Postulación por: <strong className="text-slate-200">{profile.companyName || 'Empresa'}</strong> • RUT: {profile.rut || 'Pendiente'}
+          </p>
         </div>
 
-        {/* Target Fund Selector */}
-        <div className="flex items-center gap-2">
-          <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0">
-            Fondo:
-          </label>
+        {/* Change Fund Selector */}
+        <div className="w-full md:w-auto flex items-center gap-2">
           <select
             value={currentFund.id}
             onChange={(e) => {
-              const f = CHILEAN_FUNDS.find(item => item.id === e.target.value);
+              const f = CHILEAN_FUNDS.find(x => x.id === e.target.value);
               if (f) {
                 setCurrentFund(f);
                 setSelectedFund(f);
               }
             }}
-            className="px-3 py-1.5 rounded-xl bg-white border border-slate-300 text-slate-900 text-xs font-bold focus:border-blue-600 focus:outline-hidden"
+            className="w-full md:w-64 bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-cyan-500 cursor-pointer"
           >
-            {CHILEAN_FUNDS.map((f) => (
+            {CHILEAN_FUNDS.map(f => (
               <option key={f.id} value={f.id}>
-                {f.name} ({f.subsidyFormatted})
+                {f.agency} - {f.name}
               </option>
             ))}
           </select>
         </div>
       </div>
 
-      {/* Main Banner */}
-      <div className="p-6 rounded-3xl bg-gradient-to-r from-blue-50/80 via-white to-emerald-50/40 border border-blue-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-100 text-blue-800 text-[11px] font-black uppercase tracking-wider mb-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-            <span>Formulador por Secciones IA</span>
+      {/* Paywall Banner if triggered */}
+      {showPaywall && (
+        <div className="p-4 sm:p-6 rounded-2xl bg-slate-900/90 border border-amber-500/30">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-base font-bold text-amber-400 flex items-center gap-2">
+              <ShieldAlert className="w-5 h-5 text-amber-400" />
+              <span>Desbloquea el Formulador con el Plan Semestral</span>
+            </h3>
+            <button
+              onClick={() => setShowPaywall(false)}
+              className="text-xs text-slate-400 hover:text-white"
+            >
+              Cerrar
+            </button>
           </div>
-          <h2 className="text-xl sm:text-2xl font-black text-slate-900 leading-tight">
-            Redacción Asistida Sección por Sección
-          </h2>
-          <p className="text-xs text-slate-600 mt-0.5">
-            Ingresa 2 o 3 datos de tu proyecto por cada sección. La IA redactará el texto técnico formal prohibiendo inventar cifras.
-          </p>
+          <PlanPaywallCard />
         </div>
+      )}
 
-        {/* Quick actions when completed */}
-        {fullFormulation && (
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={handleExportMarkdown}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-slate-300 hover:border-blue-500 text-xs font-bold text-slate-700 hover:text-blue-700 shadow-xs transition-colors cursor-pointer"
-              title="Descargar toda la formulación en formato Markdown"
-            >
-              <Download className="w-3.5 h-3.5 text-slate-500" />
-              <span>Exportar .md</span>
-            </button>
-            <button
-              onClick={() => onSendToAudit(fullFormulation, currentFund)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs shadow-xs transition-colors cursor-pointer"
-            >
-              <ShieldAlert className="w-3.5 h-3.5" />
-              <span>Auditar con Rúbrica</span>
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Section Steps Navigation Bar */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-2 shadow-xs">
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+      {/* Section Progress Stepper */}
+      <div className="bg-slate-900/80 rounded-2xl border border-slate-800 p-3 sm:p-4 shadow-lg overflow-x-auto">
+        <div className="flex items-center gap-1.5 sm:gap-2 min-w-[720px]">
           {SECTIONS.map((sec, idx) => {
-            const isCurrent = idx === currentSectionIndex;
-            const isDone = (generatedTexts[sec.id] || '').trim().length > 0;
+            const isActive = idx === currentSectionIndex;
+            const isFilled = idx === 7 
+              ? isBudgetValid 
+              : Boolean(generatedTexts[sec.id]?.trim() || Object.values(answersBySection[sec.id] || {}).some(v => v.trim().length > 0));
+
             return (
               <button
                 key={sec.id}
                 onClick={() => {
+                  updateFullFormulationDraft(currentSection.id, generatedTexts[currentSection.id] || '');
                   setCurrentSectionIndex(idx);
-                  window.scrollTo({ top: 120, behavior: 'smooth' });
                 }}
-                className={`p-2.5 rounded-xl text-left transition-all cursor-pointer flex items-center justify-between gap-1.5 ${
-                  isCurrent
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : isDone
-                    ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200'
-                    : 'bg-slate-50 hover:bg-slate-100 text-slate-600'
+                className={`flex-1 min-w-[80px] p-2.5 rounded-xl text-left border transition-all cursor-pointer ${
+                  isActive
+                    ? 'bg-cyan-950/60 border-cyan-500 shadow-md shadow-cyan-950/40 text-cyan-200'
+                    : isFilled
+                    ? 'bg-slate-950/40 border-slate-800/80 text-slate-300 hover:border-slate-700'
+                    : 'bg-slate-950/20 border-slate-800/40 text-slate-500 hover:text-slate-400'
                 }`}
               >
-                <div className="min-w-0">
-                  <span className={`text-[10px] uppercase font-bold block ${
-                    isCurrent ? 'text-blue-200' : isDone ? 'text-emerald-700' : 'text-slate-400'
-                  }`}>
-                    Sección {sec.stepNumber}
-                  </span>
-                  <span className="text-xs font-bold truncate block">
-                    {sec.title}
-                  </span>
+                <div className="flex items-center justify-between text-[10px] font-bold uppercase mb-1">
+                  <span className="opacity-75">Paso {sec.stepNumber}</span>
+                  {isFilled && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
                 </div>
-                {isDone && !isCurrent ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                ) : (
-                  <span className={`w-2 h-2 rounded-full shrink-0 ${isCurrent ? 'bg-white' : 'bg-slate-300'}`} />
-                )}
+                <div className="text-xs font-semibold truncate text-white">
+                  {sec.title}
+                </div>
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* ACTIVE SECTION WORKSPACE */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* LEFT COLUMN: Input Questions (2 or 3 project questions) */}
-        <div className="lg:col-span-5 space-y-4">
-          <div className="p-5 sm:p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-black uppercase">
-                  {currentSection.badge}
-                </span>
-                <span className="text-xs font-bold text-slate-400">
-                  Paso {currentSection.stepNumber} de 5
-                </span>
-              </div>
-              <h3 className="text-lg font-black text-slate-900">
-                {currentSection.title}
-              </h3>
-              <p className="text-xs text-slate-500">
-                Completa estos datos de tu proyecto antes de generar la redacción técnica.
-              </p>
-            </div>
+      {/* Notice Alert */}
+      {savedNotice && (
+        <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center justify-between animate-fade-in">
+          <div className="flex items-center gap-2">
+            <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>{savedNotice}</span>
+          </div>
+        </div>
+      )}
 
-            {/* Questions inputs */}
-            <div className="space-y-3 pt-1">
-              {currentSection.questions.map((q) => (
-                <div key={q.key} className="space-y-1">
-                  <label className="block text-xs font-bold text-slate-800 leading-snug">
-                    {q.label}
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={currentAnswers[q.key] || ''}
-                    onChange={(e) => handleAnswerChange(q.key, e.target.value)}
-                    placeholder={q.placeholder}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-hidden transition-all"
-                  />
-                  <p className="text-[10px] text-slate-400">
-                    {q.helpText}
-                  </p>
-                </div>
-              ))}
+      {/* Main Section Content Area */}
+      <div className="bg-slate-900/90 rounded-3xl border border-slate-800 p-5 sm:p-8 space-y-6 shadow-2xl">
+        
+        {/* Section Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-slate-800">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">
+                Paso {currentSection.stepNumber} de {SECTIONS.length}
+              </span>
+              <span className="text-slate-600">•</span>
+              <span className="text-xs text-slate-400 font-medium">{currentSection.badge}</span>
             </div>
+            <h2 className="text-xl sm:text-2xl font-black text-white">
+              {currentSection.title}
+            </h2>
+          </div>
 
-            {/* Generate Section Button */}
-            <div className="pt-2 border-t border-slate-100">
+          <div className="flex items-center gap-2">
+            {currentSection.id !== 'budget' && (
               <button
                 onClick={handleGenerateSection}
-                disabled={loading}
-                className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-blue-600 via-teal-600 to-emerald-600 hover:from-blue-700 hover:to-emerald-700 text-white font-extrabold text-xs sm:text-sm shadow-md shadow-blue-600/20 active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
+                disabled={loading || planLoading}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 disabled:opacity-50 text-white font-bold text-xs shadow-lg shadow-cyan-600/20 transition-all cursor-pointer"
               >
                 {loading ? (
                   <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Redactando sección con IA...</span>
+                    <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                    <span>Redactando con IA...</span>
                   </>
                 ) : (
                   <>
-                    <Sparkles className="w-4 h-4 text-emerald-200" />
-                    <span>{hasGeneratedCurrent ? 'Regenerar esta Sección' : 'Generar Sección con IA'}</span>
+                    <Sparkles className="w-4 h-4 text-cyan-200" />
+                    <span>Redactar esta Sección con IA</span>
                   </>
                 )}
               </button>
-              <p className="text-[10px] text-center text-slate-400 mt-2">
-                Prompt configurado con prohibición estricta de inventar cifras.
+            )}
+          </div>
+        </div>
+
+        {/* SECTION 8: PRESUPUESTO OFICIAL (Requirement 10) */}
+        {currentSection.id === 'budget' ? (
+          <div className="space-y-6">
+            <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-2">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Calculator className="w-4 h-4 text-emerald-400" />
+                <span>Desglose por Cuentas Presupuestarias Oficiales ({currentFund.agency})</span>
+              </h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Ingresa los montos netos (sin IVA) solicitados al organismo y el aporte pecuniario de tu empresa. El sistema valida automáticamente los topes de las bases concursales.
               </p>
             </div>
-          </div>
-        </div>
 
-        {/* RIGHT COLUMN: Generated & Editable Output */}
-        <div className="lg:col-span-7 space-y-4">
-          <div className="p-5 sm:p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <Edit3 className="w-4 h-4 text-blue-600" />
-                <h4 className="text-sm font-black text-slate-900">
-                  Redacción Técnica Oficial (Editable)
-                </h4>
-              </div>
-              {hasGeneratedCurrent && (
-                <button
-                  onClick={() => handleCopy(currentSectionText, currentSection.id)}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer transition-colors"
-                >
-                  {copiedKey === currentSection.id ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Copiado</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5 text-slate-500" />
-                      <span>Copiar Texto</span>
-                    </>
-                  )}
-                </button>
+            {/* Validation Feedback Banner */}
+            <div className={`p-4 rounded-2xl border text-xs flex items-start gap-3 ${
+              isSubsidyExceeded || isPctExceeded
+                ? 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                : totalSubsidio > 0
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                : 'bg-slate-950/60 border-slate-800 text-slate-400'
+            }`}>
+              {isSubsidyExceeded || isPctExceeded ? (
+                <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+              ) : totalSubsidio > 0 ? (
+                <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+              ) : (
+                <AlertCircle className="w-5 h-5 text-slate-400 shrink-0 mt-0.5" />
               )}
-            </div>
-
-            {/* Notice / Status */}
-            {savedNotice && (
-              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>{savedNotice}</span>
-              </div>
-            )}
-
-            {error && (
-              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                  <span>{error}</span>
+              <div className="space-y-1">
+                <div className="font-bold text-sm">
+                  {isSubsidyExceeded
+                    ? `Tope de subsidio excedido en $${(totalSubsidio - maxAllowedSubsidy).toLocaleString('es-CL')} CLP`
+                    : isPctExceeded
+                    ? `Porcentaje de cofinanciamiento excedido (${currentSubsidioPct.toFixed(1)}% vs Máx ${maxAllowedPct}%)`
+                    : totalSubsidio > 0
+                    ? `Presupuesto válido y dentro de las bases de ${currentFund.name}`
+                    : 'Ingresa los montos por cuenta para calcular el presupuesto oficial'}
                 </div>
-                <button
-                  onClick={handleGenerateSection}
-                  className="px-2.5 py-1 rounded-lg bg-rose-600 text-white text-[11px] font-bold hover:bg-rose-700 cursor-pointer"
-                >
-                  Reintentar
-                </button>
-              </div>
-            )}
-
-            {/* Editable Text Area */}
-            <div>
-              <textarea
-                rows={14}
-                value={currentSectionText}
-                onChange={(e) => handleTextEdit(e.target.value)}
-                placeholder="Presiona 'Generar Sección con IA' a la izquierda para redactar el texto técnico de esta sección con los criterios oficiales de CORFO y SERCOTEC..."
-                className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20 text-slate-800 text-xs sm:text-sm leading-relaxed focus:outline-hidden transition-all font-sans"
-              />
-              <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1 px-1">
-                <span>
-                  {currentSectionText.trim().length > 0 
-                    ? `${currentSectionText.split(/\s+/).filter(Boolean).length} palabras • ${currentSectionText.length} caracteres` 
-                    : 'Texto pendiente de redacción'}
-                </span>
-                {currentSectionText.includes('[COMPLETAR:') && (
-                  <span className="text-amber-600 font-bold flex items-center gap-1">
-                    <AlertCircle className="w-3.5 h-3.5" />
-                    Contiene etiquetas [COMPLETAR: ...] para rellenar
-                  </span>
-                )}
+                <div className="text-[11px] leading-relaxed">
+                  {isSubsidyExceeded && (
+                    <p>El subsidio solicitado (${totalSubsidio.toLocaleString('es-CL')} CLP) no puede superar el máximo de ${maxAllowedSubsidy.toLocaleString('es-CL')} CLP fijado en las bases.</p>
+                  )}
+                  {isPctExceeded && (
+                    <p>Debes aumentar el Aporte Pecuniario de tu empresa para que el subsidio no sobrepase el {maxAllowedPct}% del costo total del proyecto.</p>
+                  )}
+                  {isBudgetValid && (
+                    <p>Subsidio solicitado representa el {currentSubsidioPct.toFixed(1)}% del proyecto (tope: {maxAllowedPct}%). Aporte de tu empresa: ${totalAporteEmpresa.toLocaleString('es-CL')} CLP.</p>
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* Section Footer Navigation Actions */}
-            <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
-              <div>
-                {currentSectionIndex > 0 ? (
-                  <button
-                    onClick={handlePrevSection}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white border border-slate-300 hover:border-slate-400 text-slate-700 font-bold text-xs cursor-pointer transition-colors"
-                  >
-                    <ArrowLeft className="w-3.5 h-3.5" />
-                    <span>Sección Anterior</span>
-                  </button>
-                ) : (
-                  <span className="text-[11px] text-slate-400 hidden sm:inline">
-                    Sección inicial de la formulación
-                  </span>
-                )}
+            {/* Live Financial Summary Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800">
+                <span className="text-[10px] text-slate-400 block">Subsidio Solicitado</span>
+                <strong className={`text-sm font-mono ${isSubsidyExceeded ? 'text-rose-400 font-bold' : 'text-cyan-400'}`}>
+                  ${totalSubsidio.toLocaleString('es-CL')} CLP
+                </strong>
+                <span className="text-[10px] text-slate-500 block">Máx: ${maxAllowedSubsidy.toLocaleString('es-CL')}</span>
               </div>
 
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <button
-                  onClick={handleNextSection}
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs sm:text-sm shadow-md shadow-emerald-600/20 active:scale-95 transition-all cursor-pointer"
-                >
-                  <span>
-                    {currentSectionIndex < SECTIONS.length - 1 
-                      ? 'Guardar y Pasar a Siguiente Sección' 
-                      : 'Guardar y Finalizar Formulación'}
-                  </span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
+              <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800">
+                <span className="text-[10px] text-slate-400 block">Aporte Pecuniario (Caja)</span>
+                <strong className="text-sm font-mono text-emerald-400">
+                  ${totalAporteEmpresa.toLocaleString('es-CL')} CLP
+                </strong>
+                <span className="text-[10px] text-slate-500 block">Aporte privado obligatorio</span>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800">
+                <span className="text-[10px] text-slate-400 block">Costo Total Proyecto</span>
+                <strong className="text-sm font-mono text-white">
+                  ${totalProyecto.toLocaleString('es-CL')} CLP
+                </strong>
+                <span className="text-[10px] text-slate-500 block">Subsidio + Aporte</span>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800">
+                <span className="text-[10px] text-slate-400 block">% Cofinanciamiento</span>
+                <strong className={`text-sm font-mono ${isPctExceeded ? 'text-rose-400 font-bold' : 'text-amber-400'}`}>
+                  {currentSubsidioPct.toFixed(1)}% Estatal
+                </strong>
+                <span className="text-[10px] text-slate-500 block">Máx permitido: {maxAllowedPct}%</span>
+              </div>
+            </div>
+
+            {/* Budget Accounts Inputs Table */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                Montos por Cuenta Presupuestaria
+              </h4>
+
+              <div className="space-y-3">
+                {STANDARD_BUDGET_ACCOUNTS.map(acc => {
+                  const data = budgetAccounts[acc.key] || {
+                    corfoContributionCLP: 0,
+                    companyPecuniaryCLP: 0,
+                    item: acc.defaultItem,
+                    justification: acc.defaultJustification
+                  };
+
+                  return (
+                    <div 
+                      key={acc.key}
+                      className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3 hover:border-slate-700 transition-colors"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <strong className="text-sm font-bold text-white">
+                          {acc.account}
+                        </strong>
+                        <span className="text-xs font-mono text-slate-400">
+                          Total cuenta: <strong className="text-slate-200">${((data.corfoContributionCLP || 0) + (data.companyPecuniaryCLP || 0)).toLocaleString('es-CL')} CLP</strong>
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-[11px] font-semibold text-cyan-300 block mb-1">
+                            Subsidio Solicitado ({currentFund.agency}) en CLP:
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="100000"
+                            value={data.corfoContributionCLP || ''}
+                            onChange={(e) => handleBudgetAccountChange(acc.key, 'corfoContributionCLP', Math.max(0, parseInt(e.target.value) || 0))}
+                            placeholder="0"
+                            className="w-full bg-slate-900 border border-slate-700 text-cyan-300 font-mono text-sm rounded-xl px-3 py-2 focus:outline-none focus:border-cyan-500 placeholder:text-slate-500 placeholder:italic"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[11px] font-semibold text-emerald-300 block mb-1">
+                            Aporte Pecuniario Empresa (Caja) en CLP:
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="100000"
+                            value={data.companyPecuniaryCLP || ''}
+                            onChange={(e) => handleBudgetAccountChange(acc.key, 'companyPecuniaryCLP', Math.max(0, parseInt(e.target.value) || 0))}
+                            placeholder="0"
+                            className="w-full bg-slate-900 border border-slate-700 text-emerald-300 font-mono text-sm rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500 placeholder:text-slate-500 placeholder:italic"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-1">
+                            Detalle del gasto o actividad:
+                          </label>
+                          <input
+                            type="text"
+                            value={data.item}
+                            onChange={(e) => handleBudgetAccountChange(acc.key, 'item', e.target.value)}
+                            placeholder={acc.defaultItem}
+                            className="w-full bg-slate-900 border border-slate-800 text-slate-200 text-xs rounded-xl px-3 py-1.5 focus:outline-none focus:border-cyan-500 placeholder:text-slate-500 placeholder:italic"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] text-slate-400 block mb-1">
+                            Justificación técnica del gasto:
+                          </label>
+                          <input
+                            type="text"
+                            value={data.justification}
+                            onChange={(e) => handleBudgetAccountChange(acc.key, 'justification', e.target.value)}
+                            placeholder={acc.defaultJustification}
+                            className="w-full bg-slate-900 border border-slate-800 text-slate-200 text-xs rounded-xl px-3 py-1.5 focus:outline-none focus:border-cyan-500 placeholder:text-slate-500 placeholder:italic"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
+        ) : (
+          /* SECTIONS 1 TO 7: QUESTIONS & AI GENERATION */
+          <div className="space-y-6">
+            
+            {/* Input Questions Grid */}
+            <div className="space-y-4">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                Preguntas Clave para el Comité Evaluador
+              </h3>
+
+              <div className="space-y-4">
+                {currentSection.questions.map((q) => {
+                  const val = answersBySection[currentSection.id]?.[q.key] || '';
+                  const isLong = q.key === 'pitchSummary30s' || q.key === 'alternatives' || q.key === 'how' || q.key.startsWith('milestone') || q.key === 'members';
+
+                  return (
+                    <div key={q.key} className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-200 block">
+                        {q.label}
+                      </label>
+                      
+                      {isLong ? (
+                        <textarea
+                          rows={3}
+                          value={val}
+                          onChange={(e) => handleAnswerChange(q.key, e.target.value)}
+                          placeholder={q.placeholder}
+                          className="w-full bg-slate-950 border border-slate-800 text-slate-100 text-xs rounded-xl p-3 focus:outline-none focus:border-cyan-500 placeholder:text-slate-500 placeholder:italic transition-colors leading-relaxed"
+                        />
+                      ) : (
+                        <input
+                          type="text"
+                          value={val}
+                          onChange={(e) => handleAnswerChange(q.key, e.target.value)}
+                          placeholder={q.placeholder}
+                          className="w-full bg-slate-950 border border-slate-800 text-slate-100 text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:border-cyan-500 placeholder:text-slate-500 placeholder:italic transition-colors"
+                        />
+                      )}
+
+                      <p className="text-[11px] text-slate-400">
+                        {q.helpText}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Generated / Editable Technical Text */}
+            <div className="space-y-3 pt-4 border-t border-slate-800/80">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Edit3 className="w-4 h-4 text-cyan-400" />
+                  <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
+                    Redacción Técnica Oficial (Editable)
+                  </h3>
+                </div>
+
+                {generatedTexts[currentSection.id] && (
+                  <button
+                    onClick={() => handleCopy(generatedTexts[currentSection.id], currentSection.id)}
+                    className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors cursor-pointer"
+                  >
+                    {copiedKey === currentSection.id ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        <span className="text-emerald-400">Copiado</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Copiar Texto</span>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+
+              <textarea
+                rows={6}
+                value={generatedTexts[currentSection.id] || ''}
+                onChange={(e) => handleTextEdit(e.target.value)}
+                placeholder="El texto técnico redactado para esta sección aparecerá aquí al hacer clic en 'Redactar esta Sección con IA', o puedes escribir directamente tu borrador..."
+                className="w-full bg-slate-950 border border-slate-800 text-slate-100 text-xs rounded-2xl p-4 focus:outline-none focus:border-cyan-500 placeholder:text-slate-500 placeholder:italic leading-relaxed font-sans"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Navigation & Action Footer */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-6 border-t border-slate-800">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            {currentSectionIndex > 0 && (
+              <button
+                onClick={handlePrevSection}
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors cursor-pointer"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Paso Anterior</span>
+              </button>
+            )}
+
+            <button
+              onClick={handleExportMarkdown}
+              disabled={!fullFormulation}
+              className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700/60 transition-colors cursor-pointer disabled:opacity-40"
+              title="Descargar toda la formulación en formato Markdown"
+            >
+              <Download className="w-4 h-4" />
+              <span className="hidden sm:inline">Exportar Borrador</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+            {currentSectionIndex < SECTIONS.length - 1 ? (
+              <button
+                onClick={handleNextSection}
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-lg shadow-cyan-600/20 transition-all cursor-pointer w-full sm:w-auto"
+              >
+                <span>Guardar y Siguiente Paso</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  updateFullFormulationDraft(currentSection.id, generatedTexts[currentSection.id] || '');
+                  if (fullFormulation) {
+                    onSendToAudit(fullFormulation, currentFund);
+                  }
+                }}
+                disabled={!isBudgetValid}
+                className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 text-white font-bold text-xs shadow-lg shadow-emerald-600/25 transition-all cursor-pointer w-full sm:w-auto"
+              >
+                <Sparkles className="w-4 h-4 text-emerald-200" />
+                <span>Finalizar y Enviar a Auditoría Ciega</span>
+              </button>
+            )}
+          </div>
         </div>
+
       </div>
+
     </div>
   );
 };

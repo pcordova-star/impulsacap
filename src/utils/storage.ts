@@ -15,42 +15,44 @@ export interface SavedApplication {
   notes?: string;
 }
 
-// Generates a clean profile strictly for the specified user or guest
+// Generates a clean profile strictly for the specified user or guest (no invented sample data)
 export const getCleanDefaultProfile = (user?: CompanyUser | null): CompanyProfile => {
   if (user) {
     return {
-      companyName: user.companyName?.trim() || 'Mi Empresa SpA',
+      companyName: user.companyName?.trim() || '',
       rut: user.rut?.trim() || '',
       companyType: 'spa',
-      monthsActive: 6,
-      salesBracket: 'menor_60m',
-      annualSalesCLP: 0,
-      sector: 'Tecnología, Innovación y Servicios',
-      region: 'Región Metropolitana',
+      monthsActive: null,
+      salesBracket: '',
+      annualSalesCLP: null,
+      sector: '',
+      region: '',
+      city: '',
       isFemaleLed: false,
       femaleEquityPct: 0,
-      trlStage: 'mvp_validado',
+      trlStage: '',
       innovationLevel: 'incremental',
-      projectSummary: user.companyName ? `Plataforma y proyecto de innovación de ${user.companyName.trim()}.` : '',
-      coreTech: 'Tecnología digital y desarrollo de soluciones.',
+      projectSummary: '',
+      coreTech: '',
       customerValidationCount: 0,
       taxFolderUploaded: false
     };
   }
 
-  // Unauthenticated guest preview - completely clean, no leak
+  // Unauthenticated guest preview - completely clean, no leak, no invented data
   return {
     companyName: '',
     rut: '',
     companyType: 'spa',
-    monthsActive: 6,
-    salesBracket: 'menor_60m',
-    annualSalesCLP: 0,
-    sector: 'Tecnología, Innovación y Servicios',
-    region: 'Región Metropolitana',
+    monthsActive: null,
+    salesBracket: '',
+    annualSalesCLP: null,
+    sector: '',
+    region: '',
+    city: '',
     isFemaleLed: false,
     femaleEquityPct: 0,
-    trlStage: 'mvp_validado',
+    trlStage: '',
     innovationLevel: 'incremental',
     projectSummary: '',
     coreTech: '',
@@ -86,7 +88,7 @@ export const getCurrentUser = (): CompanyUser | null => {
   return {
     id: fbUser.uid,
     email: fbUser.email || '',
-    companyName: cached.companyName || fbUser.displayName || 'Mi Empresa SpA',
+    companyName: cached.companyName || fbUser.displayName || '',
     rut: cached.rut || '',
     phone: cached.phone || '',
     representativeName: cached.representativeName || fbUser.displayName || '',

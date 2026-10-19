@@ -866,22 +866,55 @@ Responde ÚNICAMENTE en formato JSON con la siguiente estructura:
 // 4. Generación de Documentos Formales (Cartas LOI, Compromisos, etc.)
 app.post('/api/gemini/generate-doc', requireAuth, requireActivePlan, async (req, res) => {
   try {
-    const { documentType, companyName, clientOrPartnerName, projectName, fundName, details } = req.body;
+    const {
+      documentType,
+      companyName,
+      clientOrPartnerName,
+      projectName,
+      fundName,
+      legalRepName,
+      legalRepRut,
+      city,
+      details,
+      formulation,
+      taxFolderSummary
+    } = req.body;
 
-    const prompt = `Eres un abogado y consultor corporativo experto en tramitación de subsidios públicos en Chile (CORFO, SERCOTEC, ANID).
-Genera un documento formal, listo para firmar o presentar, de tipo: "${documentType}".
+    const prompt = `Eres un abogado y consultor corporativo experto en tramitación de subsidios públicos en Chile (CORFO, SERCOTEC, ANID, Start-Up Chile).
+Genera un documento formal, listo para firmar o presentar, de tipo: "${documentType || 'Carta de Manifestación de Interés Comercial (LOI)'}".
 
-DATOS CLAVE:
-- Empresa Postulante: ${companyName}
-- Contraparte / Cliente Piloto o Patrocinador: ${clientOrPartnerName || 'Empresa Colaboradora'}
-- Nombre del Proyecto: ${projectName}
-- Fondo Concursable al que se postula: ${fundName}
-- Detalles específicos: ${JSON.stringify(details || {})}
+INSTRUCCIONES Y REGLAS ESTRICTAS:
+1. Usa ÚNICAMENTE los datos entregados en este prompt. No inventes antecedentes de clientes ficticios, cifras no sustentadas ni datos no provistos.
+2. Donde falte un dato específico que deba completar el usuario o la contraparte, escribe explícitamente [COMPLETAR: descripción del dato faltante] (por ejemplo: [COMPLETAR: RUT de la contraparte], [COMPLETAR: Cargo del firmante], [COMPLETAR: Fecha de firma]).
+3. Diseña el documento conforme a las Bases Administrativas y Técnicas del concurso: ${fundName || 'CORFO / SERCOTEC'}.
 
-FORMATO Y TONO:
-- Formal, legal y ejecutivo según los estándares exigidos por la Contraloría General de la República de Chile y las Bases Administrativas de CORFO/SERCOTEC.
-- Incluye campos claros para: Fecha en Chile, Ciudad, RUT de la empresa, Nombre del Representante Legal, Cargo, Firma y Timbre.
-- Estructura redactada en Markdown pulcro, con cláusulas y compromisos expresos de pilotaje, aporte pecuniario/no pecuniario o validación comercial.
+DATOS ENTREGADOS DE LA POSTULACIÓN:
+- Empresa Postulante: ${companyName || '[COMPLETAR: Razón Social de la Empresa]'}
+- RUT Empresa: ${details?.rut || '[COMPLETAR: RUT Empresa]'}
+- Representante Legal Empresa: ${legalRepName || '[COMPLETAR: Nombre del Representante Legal]'}
+- RUT Representante Legal: ${legalRepRut || '[COMPLETAR: RUT del Representante Legal]'}
+- Ciudad: ${city || details?.city || '[COMPLETAR: Ciudad]'}
+- Región: ${details?.region || '[COMPLETAR: Región]'}
+- Contraparte / Cliente Piloto o Aliado: ${clientOrPartnerName || '[COMPLETAR: Razón Social o Nombre del Cliente / Aliado]'}
+- Nombre y Cargo del Contacto Contraparte: ${details?.clientContact || '[COMPLETAR: Nombre y Cargo del Representante de la Contraparte]'}
+- Nombre del Proyecto: ${projectName || '[COMPLETAR: Nombre del Proyecto]'}
+- Fondo Concursable al que se postula: ${fundName || '[COMPLETAR: Nombre del Fondo Concursable]'}
+- Sector Económico: ${details?.sector || 'No especificado'}
+${formulation ? `
+ANTECEDENTES DE LA FORMULACIÓN TÉCNICA:
+- Título Oficial: ${formulation.projectTitle || projectName || ''}
+- Problema que resuelve: ${formulation.problemStatement || ''}
+- Solución e Innovación: ${formulation.solutionOverview || formulation.solutionAndInnovation || ''}
+` : ''}
+${taxFolderSummary ? `
+ANTECEDENTES TRIBUTARIOS (SII):
+${taxFolderSummary}
+` : ''}
+
+FORMATO Y ESTRUCTURA:
+- Redacción legal, ejecutiva y precisa en Markdown pulcro.
+- Incluye campos claros para: Fecha, Ciudad, Identificación de las partes, Cláusulas o declaraciones expresas de interés comercial, pilotaje o cofinanciamiento, y bloque final de firmas con Nombre, RUT, Cargo y Timbre.
+- Donde falte cualquier dato, escribe [COMPLETAR: ...] sin inventar nada.
 
 Genera el texto completo del documento en formato Markdown:`;
 

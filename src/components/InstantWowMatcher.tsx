@@ -407,17 +407,17 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
         companyName: cleanCompanyName,
         rut: cleanRut,
         companyType: (built.companyType as CompanyType) || 'spa',
-        monthsActive: 6,
-        salesBracket: (built.salesBracket as SalesBracket) || 'menor_60m',
-        annualSalesCLP: 0,
-        sector: 'Tecnología, Innovación y Servicios',
-        region: 'Región Metropolitana',
+        monthsActive: null,
+        salesBracket: (built.salesBracket as SalesBracket) || '',
+        annualSalesCLP: null,
+        sector: built.sector || '',
+        region: built.region || '',
         isFemaleLed: built.isFemaleLed || false,
         femaleEquityPct: built.femaleEquityPct || 0,
-        trlStage: (built.trlStage as TRLStage) || 'mvp_validado',
+        trlStage: (built.trlStage as TRLStage) || '',
         innovationLevel: 'incremental',
-        projectSummary: built.projectSummary || `Proyecto de ${cleanCompanyName}.`,
-        coreTech: 'Tecnología e innovación aplicada.',
+        projectSummary: built.projectSummary || '',
+        coreTech: '',
         customerValidationCount: 0
       }, fbUser.uid);
 
@@ -546,17 +546,17 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
         companyName,
         rut,
         companyType: (built.companyType as CompanyType) || 'spa',
-        monthsActive: 6,
-        salesBracket: (built.salesBracket as SalesBracket) || 'menor_60m',
-        annualSalesCLP: 0,
-        sector: 'Tecnología, Innovación y Servicios',
-        region: 'Región Metropolitana',
+        monthsActive: null,
+        salesBracket: (built.salesBracket as SalesBracket) || '',
+        annualSalesCLP: null,
+        sector: built.sector || '',
+        region: built.region || '',
         isFemaleLed: built.isFemaleLed || false,
         femaleEquityPct: built.femaleEquityPct || 0,
-        trlStage: (built.trlStage as TRLStage) || 'mvp_validado',
+        trlStage: (built.trlStage as TRLStage) || '',
         innovationLevel: 'incremental',
-        projectSummary: built.projectSummary || `Proyecto de innovación de ${companyName}.`,
-        coreTech: 'Tecnología digital y desarrollo de soluciones.',
+        projectSummary: built.projectSummary || '',
+        coreTech: '',
         customerValidationCount: 0
       }, fbUser.uid);
 
@@ -937,7 +937,7 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
                       value={projectSummary}
                       onChange={e => setProjectSummary(e.target.value)}
                       placeholder="Ej: Desarrollamos un software con IA para automatizar la gestión de inventario en restaurantes de Chile, reduciendo mermas de comida en un 30%..."
-                      className="w-full px-4 py-3 rounded-2xl bg-slate-50 border-2 border-slate-200 focus:border-blue-600 focus:bg-white text-slate-900 text-sm focus:outline-hidden transition-all"
+                      className="w-full px-4 py-3 rounded-2xl bg-slate-50 border-2 border-slate-200 focus:border-blue-600 focus:bg-white text-slate-900 text-sm focus:outline-hidden transition-all placeholder:text-slate-400 placeholder:italic"
                     />
 
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
@@ -1262,7 +1262,7 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
                           value={regName}
                           onChange={e => setRegName(e.target.value)}
                           placeholder="Ej: AgroTech SpA o Mi Proyecto"
-                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-900 text-xs focus:border-blue-600 focus:outline-hidden"
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-900 text-xs focus:border-blue-600 focus:outline-hidden placeholder:text-slate-400 placeholder:italic"
                         />
                       </div>
                     )}
@@ -1277,7 +1277,7 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
                         value={regEmail}
                         onChange={e => setRegEmail(e.target.value)}
                         placeholder="contacto@tuempresa.cl"
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-900 text-xs focus:border-blue-600 focus:outline-hidden"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-900 text-xs focus:border-blue-600 focus:outline-hidden placeholder:text-slate-400 placeholder:italic"
                       />
                     </div>
 
@@ -1304,7 +1304,7 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
                           value={regPassword}
                           onChange={e => setRegPassword(e.target.value)}
                           placeholder="Mínimo 6 caracteres"
-                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-900 text-xs focus:border-blue-600 focus:outline-hidden pr-10"
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-900 text-xs focus:border-blue-600 focus:outline-hidden pr-10 placeholder:text-slate-400 placeholder:italic"
                         />
                         <button
                           type="button"

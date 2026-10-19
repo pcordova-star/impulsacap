@@ -28,6 +28,7 @@ import {
 } from './utils/storage';
 import { initFirebaseService, syncCompanyToFirestore } from './utils/firebaseSync';
 import { auth, db } from './firebase';
+import { useExpediente } from './hooks/useExpediente';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { 
@@ -198,6 +199,22 @@ export default function App() {
     }
   }, [auditResult]);
 
+  // Unified Single Source of Truth Expediente per user and fund
+  const {
+    expediente,
+    updateProfile,
+    updateTaxFolder,
+    updateRoadmapConfirmations,
+    updateDocStatuses,
+    addGeneratedDoc,
+    updateGeneratedDocStatus,
+    deleteGeneratedDoc,
+    saveSectionAnswers,
+    updateFormulation,
+    updateAuditResult
+  } = useExpediente(selectedFund, profile);
+
+
   const handleAuthSuccess = (user: CompanyUser) => {
     activeUserIdRef.current = user.id;
     setCurrentUser(user);
@@ -217,10 +234,25 @@ export default function App() {
   };
 
   const handleApplySiiData = (updated: Partial<CompanyProfile>) => {
-    setProfile((prev) => ({
-      ...prev,
-      ...updated,
-    }));
+    setProfile((prev) => {
+      const next = { ...prev, ...updated };
+      saveActiveProfile(next, currentUser?.id);
+      return next;
+    });
+    updateProfile(updated);
+    updateTaxFolder({
+      fileName: updated.taxFolderFileName,
+      uploadDate: updated.taxFolderUploadDate,
+      rut: updated.rut,
+      companyName: updated.companyName,
+      monthsActive: updated.monthsActive,
+      annualSalesCLP: updated.annualSalesCLP,
+      salesBracket: updated.salesBracket,
+      f29Periods: updated.taxFolderF29Periods,
+      siiStatusObservations: updated.taxFolderSummary,
+      admissibilityVerdict: updated.taxFolderUploaded ? 'aprobado' : null,
+      taxFolderUploaded: Boolean(updated.taxFolderUploaded)
+    });
   };
 
   // Flow handlers
@@ -420,10 +452,19 @@ export default function App() {
             <AiFormulator
               selectedFund={selectedFund}
               setSelectedFund={setSelectedFund}
-              profile={profile}
-              initialFormulation={activeFormulation}
-              onSaveFormulation={(f) => setActiveFormulation(f)}
-              onSendToAudit={handleSendToAudit}
+              profile={expediente.profile || profile}
+              initialFormulation={expediente.formulation || activeFormulation}
+              expediente={expediente}
+              onSaveSectionAnswers={saveSectionAnswers}
+              onSaveFormulation={(f) => {
+                setActiveFormulation(f);
+                saveActiveFormulation(f, currentUser?.id);
+                updateFormulation(f);
+              }}
+              onSendToAudit={(f, fund) => {
+                handleSendToAudit(f, fund);
+                updateFormulation(f);
+              }}
               onNavigateTab={setActiveTab}
             />
           ) : (
@@ -440,8 +481,12 @@ export default function App() {
           currentUser ? (
             <BlindAuditor
               initialFund={selectedFund}
-              initialFormulation={activeFormulation}
-              onSaveAudit={(res) => setAuditResult(res)}
+              initialFormulation={expediente.formulation || activeFormulation}
+              onSaveAudit={(res) => {
+                setAuditResult(res);
+                saveActiveAudit(res, currentUser?.id);
+                updateAuditResult(res);
+              }}
               onNavigateTab={setActiveTab}
             />
           ) : (
@@ -457,11 +502,14 @@ export default function App() {
         {activeTab === 'my-application' && (
           currentUser ? (
             <MyActiveApplication
-              profile={profile}
+              profile={expediente.profile || profile}
               selectedFund={selectedFund}
-              formulation={activeFormulation}
-              auditResult={auditResult}
+              formulation={expediente.formulation || activeFormulation}
+              auditResult={expediente.auditResult || auditResult}
               currentUser={currentUser}
+              expediente={expediente}
+              onUpdateRoadmapConfirmations={updateRoadmapConfirmations}
+              onUpdateDocStatuses={updateDocStatuses}
               onNavigateTab={setActiveTab}
               onOpenSiiModal={() => setShowSiiModal(true)}
               onOpenAuthModal={() => { setAuthModalMode('login'); setShowAuthModal(true); }}
@@ -480,9 +528,25 @@ export default function App() {
         {activeTab === 'documents' && (
           currentUser ? (
             <DocumentManager
-              profile={profile}
+              profile={expediente.profile || profile}
+              activeFund={selectedFund}
+              formulation={expediente.formulation || activeFormulation}
+              currentUser={currentUser}
+              expediente={expediente}
+              onUpdateDocStatuses={updateDocStatuses}
+              onAddGeneratedDoc={addGeneratedDoc}
+              onUpdateGeneratedDocStatus={updateGeneratedDocStatus}
+              onDeleteGeneratedDoc={deleteGeneratedDoc}
               onNavigateTab={setActiveTab}
               onOpenSiiModal={() => setShowSiiModal(true)}
+              onUpdateValidationCount={(count: number) => {
+                setProfile(prev => {
+                  const updated = { ...prev, customerValidationCount: count };
+                  saveActiveProfile(updated, currentUser?.id);
+                  return updated;
+                });
+                updateProfile({ customerValidationCount: count });
+              }}
             />
           ) : (
             <AuthGateView

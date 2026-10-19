@@ -61,6 +61,18 @@ service cloud.firestore {
         && (!('notes' in data) || (data.notes is string && data.notes.size() <= 2000));
     }
 
+    // Generated Document Validation
+    function isValidGeneratedDoc(data) {
+      return data.ownerId is string && data.ownerId.size() <= 128
+        && (!('tipo' in data) || (data.tipo is string && data.tipo.size() <= 160))
+        && (!('contraparte' in data) || (data.contraparte is string && data.contraparte.size() <= 200))
+        && (!('proyecto' in data) || (data.proyecto is string && data.proyecto.size() <= 200))
+        && (!('fondo' in data) || (data.fondo is string && data.fondo.size() <= 160))
+        && (!('texto' in data) || (data.texto is string))
+        && (!('status' in data) || (data.status in ['borrador', 'firmada']))
+        && (!('fecha' in data) || (data.fecha is string));
+    }
+
     // TaxFolder Validation
     function isValidTaxFolder(data) {
       return data.ownerId is string && data.ownerId.size() <= 128
@@ -111,6 +123,24 @@ service cloud.firestore {
       allow get: if isValidId(uid) && isOwner(uid);
       allow list: if false; // Blanket reads prohibited
       allow write: if false; // Strictly writable by server with firebase-admin
+    }
+
+    // 7. Generated Documents collection
+    match /generatedDocs/{docId} {
+      allow get: if isValidId(docId) && isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isValidId(docId) && isSignedIn() && incoming().ownerId == request.auth.uid && isValidGeneratedDoc(incoming());
+      allow update: if isValidId(docId) && isSignedIn() && existing().ownerId == request.auth.uid && incoming().ownerId == existing().ownerId && isValidGeneratedDoc(incoming());
+      allow delete: if isValidId(docId) && isSignedIn() && existing().ownerId == request.auth.uid;
+    }
+
+    // 8. Expedientes collection (Single Source of Truth per user and fund)
+    match /expedientes/{expedienteId} {
+      allow get: if isValidId(expedienteId) && isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isValidId(expedienteId) && isSignedIn() && incoming().ownerId == request.auth.uid;
+      allow update: if isValidId(expedienteId) && isSignedIn() && existing().ownerId == request.auth.uid && incoming().ownerId == existing().ownerId;
+      allow delete: if isValidId(expedienteId) && isSignedIn() && existing().ownerId == request.auth.uid;
     }
 
     // 6. Payments collection (Mercado Pago transactions)

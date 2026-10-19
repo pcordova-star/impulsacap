@@ -233,14 +233,17 @@ export const SiiUploaderModal: React.FC<SiiUploaderModalProps> = ({
     if (!parsedData) return;
     const fileName = selectedFile ? selectedFile.name : 'Carpeta_Tributaria_SII.pdf';
     
-    // Apply to local state
+    const hasDetectedMonths = typeof parsedData.monthsActive === 'number' && parsedData.monthsActive > 0;
+    const hasDetectedBracket = Boolean(parsedData.salesBracket && parsedData.salesBracket.trim());
+
+    // Apply to local state (no default 12 or menor_60m if not detected)
     onApplyProfile({
       rut: parsedData.rut ? formatRut(parsedData.rut) : undefined,
       companyName: parsedData.companyName || undefined,
       companyType: parsedData.companyType || 'spa',
-      monthsActive: parsedData.monthsActive || 12,
-      salesBracket: parsedData.salesBracket || 'menor_60m',
-      annualSalesCLP: parsedData.annualSalesCLP || 0,
+      monthsActive: hasDetectedMonths ? parsedData.monthsActive : null,
+      salesBracket: hasDetectedBracket ? (parsedData.salesBracket as any) : '',
+      annualSalesCLP: typeof parsedData.annualSalesCLP === 'number' ? parsedData.annualSalesCLP : null,
       taxFolderUploaded: true,
       taxFolderFileName: fileName,
       taxFolderUploadDate: new Date().toLocaleDateString('es-CL'),
@@ -254,7 +257,7 @@ export const SiiUploaderModal: React.FC<SiiUploaderModalProps> = ({
         fileSize: selectedFile?.size || 1024,
         companyRut: parsedData.rut || '',
         summary: parsedData.siiStatusObservations || 'Carpeta tributaria validada',
-        f29Periods: parsedData.monthsActive || 12
+        f29Periods: hasDetectedMonths ? parsedData.monthsActive : 0
       });
     } catch (err) {
       console.warn('Could not sync tax folder to Firestore in background:', err);
@@ -492,7 +495,7 @@ export const SiiUploaderModal: React.FC<SiiUploaderModalProps> = ({
                 <span className="text-[10px] font-bold text-slate-500 uppercase">1ª Categoría SII:</span>
                 <p className="text-emerald-700 font-bold mt-0.5 flex items-center gap-1">
                   <Check className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Acreditada ({parsedData.monthsActive} meses)</span>
+                  <span>{parsedData.monthsActive ? `Acreditada (${parsedData.monthsActive} meses)` : 'Sin detectar (completar en perfil)'}</span>
                 </p>
               </div>
             </div>

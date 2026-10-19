@@ -62,18 +62,33 @@ export interface ChileanFund {
   }[];
 }
 
+export interface GeneratedDocument {
+  id: string;
+  ownerId: string;
+  tipo: string;
+  contraparte: string;
+  proyecto?: string;
+  fondo?: string;
+  texto: string;
+  status: 'borrador' | 'firmada';
+  fecha: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface CompanyProfile {
   companyName: string;
   rut: string;
   companyType: CompanyType;
-  monthsActive: number; // 0 if not started
-  salesBracket: SalesBracket;
-  annualSalesCLP?: number;
+  monthsActive: number | null; // null or 0 if not started / uncompleted
+  salesBracket: SalesBracket | '';
+  annualSalesCLP?: number | null;
   sector: string;
   region: string;
+  city?: string;
   isFemaleLed: boolean;
   femaleEquityPct: number;
-  trlStage: TRLStage;
+  trlStage: TRLStage | '';
   innovationLevel: 'incremental' | 'radical' | 'social_traditional' | 'tech_disruptive';
   projectSummary: string;
   coreTech: string;
@@ -160,6 +175,7 @@ export interface CompanyUser {
   rut: string;
   phone?: string;
   representativeName?: string;
+  representativeRut?: string;
   createdAt: string;
   lastLogin?: string;
 }

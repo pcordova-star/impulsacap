@@ -41,6 +41,7 @@ import { GuaranteesCalculator } from './GuaranteesCalculator';
 import { usePlan } from '../hooks/usePlan';
 import { PlanPaywallCard } from './PlanPaywallCard';
 import { apiFetch } from '../utils/apiFetch';
+import { ExpedienteData, RoadmapConfirmations, DocChecklistStatuses } from '../types/expediente';
 
 interface MyActiveApplicationProps {
   profile: CompanyProfile;
@@ -48,6 +49,9 @@ interface MyActiveApplicationProps {
   formulation: FormulationOutput | null;
   auditResult?: BlindAuditResult | null;
   currentUser?: CompanyUser | null;
+  expediente?: ExpedienteData;
+  onUpdateRoadmapConfirmations?: (patch: Partial<RoadmapConfirmations>) => void;
+  onUpdateDocStatuses?: (patch: Partial<DocChecklistStatuses>) => void;
   onNavigateTab: (tab: string) => void;
   onOpenSiiModal: () => void;
   onOpenAuthModal?: () => void;
@@ -60,6 +64,9 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
   formulation,
   auditResult,
   currentUser,
+  expediente,
+  onUpdateRoadmapConfirmations,
+  onUpdateDocStatuses,
   onNavigateTab,
   onOpenSiiModal,
   onOpenAuthModal,
@@ -120,47 +127,47 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
   };
   const agencyUrl = agencyUrls[selectedFund.agency] || 'https://www.corfo.cl';
 
-  // User-confirmed steps (persisted in localStorage scoped to current user)
+  // User-confirmed steps (read from unified Expediente as single source of truth)
   const userKey = (currentUser as any)?.uid || currentUser?.id || currentUser?.email || 'guest';
-  const [confirmedInicioActividades, setConfirmedInicioActividades] = useState<boolean>(() => {
+  const [localConfirmedInicio, setLocalConfirmedInicio] = useState<boolean>(() => {
     return localStorage.getItem(`confirmed_inicio_${userKey}`) === 'true';
   });
-  const [confirmedEstatutoSocial, setConfirmedEstatutoSocial] = useState<boolean>(() => {
+  const [localConfirmedEstatuto, setLocalConfirmedEstatuto] = useState<boolean>(() => {
     return localStorage.getItem(`confirmed_estatuto_${userKey}`) === 'true';
   });
-  const [confirmedGarantia, setConfirmedGarantia] = useState<boolean>(() => {
+  const [localConfirmedGarantia, setLocalConfirmedGarantia] = useState<boolean>(() => {
     return localStorage.getItem(`confirmed_garantia_${userKey}`) === 'true';
   });
 
-  // Re-sync with localStorage if user session changes
-  useEffect(() => {
-    setConfirmedInicioActividades(localStorage.getItem(`confirmed_inicio_${userKey}`) === 'true');
-    setConfirmedEstatutoSocial(localStorage.getItem(`confirmed_estatuto_${userKey}`) === 'true');
-    setConfirmedGarantia(localStorage.getItem(`confirmed_garantia_${userKey}`) === 'true');
-  }, [userKey]);
+  const confirmedInicioActividades = expediente ? expediente.roadmapConfirmations.confirmedInicioActividades : localConfirmedInicio;
+  const confirmedEstatutoSocial = expediente ? expediente.roadmapConfirmations.confirmedEstatutoSocial : localConfirmedEstatuto;
+  const confirmedGarantia = expediente ? expediente.roadmapConfirmations.confirmedGarantia : localConfirmedGarantia;
 
   const toggleInicioActividades = () => {
-    setConfirmedInicioActividades(prev => {
-      const next = !prev;
-      localStorage.setItem(`confirmed_inicio_${userKey}`, String(next));
-      return next;
-    });
+    const next = !confirmedInicioActividades;
+    if (onUpdateRoadmapConfirmations) {
+      onUpdateRoadmapConfirmations({ confirmedInicioActividades: next });
+    }
+    setLocalConfirmedInicio(next);
+    localStorage.setItem(`confirmed_inicio_${userKey}`, String(next));
   };
 
   const toggleEstatutoSocial = () => {
-    setConfirmedEstatutoSocial(prev => {
-      const next = !prev;
-      localStorage.setItem(`confirmed_estatuto_${userKey}`, String(next));
-      return next;
-    });
+    const next = !confirmedEstatutoSocial;
+    if (onUpdateRoadmapConfirmations) {
+      onUpdateRoadmapConfirmations({ confirmedEstatutoSocial: next });
+    }
+    setLocalConfirmedEstatuto(next);
+    localStorage.setItem(`confirmed_estatuto_${userKey}`, String(next));
   };
 
   const toggleGarantia = () => {
-    setConfirmedGarantia(prev => {
-      const next = !prev;
-      localStorage.setItem(`confirmed_garantia_${userKey}`, String(next));
-      return next;
-    });
+    const next = !confirmedGarantia;
+    if (onUpdateRoadmapConfirmations) {
+      onUpdateRoadmapConfirmations({ confirmedGarantia: next });
+    }
+    setLocalConfirmedGarantia(next);
+    localStorage.setItem(`confirmed_garantia_${userKey}`, String(next));
   };
 
   // Close date check: only show countdown if closeDate exists and is in the future
@@ -171,14 +178,17 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
   }, [selectedFund.closeDate]);
 
   // Use the verified company name from session or profile, never a stale placeholder
-  const activeCompanyName = currentUser?.companyName?.trim() || profile.companyName?.trim() || 'Mi Empresa';
+  const activeCompanyName = currentUser?.companyName?.trim() || profile.companyName?.trim() || 'Sin completar';
   const activeRut = currentUser?.rut?.trim() || profile.rut?.trim() || '';
 
   const isRutValid = validateRut(activeRut);
-  const hasTaxFolder = !!profile.taxFolderUploaded;
+  const hasTaxFolder = expediente ? Boolean(expediente.taxFolder.taxFolderUploaded) : Boolean(profile.taxFolderUploaded);
   const hasFormulation = !!formulation && (formulation.problemStatement?.length || 0) > 30;
-  const hasBudget = (formulation?.budgetBreakdown?.length || 0) > 0;
-  const hasLetters = (profile.customerValidationCount || 0) > 0;
+  // Requirement 12: Presupuesto solo se completa si el usuario ingresó un presupuesto real
+  const currentBudget = expediente?.formulation?.budgetBreakdown || formulation?.budgetBreakdown || [];
+  const hasBudget = currentBudget.length > 0 && currentBudget.some((b: any) => (b.corfoContributionCLP || 0) > 0);
+  const signedLoiCount = expediente ? expediente.generatedDocs.filter((d: any) => (d.tipo.includes('LOI') || d.tipo.includes('Interés')) && d.status === 'firmada').length : (profile.customerValidationCount || 0);
+  const hasLetters = signedLoiCount > 0;
   const hasAudit = !!auditResult && (auditResult.overallScore || 0) > 0;
   const isAuditApproved = hasAudit && (auditResult?.overallScore || 0) >= 3.5;
 
@@ -388,14 +398,14 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
 
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-50 text-slate-700 text-xs font-medium border border-slate-200">
                 <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                <span>RUT: <strong className="font-mono text-blue-700">{activeRut || 'No configurado'}</strong></span>
+                <span>RUT: <strong className={`font-mono ${activeRut ? 'text-blue-700' : 'text-slate-400 italic'}`}>{activeRut || 'Sin completar'}</strong></span>
               </span>
             </div>
 
             {/* Title & Fund Selector */}
             <div className="flex flex-wrap items-baseline gap-2 pt-1">
               <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-                {activeCompanyName}
+                {activeCompanyName === 'Sin completar' ? <span className="text-slate-400 italic">Sin completar</span> : activeCompanyName}
               </h1>
               <span className="text-slate-400 text-xl font-light">/</span>
               <div className="relative inline-block">
@@ -1045,10 +1055,48 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
       <OfficialDossierModal
         isOpen={showDossierModal}
         onClose={() => setShowDossierModal(false)}
-        profile={profile}
+        expediente={expediente || {
+          id: `exp_guest_${selectedFund.id}`,
+          ownerId: currentUser?.id || 'guest',
+          fundId: selectedFund.id,
+          fundName: selectedFund.name,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          profile,
+          taxFolder: {
+            fileName: profile.taxFolderFileName,
+            uploadDate: profile.taxFolderUploadDate,
+            rut: profile.rut,
+            companyName: profile.companyName,
+            monthsActive: profile.monthsActive,
+            annualSalesCLP: profile.annualSalesCLP,
+            salesBracket: profile.salesBracket,
+            f29Periods: profile.taxFolderF29Periods || 0,
+            siiStatusObservations: profile.taxFolderSummary,
+            admissibilityVerdict: profile.taxFolderUploaded ? 'aprobado' : null,
+            taxFolderUploaded: Boolean(profile.taxFolderUploaded)
+          },
+          roadmapConfirmations: {
+            confirmedInicioActividades,
+            confirmedEstatutoSocial,
+            confirmedGarantia
+          },
+          docStatuses: {
+            f29_sii: Boolean(profile.taxFolderUploaded),
+            estatuto_res: confirmedEstatutoSocial,
+            deuda_tgr: false,
+            previsional_f30: false,
+            carta_interes_loi: signedLoiCount > 0
+          },
+          generatedDocs: [],
+          answersBySection: {},
+          generatedTextsBySection: {},
+          formulation,
+          auditResult: auditResult || null
+        }}
         fund={selectedFund}
-        formulation={formulation}
-        auditResult={auditResult}
+        onNavigateTab={onNavigateTab}
+        onOpenSiiModal={onOpenSiiModal}
       />
     </div>
   );

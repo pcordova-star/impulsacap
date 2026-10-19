@@ -133,7 +133,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       const cred = await createUserWithEmailAndPassword(auth, regEmail.trim().toLowerCase(), regPassword);
       const fbUser = cred.user;
 
-      const cleanCompanyName = regCompanyName.trim() || 'Mi Empresa SpA';
+      const cleanCompanyName = regCompanyName.trim() || '';
       const cleanRepName = regRepName.trim() || '';
       const cleanPhone = regPhone.trim() || '';
 
@@ -154,17 +154,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         companyName: cleanCompanyName,
         rut: cleanRut,
         companyType: 'spa',
-        monthsActive: 6,
-        salesBracket: 'menor_60m',
-        annualSalesCLP: 0,
-        sector: 'Tecnología, Innovación y Servicios',
-        region: 'Región Metropolitana',
+        monthsActive: null,
+        salesBracket: '',
+        annualSalesCLP: null,
+        sector: '',
+        region: '',
         isFemaleLed: false,
         femaleEquityPct: 0,
-        trlStage: 'mvp_validado',
+        trlStage: '',
         innovationLevel: 'incremental',
-        projectSummary: `Plataforma y proyecto de innovación de ${cleanCompanyName}.`,
-        coreTech: 'Tecnología digital y desarrollo de soluciones.',
+        projectSummary: '',
+        coreTech: '',
         customerValidationCount: 0
       }, fbUser.uid);
 
@@ -243,17 +243,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         companyName,
         rut,
         companyType: 'spa',
-        monthsActive: 6,
-        salesBracket: 'menor_60m',
-        annualSalesCLP: 0,
-        sector: 'Tecnología, Innovación y Servicios',
-        region: 'Región Metropolitana',
+        monthsActive: null,
+        salesBracket: '',
+        annualSalesCLP: null,
+        sector: '',
+        region: '',
         isFemaleLed: false,
         femaleEquityPct: 0,
-        trlStage: 'mvp_validado',
+        trlStage: '',
         innovationLevel: 'incremental',
-        projectSummary: `Plataforma y proyecto de innovación de ${companyName}.`,
-        coreTech: 'Tecnología digital y desarrollo de soluciones.',
+        projectSummary: '',
+        coreTech: '',
         customerValidationCount: 0
       }, fbUser.uid);
 
@@ -391,7 +391,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
                   placeholder="ejemplo@tuempresa.cl"
-                  className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs placeholder:text-slate-400 focus:bg-white focus:border-blue-500 focus:outline-hidden"
+                  className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs placeholder:text-slate-400 placeholder:italic focus:bg-white focus:border-blue-500 focus:outline-hidden"
                 />
               </div>
             </div>
@@ -418,7 +418,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-9 pr-10 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs placeholder:text-slate-400 focus:bg-white focus:border-blue-500 focus:outline-hidden"
+                  className="w-full pl-9 pr-10 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs placeholder:text-slate-400 placeholder:italic focus:bg-white focus:border-blue-500 focus:outline-hidden"
                 />
                 <button
                   type="button"
@@ -457,7 +457,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     value={regCompanyName}
                     onChange={(e) => setRegCompanyName(e.target.value)}
                     placeholder="Ej: AgroTech Chile SpA"
-                    className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs placeholder:text-slate-400 focus:bg-white focus:border-emerald-500 focus:outline-hidden"
+                    className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs placeholder:text-slate-400 placeholder:italic focus:bg-white focus:border-emerald-500 focus:outline-hidden"
                   />
                 </div>
               </div>
@@ -474,7 +474,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     value={regRut}
                     onChange={(e) => setRegRut(e.target.value)}
                     placeholder="77.654.321-0"
-                    className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs placeholder:text-slate-400 focus:bg-white focus:border-emerald-500 focus:outline-hidden font-mono"
+                    className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs placeholder:text-slate-400 placeholder:italic focus:bg-white focus:border-emerald-500 focus:outline-hidden font-mono"
                   />
                 </div>
               </div>
@@ -491,7 +491,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     value={regEmail}
                     onChange={(e) => setRegEmail(e.target.value)}
                     placeholder="contacto@agro-tech.cl"
-                    className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs placeholder:text-slate-400 focus:bg-white focus:border-emerald-500 focus:outline-hidden"
+                    className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs placeholder:text-slate-400 placeholder:italic focus:bg-white focus:border-emerald-500 focus:outline-hidden"
                   />
                 </div>
               </div>
@@ -509,7 +509,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     value={regPassword}
                     onChange={(e) => setRegPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full pl-9 pr-9 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs placeholder:text-slate-400 focus:bg-white focus:border-emerald-500 focus:outline-hidden"
+                    className="w-full pl-9 pr-9 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs placeholder:text-slate-400 placeholder:italic focus:bg-white focus:border-emerald-500 focus:outline-hidden"
                   />
                   <button
                     type="button"
@@ -530,7 +530,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   value={regRepName}
                   onChange={(e) => setRegRepName(e.target.value)}
                   placeholder="Ej: Javier Morales"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs placeholder:text-slate-400 focus:bg-white focus:border-emerald-500 focus:outline-hidden"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs placeholder:text-slate-400 placeholder:italic focus:bg-white focus:border-emerald-500 focus:outline-hidden"
                 />
               </div>
 
@@ -545,7 +545,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     value={regPhone}
                     onChange={(e) => setRegPhone(e.target.value)}
                     placeholder="+56 9 1234 5678"
-                    className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs placeholder:text-slate-400 focus:bg-white focus:border-emerald-500 focus:outline-hidden"
+                    className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs placeholder:text-slate-400 placeholder:italic focus:bg-white focus:border-emerald-500 focus:outline-hidden"
                   />
                 </div>
               </div>

@@ -85,7 +85,7 @@ export const FundCatalog: React.FC<FundCatalogProps> = ({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Buscar por nombre, palabra clave o sector (ej: software, I+D, ventas, agro)..."
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-sm focus:border-cyan-500 focus:outline-none"
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-sm focus:border-cyan-500 focus:outline-none placeholder:text-slate-500 placeholder:italic"
             />
           </div>
 

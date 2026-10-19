@@ -29,7 +29,7 @@ export async function syncUserProfileToFirestore(user: CompanyUser) {
   try {
     const email = (auth.currentUser?.email || user.email || '').trim().toLowerCase().slice(0, 120);
     const displayName = (auth.currentUser?.displayName || user.representativeName || user.companyName || '').slice(0, 120);
-    const companyName = (user.companyName || 'Mi Empresa SpA').slice(0, 160);
+    const companyName = (user.companyName || '').slice(0, 160);
     const companyRut = (user.rut || '').slice(0, 20);
     const phone = (user.phone || '').slice(0, 30);
 
@@ -57,18 +57,21 @@ export async function syncCompanyToFirestore(profile: CompanyProfile, customOwne
   const companyDocId = cleanRut ? cleanRut.replace(/[^a-zA-Z0-9_-]/g, '_') : `comp_${uid}`;
   const path = `companies/${companyDocId}`;
   try {
-    await setDoc(doc(db, 'companies', companyDocId), {
+    const compPayload: Record<string, any> = {
       ownerId: uid,
       rut: cleanRut.slice(0, 20),
-      companyName: (profile.companyName || 'Mi Empresa SpA').slice(0, 160),
+      companyName: (profile.companyName || '').slice(0, 160),
       companyType: profile.companyType || 'spa',
-      sector: (profile.sector || 'Tecnología, Innovación y Servicios').slice(0, 120),
-      region: (profile.region || 'Región Metropolitana').slice(0, 80),
-      salesBracket: profile.salesBracket || 'menor_60m',
-      annualSalesCLP: Number(profile.annualSalesCLP) || 0,
+      sector: (profile.sector || '').slice(0, 120),
+      region: (profile.region || '').slice(0, 80),
+      salesBracket: profile.salesBracket || '',
       isFemaleLed: Boolean(profile.isFemaleLed),
-      trlStage: profile.trlStage || 'mvp_validado'
-    }, { merge: true });
+      trlStage: profile.trlStage || ''
+    };
+    if (typeof profile.annualSalesCLP === 'number') {
+      compPayload.annualSalesCLP = profile.annualSalesCLP;
+    }
+    await setDoc(doc(db, 'companies', companyDocId), compPayload, { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }

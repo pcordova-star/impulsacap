@@ -286,7 +286,7 @@ Estoy analizando tu empresa: **${profile.companyName || 'Tu Empresa'}** (${profi
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Pregúntale al especialista sobre bases, F29, garantías, sueldos o rendición..."
-            className="flex-1 px-4 py-3 rounded-xl bg-slate-900 border border-slate-800 text-white text-xs sm:text-sm focus:border-cyan-500 focus:outline-none"
+            className="flex-1 px-4 py-3 rounded-xl bg-slate-900 border border-slate-800 text-white text-xs sm:text-sm focus:border-cyan-500 focus:outline-none placeholder:text-slate-500 placeholder:italic"
           />
           <button
             type="submit"

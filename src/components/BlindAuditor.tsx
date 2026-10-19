@@ -39,7 +39,7 @@ export const BlindAuditor: React.FC<BlindAuditorProps> = ({
   const [inputText, setInputText] = useState<string>(
     initialFormulation
       ? `PROYECTO: ${initialFormulation.projectTitle}\n\nPROBLEMA:\n${initialFormulation.problemStatement}\n\nSOLUCIÓN E INNOVACIÓN:\n${initialFormulation.solutionAndInnovation}\n\nMERCADO:\n${initialFormulation.marketAnalysisTAM.tam}\n\nMODELO:\n${initialFormulation.businessModel}`
-      : 'Ingresa aquí el borrador de tu postulación o importa una formulación para auditarla contra los evaluadores de CORFO / SERCOTEC...'
+      : ''
   );
   const [loading, setLoading] = useState(false);
   const [auditResult, setAuditResult] = useState<BlindAuditResult | null>(null);
@@ -191,7 +191,7 @@ export const BlindAuditor: React.FC<BlindAuditorProps> = ({
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           placeholder="Pega aquí el texto completo o secciones que vas a postular a CORFO/SERCOTEC..."
-          className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs font-mono leading-relaxed focus:border-amber-500 focus:outline-none"
+          className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs font-mono leading-relaxed focus:border-amber-500 focus:outline-none placeholder:text-slate-500 placeholder:italic"
         />
         <p className="text-[11px] text-slate-500">
           Consejo: Cuanto más detallado sea el texto (incluyendo métricas, competidores y plazos), más precisa será la detección de inconsistencias y red flags.

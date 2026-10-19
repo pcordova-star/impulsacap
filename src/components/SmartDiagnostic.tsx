@@ -190,7 +190,7 @@ export const SmartDiagnostic: React.FC<SmartDiagnosticProps> = ({
         }
 
         // Check sales
-        if (fund.salesBracketsEligible.includes(profile.salesBracket)) {
+        if (profile.salesBracket && fund.salesBracketsEligible.includes(profile.salesBracket as any)) {
           score += 15;
           reasons.push(`Nivel de ventas en rango admisible`);
         } else {
@@ -316,7 +316,7 @@ export const SmartDiagnostic: React.FC<SmartDiagnosticProps> = ({
               value={profile.companyName}
               onChange={(e) => setProfile({ ...profile, companyName: e.target.value })}
               placeholder="Ej: AgroTech SpA o Proyecto Solaria"
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-sm focus:border-cyan-500 focus:outline-none"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-sm focus:border-cyan-500 focus:outline-none placeholder:text-slate-500 placeholder:italic"
             />
           </div>
 
@@ -345,11 +345,12 @@ export const SmartDiagnostic: React.FC<SmartDiagnosticProps> = ({
               Ventas Netas Anuales (F29 SII)
             </label>
             <select
-              value={profile.salesBracket}
+              value={profile.salesBracket || ''}
               onChange={(e) => setProfile({ ...profile, salesBracket: e.target.value as any })}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-sm focus:border-cyan-500 focus:outline-none"
+              className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm focus:border-cyan-500 focus:outline-none ${!profile.salesBracket ? 'text-slate-500 italic' : 'text-white'}`}
             >
-              <option value="sin_ventas">Sin Ventas ($0 CLP / $0 UF)</option>
+              <option value="" className="text-slate-500 italic">-- Sin completar --</option>
+              <option value="sin_ventas" className="text-white not-italic">Sin Ventas ($0 CLP / $0 UF)</option>
               <option value="menor_60m">Menor a $60.000.000 CLP (~1.600 UF) - Ideal Corfo Semilla</option>
               <option value="micro_200_a_2400uf">Microempresa (200 a 2.400 UF anuales)</option>
               <option value="pequena_2400_a_25000uf">Pequeña Empresa (2.400 a 25.000 UF) - Ideal Crece</option>
@@ -368,9 +369,10 @@ export const SmartDiagnostic: React.FC<SmartDiagnosticProps> = ({
                 type="number"
                 min="0"
                 max="240"
-                value={profile.monthsActive}
-                onChange={(e) => setProfile({ ...profile, monthsActive: parseInt(e.target.value) || 0 })}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-sm focus:border-cyan-500 focus:outline-none"
+                value={profile.monthsActive ?? ''}
+                placeholder="Sin completar"
+                onChange={(e) => setProfile({ ...profile, monthsActive: e.target.value === '' ? null : (parseInt(e.target.value) || 0) })}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-sm focus:border-cyan-500 focus:outline-none placeholder:text-slate-500 placeholder:italic"
               />
               <span className="text-xs text-slate-400 whitespace-nowrap">meses</span>
             </div>
@@ -382,11 +384,12 @@ export const SmartDiagnostic: React.FC<SmartDiagnosticProps> = ({
               Región de Ejecución del Proyecto
             </label>
             <select
-              value={profile.region}
+              value={profile.region || ''}
               onChange={(e) => setProfile({ ...profile, region: e.target.value })}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-sm focus:border-cyan-500 focus:outline-none"
+              className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm focus:border-cyan-500 focus:outline-none ${!profile.region ? 'text-slate-500 italic' : 'text-white'}`}
             >
-              <option value="Región Metropolitana">Región Metropolitana de Santiago</option>
+              <option value="" className="text-slate-500 italic">-- Sin completar --</option>
+              <option value="Región Metropolitana" className="text-white not-italic">Región Metropolitana de Santiago</option>
               <option value="Región de Valparaíso">Región de Valparaíso</option>
               <option value="Región del Biobío">Región del Biobío</option>
               <option value="Región de Antofagasta">Región de Antofagasta (Fondo Minería/Solar)</option>
@@ -480,11 +483,12 @@ export const SmartDiagnostic: React.FC<SmartDiagnosticProps> = ({
                   Madurez Técnica (Nivel TRL)
                 </label>
                 <select
-                  value={profile.trlStage}
+                  value={profile.trlStage || ''}
                   onChange={(e) => setProfile({ ...profile, trlStage: e.target.value as any })}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-white text-xs"
+                  className={`w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-xs ${!profile.trlStage ? 'text-slate-500 italic' : 'text-white'}`}
                 >
-                  <option value="idea_concepto">TRL 1-2: Idea o Concepto Teórico</option>
+                  <option value="" className="text-slate-500 italic">-- Sin completar --</option>
+                  <option value="idea_concepto" className="text-white not-italic">TRL 1-2: Idea o Concepto Teórico</option>
                   <option value="prototipo_lab">TRL 3-4: Prototipo funcional en Laboratorio</option>
                   <option value="mvp_validado">TRL 5-6: MVP probado con usuarios piloto</option>
                   <option value="primeras_ventas">TRL 7-8: Primeras ventas comerciales</option>
@@ -500,10 +504,10 @@ export const SmartDiagnostic: React.FC<SmartDiagnosticProps> = ({
                   type="number"
                   min="0"
                   max="50"
-                  value={profile.customerValidationCount}
+                  value={profile.customerValidationCount ? profile.customerValidationCount : ''}
                   onChange={(e) => setProfile({ ...profile, customerValidationCount: parseInt(e.target.value) || 0 })}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-white text-xs"
-                  placeholder="Número de clientes prospecto"
+                  className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-white text-xs placeholder:text-slate-500 placeholder:italic"
+                  placeholder="0 (Sin completar)"
                 />
               </div>
             </div>
