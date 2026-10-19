@@ -1,5 +1,7 @@
 import { CHILEAN_FUNDS } from '../data/chileanFunds';
-import { CORFO_LIVE_CALLS } from '../data/corfoLiveCalls';
+import { Convocatoria } from '../types/convocatoria';
+import { CompanyProfile } from '../types/funds';
+import { calculateDaysRemaining, filterConvocatoriasForProfile } from './convocatorias';
 
 export interface GrantMatchResult {
   isValidProject: boolean;
@@ -132,7 +134,12 @@ export function isNonActivityQuery(query: string): boolean {
   return false;
 }
 
-export function evaluateChileanGrantMatch(query: string, targetFundHint?: string): GrantMatchResult {
+export function evaluateChileanGrantMatch(
+  query: string, 
+  targetFundHint?: string,
+  liveConvocatorias?: Convocatoria[],
+  profile?: Partial<CompanyProfile>
+): GrantMatchResult {
   const norm = normalizeText(query);
 
   if (isNonActivityQuery(query)) {
@@ -351,31 +358,44 @@ export function evaluateChileanGrantMatch(query: string, targetFundHint?: string
   const secondaryScore1 = toPct(second.score);
   const secondaryScore2 = toPct(third.score);
 
-  let liveRegionalCallMatch: any = undefined;
-  for (const call of CORFO_LIVE_CALLS) {
-    const matchesAysen = (norm.includes('aysen') || norm.includes('litoral austral') || norm.includes('bentonico') || norm.includes('amerb')) && call.alcance.includes('Aysén');
-    const matchesAtacama = (norm.includes('atacama') || norm.includes('copiapo') || norm.includes('huasco') || norm.includes('pisco') || norm.includes('pajarete')) && call.alcance.includes('Atacama');
-    const matchesCoquimbo = (norm.includes('coquimbo') || norm.includes('elqui') || norm.includes('limari')) && call.alcance.includes('Coquimbo');
-    const matchesMetropolitana = (norm.includes('metropolitana') || norm.includes('santiago')) && call.alcance.includes('Metropolitana');
-    const matchesGreen = (norm.includes('verde') || norm.includes('sostenib') || norm.includes('solar') || norm.includes('energia limpia')) && call.id === 'credito_verde';
-    const matchesLeyId = (norm.includes('ley i d') || norm.includes('credito tributario') || norm.includes('beneficio tributario')) && call.id === 'incentivo_tributario';
-    const matchesFogain = (norm.includes('fogain') || (norm.includes('garantia') && norm.includes('banco'))) && call.id === (isFemale ? 'fogain_mujer' : 'fogain');
-    const matchesValparaisoSemilla = norm.includes('valparaiso') && norm.includes('semilla') && call.id === 'semilla-expande-valparaiso-2026';
+  const effectiveProfile: Partial<CompanyProfile> = {
+    region: profile?.region,
+    salesBracket: profile?.salesBracket || (hasSalesOrEstablished ? 'micro_200_a_2400uf' : 'sin_ventas'),
+    companyType: profile?.companyType || 'spa',
+    isFemaleLed: profile?.isFemaleLed ?? isFemale,
+  };
 
-    if (matchesAysen || matchesAtacama || matchesCoquimbo || matchesGreen || matchesLeyId || matchesFogain || matchesValparaisoSemilla) {
+  let liveRegionalCallMatch: any = undefined;
+  if (Array.isArray(liveConvocatorias) && liveConvocatorias.length > 0) {
+    // Filtrar convocatorias vigentes por región, perfil y tramo de ventas
+    const profileFiltered = filterConvocatoriasForProfile(liveConvocatorias, effectiveProfile);
+    
+    // Buscar si hay convocatoria oficial vigente para el fondo ganador
+    const directFundCall = profileFiltered.find(c => c.fundId === winner.fund.id && c.vigente);
+    const candidateCall = directFundCall || profileFiltered.find(c => c.vigente);
+
+    if (candidateCall) {
       liveRegionalCallMatch = {
-        id: call.id,
-        titulo: call.titulo,
-        alcance: call.alcance,
-        cierre: call.cierre,
-        topeAprox: call.topeAprox,
-        url: call.url,
-        vigente: call.vigente,
-        advertenciaCierre: call.advertenciaCierre,
-        diasRestantes: call.diasRestantes,
-        beneficioResumen: call.beneficioResumen,
+        id: candidateCall.id,
+        titulo: candidateCall.titulo,
+        alcance: candidateCall.alcance,
+        cierre: candidateCall.cierre,
+        topeAprox: candidateCall.tope_aprox,
+        url: candidateCall.url,
+        vigente: candidateCall.vigente,
+        diasRestantes: calculateDaysRemaining(candidateCall.cierre),
+        beneficioResumen: candidateCall.resumen || candidateCall.beneficio,
       };
-      break;
+
+      if (directFundCall) {
+        winner.fund = {
+          ...winner.fund,
+          callStatus: (directFundCall.callStatus === 'Abierta' ? 'abierta' : directFundCall.callStatus === 'Próxima' ? 'proxima' : 'por_confirmar') as any,
+          closeDate: directFundCall.cierre,
+          status: directFundCall.cierre ? `Abierto (Cierra: ${directFundCall.cierre})` : 'Abierto',
+          callSchedule: directFundCall.cierre ? `Cierra el ${directFundCall.cierre}` : 'Ventanilla permanente abierta'
+        };
+      }
     }
   }
 

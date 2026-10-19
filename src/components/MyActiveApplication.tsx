@@ -30,7 +30,8 @@ import {
   Flame,
   Check,
   RotateCcw,
-  Archive
+  Archive,
+  ArrowLeft
 } from 'lucide-react';
 import { validateRut } from '../utils/rutValidator';
 import { getGoogleCalendarUrl, downloadIcsFile } from '../utils/calendarExport';
@@ -114,7 +115,6 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
   };
   const [showDossierModal, setShowDossierModal] = useState<boolean>(false);
   const [expandedStep, setExpandedStep] = useState<number>(1);
-  const [showFundSelector, setShowFundSelector] = useState<boolean>(false);
 
   // Agency official URL
   const agencyUrls: Record<string, string> = {
@@ -402,53 +402,26 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
               </span>
             </div>
 
-            {/* Title & Fund Selector */}
+            {/* Back to Mis Postulaciones Button (Requirement 6) */}
+            <div className="mb-2">
+              <button
+                onClick={() => onNavigateTab('my-applications')}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>← Mis postulaciones</span>
+              </button>
+            </div>
+
+            {/* Title & Fund Name (No dropdown selector, Requirement 6) */}
             <div className="flex flex-wrap items-baseline gap-2 pt-1">
               <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
                 {activeCompanyName === 'Sin completar' ? <span className="text-slate-400 italic">Sin completar</span> : activeCompanyName}
               </h1>
               <span className="text-slate-400 text-xl font-light">/</span>
-              <div className="relative inline-block">
-                <button
-                  onClick={() => setShowFundSelector(!showFundSelector)}
-                  className="inline-flex items-center gap-2 text-xl sm:text-2xl font-black text-blue-700 hover:text-blue-800 transition-colors group cursor-pointer"
-                  title="Cambiar fondo objetivo"
-                >
-                  <span>{selectedFund.name}</span>
-                  <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-blue-600 transition-transform" />
-                </button>
-
-                {/* Dropdown to switch fund */}
-                {showFundSelector && (
-                  <div className="absolute left-0 mt-2 w-80 rounded-2xl bg-white border border-slate-200 shadow-xl p-2 z-50 animate-in fade-in zoom-in-95">
-                    <p className="text-[10px] uppercase font-bold text-slate-500 px-3 py-1.5 tracking-wider">
-                      Seleccionar Fondo de Postulación
-                    </p>
-                    <div className="space-y-1 max-h-64 overflow-y-auto no-scrollbar">
-                      {CHILEAN_FUNDS.map((f) => (
-                        <button
-                          key={f.id}
-                          onClick={() => {
-                            onSelectFund?.(f);
-                            setShowFundSelector(false);
-                          }}
-                          className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-between transition-colors cursor-pointer ${
-                            f.id === selectedFund.id
-                              ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                              : 'text-slate-700 hover:bg-slate-50'
-                          }`}
-                        >
-                          <div>
-                            <p className="font-bold">{f.name}</p>
-                            <p className="text-[10px] text-slate-500">{f.agency} • {f.subsidyFormatted}</p>
-                          </div>
-                          {f.id === selectedFund.id && <Check className="w-4 h-4 text-blue-600" />}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <span className="text-xl sm:text-2xl font-black text-blue-700">
+                {selectedFund.name}
+              </span>
             </div>
 
             <p className="text-xs text-slate-500">

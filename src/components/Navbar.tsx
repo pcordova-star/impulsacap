@@ -88,9 +88,30 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 Catálogo de Fondos
               </button>
+              <button
+                onClick={() => setActiveTab('convocatorias')}
+                className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                  activeTab === 'convocatorias'
+                    ? 'bg-blue-50 text-blue-700 font-bold border border-blue-200 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span>Convocatorias Abiertas</span>
+              </button>
 
               {currentUser && (
                 <>
+                  <button
+                    onClick={() => setActiveTab('my-applications')}
+                    className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
+                      activeTab === 'my-applications'
+                        ? 'bg-blue-50 text-blue-700 font-bold border border-blue-200 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                  >
+                    Mis Postulaciones
+                  </button>
                   <button
                     onClick={() => setActiveTab('my-application')}
                     className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
@@ -99,7 +120,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                     }`}
                   >
-                    Hoja de Ruta 2026
+                    Hoja de Ruta
                   </button>
                   <button
                     onClick={() => setActiveTab('formulator')}
@@ -163,20 +184,20 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <LogOut className="w-3.5 h-3.5" />
                   </button>
 
-                  {/* Return to Dashboard Button - STRICTLY ONLY IF LOGGED IN */}
-                  {activeTab !== 'my-application' ? (
+                  {/* Return to Mis Postulaciones Button */}
+                  {activeTab !== 'my-applications' ? (
                     <button
-                      onClick={() => setActiveTab('my-application')}
-                      className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs shadow-sm shadow-emerald-600/20 active:scale-95 transition-all cursor-pointer"
-                      title="Volver a la Hoja de Ruta y Dashboard principal"
+                      onClick={() => setActiveTab('my-applications')}
+                      className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs shadow-sm shadow-blue-600/20 active:scale-95 transition-all cursor-pointer"
+                      title="Volver a Mis Postulaciones"
                     >
                       <ArrowLeft className="w-3.5 h-3.5" />
-                      <span>Volver al Dashboard</span>
+                      <span>Mis Postulaciones</span>
                     </button>
                   ) : (
-                    <div className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold">
-                      <Clock className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Dashboard Activo</span>
+                    <div className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 text-blue-800 border border-blue-200 text-xs font-bold">
+                      <Clock className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Panel Principal</span>
                     </div>
                   )}
                 </div>

@@ -35,6 +35,7 @@ service cloud.firestore {
         && (!('companyName' in data) || (data.companyName is string && data.companyName.size() <= 160))
         && (!('companyRut' in data) || (data.companyRut is string && data.companyRut.size() <= 20))
         && (!('phone' in data) || (data.phone is string && data.phone.size() <= 30))
+        && (!('seenAlerts' in data) || (data.seenAlerts is list))
         && (data.role in ['company', 'consultant', 'admin']);
     }
 
@@ -57,8 +58,7 @@ service cloud.firestore {
       return data.ownerId is string && data.ownerId.size() <= 128
         && data.fundId is string && data.fundId.size() <= 80
         && data.fundName is string && data.fundName.size() <= 160
-        && (data.status in ['draft', 'in_review', 'ready_to_submit', 'submitted'])
-        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 2000));
+        && (data.status in ['en_preparacion', 'lista_para_enviar', 'enviada', 'archivada', 'draft', 'in_review', 'ready_to_submit', 'submitted']);
     }
 
     // Generated Document Validation
@@ -70,6 +70,7 @@ service cloud.firestore {
         && (!('fondo' in data) || (data.fondo is string && data.fondo.size() <= 160))
         && (!('texto' in data) || (data.texto is string))
         && (!('status' in data) || (data.status in ['borrador', 'firmada']))
+        && (!('applicationId' in data) || (data.applicationId is string && data.applicationId.size() <= 128))
         && (!('fecha' in data) || (data.fecha is string));
     }
 
@@ -146,6 +147,18 @@ service cloud.firestore {
     // 6. Payments collection (Mercado Pago transactions)
     match /payments/{paymentId} {
       allow read, write: if false; // Strictly managed by server webhook
+    }
+
+    // 9. Convocatorias collection (Official public calls from Corfo)
+    match /convocatorias/{convocatoriaId} {
+      allow get, list: if true; // Publicly readable by all users
+      allow write: if false;    // Strictly managed and synced by server (Admin SDK)
+    }
+
+    // 10. Meta collection (System synchronization status)
+    match /meta/{metaDocId} {
+      allow get, list: if true; // Publicly readable for lastSyncAt display
+      allow write: if false;    // Strictly managed and synced by server
     }
   }
 }

@@ -39,6 +39,11 @@
           ],
           "description": "User role in the platform"
         },
+        "seenAlerts": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "IDs of dismissed or acknowledged notification alerts"
+        },
         "createdAt": {
           "type": "string",
           "description": "Account creation timestamp"
@@ -181,12 +186,12 @@
         "status": {
           "type": "string",
           "enum": [
-            "draft",
-            "in_review",
-            "ready_to_submit",
-            "submitted"
+            "en_preparacion",
+            "lista_para_enviar",
+            "enviada",
+            "archivada"
           ],
-          "description": "Current status of the postulation dossier"
+          "description": "Estado de la postulaci\u00f3n"
         },
         "notes": {
           "type": "string",
@@ -200,6 +205,34 @@
         "updatedAt": {
           "type": "string",
           "description": "Updated timestamp"
+        },
+        "answersBySection": {
+          "type": "object",
+          "description": "Respuestas del usuario por secci\u00f3n"
+        },
+        "generatedTextsBySection": {
+          "type": "object",
+          "description": "Textos t\u00e9cnicos redactados por secci\u00f3n"
+        },
+        "formulation": {
+          "type": "object",
+          "description": "Formulaci\u00f3n t\u00e9cnica oficial"
+        },
+        "auditResult": {
+          "type": "object",
+          "description": "Resultado de la auditor\u00eda ciega"
+        },
+        "docStatuses": {
+          "type": "object",
+          "description": "Estado de los documentos habilitantes"
+        },
+        "roadmapConfirmations": {
+          "type": "object",
+          "description": "Confirmaciones interactivas de la hoja de ruta"
+        },
+        "generatedDocs": {
+          "type": "array",
+          "description": "Cartas y documentos generados para esta postulaci\u00f3n"
         }
       },
       "required": [
@@ -406,6 +439,11 @@
         "updatedAt": {
           "type": "string",
           "description": "Last update timestamp"
+        },
+        "applicationId": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "ID de la postulaci\u00f3n asociada"
         }
       },
       "required": [
@@ -481,6 +519,45 @@
         "ownerId",
         "fundId"
       ]
+    },
+    "Convocatoria": {
+      "title": "Convocatoria",
+      "description": "Convocatoria oficial sincronizada desde CORFO y organismos públicos",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 160 },
+        "titulo": { "type": "string", "maxLength": 260 },
+        "alcance": { "type": "string", "maxLength": 100 },
+        "apertura": { "type": "string" },
+        "cierre": { "type": "string" },
+        "tope_aprox": { "type": "string", "maxLength": 160 },
+        "perfil": { "type": "string" },
+        "necesidad": { "type": "string" },
+        "url": { "type": "string", "maxLength": 500 },
+        "fuente": { "type": "string", "maxLength": 40 },
+        "vigente": { "type": "boolean" },
+        "permanente": { "type": "boolean" },
+        "firstSeenAt": { "type": "string" },
+        "lastSeenAt": { "type": "string" },
+        "fundId": { "type": "string", "maxLength": 80 },
+        "resumen": { "type": "string" }
+      },
+      "required": [
+        "id",
+        "titulo",
+        "url",
+        "fuente"
+      ]
+    },
+    "ConvocatoriasSyncMeta": {
+      "title": "ConvocatoriasSyncMeta",
+      "description": "Metadatos de sincronización de convocatorias oficiales",
+      "type": "object",
+      "properties": {
+        "lastSyncAt": { "type": "string" },
+        "total": { "type": "number" },
+        "totalVigentes": { "type": "number" }
+      }
     }
   },
   "firestore": {
@@ -515,6 +592,14 @@
     "/expedientes/{expedienteId}": {
       "schema": "Expediente",
       "description": "User single source of truth postulation dossier per fund"
+    },
+    "/convocatorias/{convocatoriaId}": {
+      "schema": "Convocatoria",
+      "description": "Official public grant calls synced from Corfo and public institutions. Public read, server write only"
+    },
+    "/meta/{metaDocId}": {
+      "schema": "ConvocatoriasSyncMeta",
+      "description": "Public system synchronization metadata. Public read, server write only"
     }
   }
 }

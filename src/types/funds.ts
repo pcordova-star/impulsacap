@@ -176,6 +176,7 @@ export interface CompanyUser {
   phone?: string;
   representativeName?: string;
   representativeRut?: string;
+  seenAlerts?: string[];
   createdAt: string;
   lastLogin?: string;
 }

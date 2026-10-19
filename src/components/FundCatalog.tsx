@@ -20,11 +20,13 @@ import {
 import { getGoogleCalendarUrl } from '../utils/calendarExport';
 
 interface FundCatalogProps {
+  funds?: ChileanFund[];
   onSelectFundToFormulate: (fund: ChileanFund) => void;
   onSelectFundToViewDocs: (fund: ChileanFund) => void;
 }
 
 export const FundCatalog: React.FC<FundCatalogProps> = ({
+  funds = CHILEAN_FUNDS,
   onSelectFundToFormulate,
   onSelectFundToViewDocs
 }) => {
@@ -50,7 +52,7 @@ export const FundCatalog: React.FC<FundCatalogProps> = ({
     'Innovación Agro / Sostenible'
   ];
 
-  const filteredFunds = CHILEAN_FUNDS.filter(fund => {
+  const filteredFunds = funds.filter(fund => {
     const matchesSearch = fund.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       fund.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
       fund.summary.toLowerCase().includes(searchQuery.toLowerCase());

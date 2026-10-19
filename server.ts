@@ -11,7 +11,8 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { CHILEAN_FUNDS } from './src/data/chileanFunds';
-import { evaluateChileanGrantMatch, isNonActivityQuery } from './src/utils/grantMatcher';
+import { evaluateChileanGrantMatch, isNonActivityQuery, normalizeText } from './src/utils/grantMatcher';
+import { calculateDaysRemaining } from './src/utils/convocatorias';
 import { validateRut, formatRut } from './src/utils/rutValidator';
 
 dotenv.config();
@@ -170,29 +171,49 @@ const requireActivePlan = async (req: express.Request, res: express.Response, ne
   }
 };
 
-// Helper: gestión de límite de 3 postulaciones simultáneas
+// Helper: gestión de límite de 3 postulaciones simultáneas usando la colección applications (Requirement 11)
 const checkAndRegisterPostulationSlot = async (uid: string, fundId: string): Promise<{ ok: boolean; error?: string }> => {
   if (!fundId) return { ok: true };
   if (!isFirestoreAdminAuthorized) return { ok: true };
   try {
+    // Consultar aplicaciones activas (no archivadas) del usuario
+    const appsSnap = await adminDb.collection('applications')
+      .where('ownerId', '==', uid)
+      .get();
+    
+    const activeFundIds = new Set<string>();
+    appsSnap.forEach(d => {
+      const data = d.data();
+      if (data.status !== 'archivada' && data.fundId) {
+        activeFundIds.add(data.fundId);
+      }
+    });
+
+    // Si este fondo ya es una de las aplicaciones activas, permitir acceso
+    if (activeFundIds.has(fundId)) {
+      return { ok: true };
+    }
+
+    // Validar el límite de 3 postulaciones simultáneas del Plan Semestral
+    if (activeFundIds.size >= 3) {
+      return { 
+        ok: false, 
+        error: 'Puedes tener hasta 3 postulaciones activas a la vez. Archiva una para comenzar otra.' 
+      };
+    }
+
+    // Mantener sincronizado entitlements para compatibilidad
     const entRef = adminDb.collection('entitlements').doc(uid);
     const entDoc = await entRef.get();
-    const entData = entDoc.data() || {};
-    let activeFundIds: string[] = Array.isArray(entData.activeFundIds) ? entData.activeFundIds : [];
-    
-    if (!activeFundIds.includes(fundId)) {
-      if (activeFundIds.length >= 3) {
-        return { 
-          ok: false, 
-          error: 'Puedes tener hasta 3 postulaciones activas a la vez. Archiva una para comenzar otra.' 
-        };
+    if (entDoc.exists) {
+      const entData = entDoc.data() || {};
+      let entFunds: string[] = Array.isArray(entData.activeFundIds) ? entData.activeFundIds : [];
+      if (!entFunds.includes(fundId)) {
+        entFunds = [...entFunds, fundId];
+        await entRef.set({ activeFundIds: entFunds, updatedAt: new Date().toISOString() }, { merge: true });
       }
-      activeFundIds = [...activeFundIds, fundId];
-      await entRef.set({
-        activeFundIds,
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
     }
+
     return { ok: true };
   } catch {
     return { ok: true };
@@ -225,8 +246,89 @@ app.post('/api/gemini/instant-match', async (req, res) => {
       return res.status(400).json({ error: 'Debes ingresar una descripción de tu proyecto o empresa.' });
     }
 
+    // Consultar convocatorias oficiales vigentes en Firestore
+    let liveCalls: any[] = [];
+    if (isFirestoreAdminAuthorized) {
+      try {
+        const snap = await adminDb.collection('convocatorias').where('vigente', '==', true).get();
+        snap.forEach(d => {
+          const c = d.data();
+          if (!c.fundId) {
+            c.fundId = matchConvocatoriaToFundId(c.titulo, c.url);
+          }
+          liveCalls.push(c);
+        });
+      } catch (e: any) {
+        console.warn('Could not load convocatorias for instant-match:', e?.message);
+      }
+    }
+
+    // Requirement 5: Actualizar disponibles con las convocatorias vigentes
+    // Cuando exista una convocatoria vigente para un fondo, su callStatus y closeDate se toman de ahí; si no, queda "por_confirmar".
+    availableFunds.forEach((f: any) => {
+      const matchingCall = liveCalls.find(c => c.fundId === f.id && c.vigente);
+      if (matchingCall) {
+        f.callStatus = matchingCall.callStatus === 'Abierta' ? 'abierta' : (matchingCall.callStatus === 'Próxima' ? 'proxima' : 'abierta');
+        f.closeDate = matchingCall.cierre;
+        f.callSchedule = matchingCall.cierre ? `Cierra el ${matchingCall.cierre}` : 'Ventanilla permanente abierta';
+        f.status = matchingCall.cierre ? `Abierto (Cierra: ${matchingCall.cierre})` : 'Abierto';
+      } else {
+        f.callStatus = 'por_confirmar';
+        f.closeDate = null;
+        f.callSchedule = 'Próxima convocatoria por confirmar';
+        f.status = 'Próxima Convocatoria';
+      }
+    });
+
+    const userProfile = req.body?.profile || {};
+    const normPrompt = normalizeText(userPrompt);
+    const userRegion = normalizeText(userProfile.region || '');
+    const userSalesBracket = userProfile.salesBracket || '';
+    const userCompanyType = userProfile.companyType || '';
+
+    // Requirement 6: Filtrar convocatorias vigentes por región, perfil y tramo de ventas
+    const filteredCalls = liveCalls.filter(call => {
+      if (!call.vigente) return false;
+
+      // Filtro región
+      if (userRegion) {
+        const alc = normalizeText(call.alcance || '');
+        const isNational = alc.includes('todo chile') || alc.includes('nacional') || alc === '';
+        if (!isNational && !alc.includes(userRegion) && !userRegion.includes(alc)) {
+          return false;
+        }
+      }
+
+      // Filtro perfil
+      if (userCompanyType && call.perfil) {
+        const rawP = Array.isArray(call.perfil) ? call.perfil : [call.perfil];
+        if (rawP.length > 0) {
+          const isPersona = userCompanyType === 'persona_natural' || userCompanyType === 'sin_iniciar';
+          const tag = isPersona ? 'persona' : 'empresa';
+          if (!rawP.some((p: any) => String(p).toLowerCase().includes(tag))) {
+            return false;
+          }
+        }
+      }
+
+      // Filtro ventas
+      if (userSalesBracket && call.venta) {
+        const rawV = Array.isArray(call.venta) ? call.venta : [call.venta];
+        if (rawV.length > 0) {
+          const vTags = rawV.map((v: any) => String(v).toLowerCase());
+          if (userSalesBracket === 'sin_ventas') {
+            if (!vTags.some((t: string) => t.includes('sin-ventas') || t.includes('sin ventas') || t.includes('micro'))) {
+              return false;
+            }
+          }
+        }
+      }
+
+      return true;
+    });
+
     if (isNonActivityQuery(userPrompt)) {
-      const nonAct = evaluateChileanGrantMatch(userPrompt, targetFundHint);
+      const nonAct = evaluateChileanGrantMatch(userPrompt, targetFundHint, filteredCalls, userProfile);
       return res.json({ ...nonAct, analizadoCon: 'reglas' });
     }
 
@@ -236,12 +338,24 @@ Tu misión es recomendar el fondo más adecuado para el usuario basándote EXCLU
 REGLAS ESTRICTAS DE NEGOCIO Y ADMISIBILIDAD:
 1. SOLO puedes recomendar fondos presentes en 'availableFunds'. Usa EXACTAMENTE su 'id' y 'name' oficial tal como aparecen en los datos. Está ESTRICTAMENTE PROHIBIDO inventar nombres de fondos (por ejemplo, NUNCA uses "Semilla Inicia para Empresas Lideradas por Mujeres y Startups" ni variantes no existentes).
 2. NO puedes inventar fechas ni plazos. Para las fechas ('whenToApply') y el estado ('status'), debes usar EXACTAMENTE los valores que vienen en 'callSchedule' y 'status' del fondo en 'availableFunds'. Si no hay fecha o callStatus es 'por_confirmar', responde "Próxima convocatoria por confirmar".
-3. 'femaleBonusEligible': debe ser true ÚNICAMENTE si el usuario declaró EXPLÍCITAMENTE en su texto que la empresa está liderada por mujeres, que es una emprendedora mujer o que cuenta con socias mayoritarias. NUNCA lo asumas si el texto no lo dice expresamente.
-4. Si el fondo recomendado es 'sercotec_abeja_emprende', este fondo es exclusivo de mujeres.
-5. Devuelve un JSON estructurado con el match principal y alternativas válidas de 'availableFunds'.`;
+3. Si existe una convocatoria vigente de CORFO en la lista de 'CONVOCATORIAS VIGENTES', dale prioridad y haz referencia a sus días restantes y fecha oficial de cierre.
+4. 'femaleBonusEligible': debe ser true ÚNICAMENTE si el usuario declaró EXPLÍCITAMENTE en su texto que la empresa está liderada por mujeres, que es una emprendedora mujer o que cuenta con socias mayoritarias. NUNCA lo asumas si el texto no lo dice expresamente.
+5. Si el fondo recomendado es 'sercotec_abeja_emprende', este fondo es exclusivo de mujeres.
+6. Devuelve un JSON estructurado con el match principal y alternativas válidas de 'availableFunds'.`;
 
     const prompt = `FONDOS OFICIALES DISPONIBLES:
 ${JSON.stringify(availableFunds, null, 2)}
+
+CONVOCATORIAS VIGENTES FILTRADAS PARA ESTA EMPRESA:
+${JSON.stringify(filteredCalls.slice(0, 6).map(c => ({
+  id: c.id,
+  titulo: c.titulo,
+  alcance: c.alcance,
+  cierre: c.cierre,
+  fundId: c.fundId,
+  tope_aprox: c.tope_aprox,
+  url: c.url
+})), null, 2)}
 
 DESCRIPCIÓN DEL USUARIO:
 """${userPrompt}"""
@@ -330,7 +444,33 @@ Responde ÚNICAMENTE en JSON con este formato estricto:
       });
     }
 
-    return res.json({ ...parsed, analizadoCon: 'ia' });
+    // Resolver convocatoria regional oficial desde Firestore si calza con el perfil o consulta
+    let liveRegionalCallMatch: any = undefined;
+    if (filteredCalls.length > 0) {
+      // Priorizar la convocatoria que corresponde al fondo recomendado por Gemini
+      const directMatch = filteredCalls.find(c => c.fundId === parsed.primaryFund?.fundId);
+      const chosenCall = directMatch || filteredCalls[0];
+
+      if (chosenCall) {
+        liveRegionalCallMatch = {
+          id: chosenCall.id,
+          titulo: chosenCall.titulo,
+          alcance: chosenCall.alcance,
+          cierre: chosenCall.cierre,
+          topeAprox: chosenCall.tope_aprox || chosenCall.topeAprox,
+          url: chosenCall.url,
+          vigente: chosenCall.vigente,
+          diasRestantes: calculateDaysRemaining(chosenCall.cierre),
+          beneficioResumen: chosenCall.resumen || chosenCall.beneficio,
+        };
+      }
+    }
+
+    return res.json({ 
+      ...parsed, 
+      liveRegionalCallMatch: liveRegionalCallMatch || parsed.liveRegionalCallMatch,
+      analizadoCon: 'ia' 
+    });
   } catch (err: any) {
     console.error('Error in /api/gemini/instant-match:', err?.message);
     return res.status(503).json({ error: 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.' });
@@ -1177,32 +1317,277 @@ app.post('/api/pagos/webhook', async (req, res) => {
   }
 });
 
-// Archivar postulación para liberar cupo del límite de 3 simultáneas
+// Archivar postulación para liberar cupo del límite de 3 simultáneas (Requirement 11)
 app.post('/api/postulaciones/archivar', requireAuth, async (req, res) => {
   try {
     const user = (req as AuthenticatedRequest).user!;
-    const { fundId } = req.body || {};
-    if (!fundId) {
-      return res.status(400).json({ error: 'Debes indicar el fundId a archivar.' });
+    const { applicationId, fundId } = req.body || {};
+    if (!applicationId && !fundId) {
+      return res.status(400).json({ error: 'Debes indicar el applicationId o fundId a archivar.' });
     }
 
-    if (!isFirestoreAdminAuthorized) {
-      return res.json({ success: true, activeFundIds: [], message: 'Postulación archivada con éxito. Cupo liberado.' });
+    if (isFirestoreAdminAuthorized) {
+      // 1. Actualizar en colección applications
+      if (applicationId) {
+        await adminDb.collection('applications').doc(applicationId).set({
+          status: 'archivada',
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+      } else if (fundId) {
+        const snap = await adminDb.collection('applications')
+          .where('ownerId', '==', user.uid)
+          .where('fundId', '==', fundId)
+          .get();
+        const batch = adminDb.batch();
+        snap.forEach(d => {
+          batch.set(d.ref, { status: 'archivada', updatedAt: new Date().toISOString() }, { merge: true });
+        });
+        await batch.commit();
+      }
+
+      // 2. Sincronizar en entitlements
+      const entRef = adminDb.collection('entitlements').doc(user.uid);
+      const entDoc = await entRef.get();
+      if (entDoc.exists) {
+        const entData = entDoc.data() || {};
+        let activeFundIds: string[] = Array.isArray(entData.activeFundIds) ? entData.activeFundIds : [];
+        if (fundId) {
+          activeFundIds = activeFundIds.filter(id => id !== fundId);
+          await entRef.set({ activeFundIds, updatedAt: new Date().toISOString() }, { merge: true });
+        }
+      }
     }
 
-    const entRef = adminDb.collection('entitlements').doc(user.uid);
-    const entDoc = await entRef.get();
-    const entData = entDoc.data() || {};
-    let activeFundIds: string[] = Array.isArray(entData.activeFundIds) ? entData.activeFundIds : [];
-    activeFundIds = activeFundIds.filter(id => id !== fundId);
-    await entRef.set({
-      activeFundIds,
-      updatedAt: new Date().toISOString()
-    }, { merge: true });
-    return res.json({ success: true, activeFundIds, message: 'Postulación archivada con éxito. Cupo liberado.' });
+    return res.json({ success: true, message: 'Postulación archivada con éxito. Cupo liberado.' });
   } catch (err: any) {
     console.error('Error archiving postulation:', err?.message);
     return res.status(500).json({ error: 'Error al archivar la postulación.' });
+  }
+});
+
+// Reactivar postulación archivada si hay cupo disponible (Requirement 11)
+app.post('/api/postulaciones/reactivar', requireAuth, async (req, res) => {
+  try {
+    const user = (req as AuthenticatedRequest).user!;
+    const { applicationId } = req.body || {};
+    if (!applicationId) {
+      return res.status(400).json({ error: 'Debes indicar el applicationId a reactivar.' });
+    }
+
+    if (isFirestoreAdminAuthorized) {
+      const appsSnap = await adminDb.collection('applications')
+        .where('ownerId', '==', user.uid)
+        .get();
+      
+      let activeCount = 0;
+      appsSnap.forEach(d => {
+        const data = d.data();
+        if (d.id !== applicationId && data.status !== 'archivada') {
+          activeCount++;
+        }
+      });
+
+      if (activeCount >= 3) {
+        return res.status(400).json({ 
+          error: 'No puedes reactivar esta postulación porque ya tienes 3 activas. Archiva una primero para liberar cupo.' 
+        });
+      }
+
+      await adminDb.collection('applications').doc(applicationId).set({
+        status: 'en_preparacion',
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    }
+
+    return res.json({ success: true, message: 'Postulación reactivada con éxito.' });
+  } catch (err: any) {
+    console.error('Error reactivating postulation:', err?.message);
+    return res.status(500).json({ error: 'Error al reactivar la postulación.' });
+  }
+});
+
+// Helpers para sincronización de convocatorias oficiales
+function matchConvocatoriaToFundId(titulo: string, url?: string): string | null {
+  const text = `${titulo || ''} ${url || ''}`
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  if (text.includes('semilla inicia')) return 'corfo_semilla_inicia';
+  if (text.includes('semilla expande')) return 'corfo_semilla_expande';
+  if (text.includes('crea y valida')) return 'corfo_crea_valida';
+  if (text.includes('sumate a innovar')) return 'corfo_sumate_innovar';
+  if (text.includes('startup chile') || text.includes('start-up chile') || text.includes('ignite') || text.includes('build')) return 'startup_chile_ignite';
+  if (text.includes('semilla emprende') || text.includes('capital semilla')) return 'sercotec_semilla_emprende';
+  if (text.includes('abeja emprende') || text.includes('capital abeja')) return 'sercotec_abeja_emprende';
+  if (text.includes('crece') && (text.includes('sercotec') || text.includes('desarrollo de negocios'))) return 'sercotec_crece';
+  if (text.includes('fondef') || text.includes('idea i+d') || text.includes('idea id')) return 'anid_fondef_idea';
+  if (text.includes('fia') || text.includes('innovacion agro')) return 'fia_innovacion_agro';
+
+  return null;
+}
+
+// POST /api/admin/convocatorias/import
+// Protegido con header x-import-token = CONVOCATORIAS_IMPORT_TOKEN (Requirement 3)
+app.post('/api/admin/convocatorias/import', async (req, res) => {
+  try {
+    const importToken = req.headers['x-import-token'];
+    const expectedToken = process.env.CONVOCATORIAS_IMPORT_TOKEN;
+
+    if (!expectedToken || importToken !== expectedToken) {
+      return res.status(401).json({ error: 'Token de importación inválido o no configurado en x-import-token.' });
+    }
+
+    const payload = Array.isArray(req.body)
+      ? req.body
+      : (Array.isArray(req.body?.convocatorias) ? req.body.convocatorias : null);
+
+    if (!payload || !Array.isArray(payload)) {
+      return res.status(400).json({ error: 'Payload inválido: debe ser un array de convocatorias JSON.' });
+    }
+
+    if (!isFirestoreAdminAuthorized) {
+      return res.status(503).json({ error: 'Firestore Admin no está autorizado para registrar convocatorias.' });
+    }
+
+    const now = new Date().toISOString();
+    const incomingIds = new Set<string>();
+    let upsertCount = 0;
+
+    // Procesar en lotes de Firestore (batch max 400 operaciones)
+    const batches = [];
+    let currentBatch = adminDb.batch();
+    let batchOps = 0;
+
+    for (const item of payload) {
+      const rawId = String(item.id || (item.url ? item.url.replace(/\/+$/, '').split('/').pop() : '') || '').trim();
+      if (!rawId) continue;
+      const id = rawId.replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 120);
+      if (!id) continue;
+
+      incomingIds.add(id);
+
+      const docRef = adminDb.collection('convocatorias').doc(id);
+      const existingDoc = await docRef.get();
+      const existingData = existingDoc.exists ? existingDoc.data() : null;
+
+      const firstSeenAt = existingData?.firstSeenAt || now;
+      const fundId = item.fundId || matchConvocatoriaToFundId(item.titulo, item.url);
+
+      const record = {
+        id,
+        titulo: String(item.titulo || '').trim(),
+        alcance: String(item.alcance || 'Todo Chile').trim(),
+        apertura: item.apertura || null,
+        cierre: item.cierre || null,
+        tope_aprox: item.tope_aprox || item.topeAprox || null,
+        perfil: item.perfil || [],
+        etapa: item.etapa || [],
+        necesidad: item.necesidad || [],
+        venta: item.venta || [],
+        url: String(item.url || 'https://www.corfo.gob.cl').trim(),
+        fuente: 'CORFO',
+        vigente: true,
+        permanente: Boolean(item.permanente || (!item.cierre && item.estado_corfo?.toLowerCase() === 'abiertas')),
+        firstSeenAt,
+        lastSeenAt: now,
+        fundId: fundId || null,
+        resumen: item.resumen || item.beneficioResumen || null,
+        quienes_pueden_postular: item.quienes_pueden_postular || item.quienesPuedenPostular || null,
+        beneficio: item.beneficio || item.beneficioResumen || null,
+        estado_corfo: item.estado_corfo || 'abiertas'
+      };
+
+      currentBatch.set(docRef, record, { merge: true });
+      batchOps++;
+      upsertCount++;
+
+      if (batchOps >= 300) {
+        batches.push(currentBatch.commit());
+        currentBatch = adminDb.batch();
+        batchOps = 0;
+      }
+    }
+
+    if (batchOps > 0) {
+      batches.push(currentBatch.commit());
+    }
+
+    await Promise.all(batches);
+
+    // Requirement 3: Las convocatorias que dejan de aparecer en el listado de abiertas no se borran: se marcan como no vigentes
+    const allVigentesSnap = await adminDb.collection('convocatorias').where('vigente', '==', true).get();
+    let markedNotVigente = 0;
+    const deactivationBatch = adminDb.batch();
+    let deactOps = 0;
+
+    allVigentesSnap.forEach(d => {
+      if (!incomingIds.has(d.id)) {
+        deactivationBatch.set(d.ref, { vigente: false, lastSeenAt: now }, { merge: true });
+        deactOps++;
+        markedNotVigente++;
+      }
+    });
+
+    if (deactOps > 0) {
+      await deactivationBatch.commit();
+    }
+
+    // Guardar meta/convocatoriasSync (Requirement 1)
+    await adminDb.collection('meta').doc('convocatoriasSync').set({
+      lastSyncAt: now,
+      total: incomingIds.size,
+      totalVigentes: incomingIds.size,
+      markedNotVigente,
+      updatedAt: now
+    }, { merge: true });
+
+    return res.json({
+      success: true,
+      message: `Sincronización exitosa: ${upsertCount} convocatorias procesadas, ${markedNotVigente} marcadas como no vigentes.`,
+      totalImported: upsertCount,
+      markedNotVigente,
+      lastSyncAt: now
+    });
+  } catch (err: any) {
+    console.error('Error in /api/admin/convocatorias/import:', err?.message);
+    return res.status(500).json({ error: 'Error al importar convocatorias: ' + err?.message });
+  }
+});
+
+// GET /api/convocatorias (Consulta pública con filtros de región y vigencia)
+app.get('/api/convocatorias', async (req, res) => {
+  try {
+    let convocatorias: any[] = [];
+    let meta: any = { lastSyncAt: null, total: 0, totalVigentes: 0 };
+
+    if (isFirestoreAdminAuthorized) {
+      const snap = await adminDb.collection('convocatorias').get();
+      snap.forEach(d => convocatorias.push(d.data()));
+
+      const metaDoc = await adminDb.collection('meta').doc('convocatoriasSync').get();
+      if (metaDoc.exists) {
+        meta = metaDoc.data();
+      }
+    }
+
+    const { region, vigente } = req.query;
+    if (vigente === 'true') {
+      convocatorias = convocatorias.filter(c => c.vigente);
+    }
+
+    if (region && typeof region === 'string') {
+      const rNorm = region.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      convocatorias = convocatorias.filter(c => {
+        const alc = String(c.alcance || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        return alc.includes('todo chile') || alc.includes('nacional') || alc.includes(rNorm);
+      });
+    }
+
+    return res.json({ convocatorias, meta });
+  } catch (err: any) {
+    console.error('Error in GET /api/convocatorias:', err?.message);
+    return res.status(500).json({ error: 'Error al obtener convocatorias.' });
   }
 });
 

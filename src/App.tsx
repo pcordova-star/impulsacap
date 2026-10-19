@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { CompanyProfile, ChileanFund, FormulationOutput, BlindAuditResult, CompanyUser } from './types/funds';
 import { CHILEAN_FUNDS } from './data/chileanFunds';
 import { Navbar } from './components/Navbar';
@@ -11,6 +11,12 @@ import { DocumentManager } from './components/DocumentManager';
 import { ExpertChat } from './components/ExpertChat';
 import { SiiUploaderModal } from './components/SiiUploaderModal';
 import { MyActiveApplication } from './components/MyActiveApplication';
+import { MyApplicationsDashboard } from './components/MyApplicationsDashboard';
+import { NewApplicationModal } from './components/NewApplicationModal';
+import { ConvocatoriasView } from './components/ConvocatoriasView';
+import { useApplications } from './hooks/useApplications';
+import { useConvocatorias } from './hooks/useConvocatorias';
+import { ExpedienteData } from './types/expediente';
 import { PaymentResult } from './components/PaymentResult';
 import { AuthModal } from './components/AuthModal';
 import { AuthGateView } from './components/AuthGateView';
@@ -28,7 +34,6 @@ import {
 } from './utils/storage';
 import { initFirebaseService, syncCompanyToFirestore } from './utils/firebaseSync';
 import { auth, db } from './firebase';
-import { useExpediente } from './hooks/useExpediente';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { 
@@ -48,31 +53,12 @@ import {
   Upload
 } from 'lucide-react';
 
-const DEFAULT_PROFILE: CompanyProfile = {
-  companyName: '',
-  rut: '',
-  companyType: 'spa',
-  monthsActive: 6,
-  salesBracket: 'menor_60m',
-  annualSalesCLP: 0,
-  sector: 'Tecnología, Servicios e Innovación',
-  region: 'Región Metropolitana',
-  isFemaleLed: false,
-  femaleEquityPct: 0,
-  trlStage: 'mvp_validado',
-  innovationLevel: 'incremental',
-  projectSummary: '',
-  coreTech: '',
-  customerValidationCount: 0,
-  taxFolderUploaded: false
-};
-
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>(() => {
     if (typeof window !== 'undefined' && window.location.pathname.startsWith('/pago/resultado')) {
       return 'pago-resultado';
     }
-    return getCurrentUser() ? 'my-application' : 'diagnostic';
+    return getCurrentUser() ? 'my-applications' : 'diagnostic';
   });
 
   // URL sync for /pago/resultado
@@ -86,7 +72,6 @@ export default function App() {
     window.addEventListener('popstate', handleUrlRoute);
     return () => window.removeEventListener('popstate', handleUrlRoute);
   }, []);
-  const [selectedFund, setSelectedFund] = useState<ChileanFund>(CHILEAN_FUNDS[0]);
 
   // Authenticated Company Session
   const [currentUser, setCurrentUser] = useState<CompanyUser | null>(() => getCurrentUser());
@@ -105,6 +90,50 @@ export default function App() {
   const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
   const [showSiiModal, setShowSiiModal] = useState<boolean>(false);
 
+  // Active Chilean Company Profile with local persistence scoped per user
+  const [profile, setProfile] = useState<CompanyProfile>(() => {
+    const user = getCurrentUser();
+    return loadActiveProfile(getCleanDefaultProfile(user), user?.id);
+  });
+
+  // Track the user ID that owns the currently active in-memory profile
+  const activeUserIdRef = useRef<string | undefined>(currentUser?.id);
+
+  // Applications & Multi-Fund Management (Requirement 1, 4, 11)
+  const {
+    applications,
+    activeApplications,
+    archivedApplications,
+    activeApplication,
+    activeApplicationId,
+    activeFund,
+    setActiveApplicationId,
+    createApplication,
+    archiveApplication,
+    reactivateApplication,
+    updateActiveFormulation,
+    updateActiveAuditResult,
+    updateActiveRoadmapConfirmations,
+    updateActiveDocStatuses,
+    addActiveGeneratedDoc,
+    updateActiveGeneratedDocStatus,
+    deleteActiveGeneratedDoc,
+    saveActiveSectionAnswers
+  } = useApplications(profile);
+
+  // Monitor de convocatorias oficiales en vivo desde Firestore (Requirement 1, 2, 5, 7)
+  const {
+    convocatorias,
+    activeConvocatorias,
+    syncMeta,
+    isStale: isConvocatoriasStale,
+    loading: convocatoriasLoading,
+    liveFunds,
+    refreshConvocatorias
+  } = useConvocatorias();
+
+  const [showNewAppModal, setShowNewAppModal] = useState<boolean>(false);
+
   // Firebase Auth listener: session driven by onAuthStateChanged
   useEffect(() => {
     initFirebaseService();
@@ -121,6 +150,7 @@ export default function App() {
         let rut = cached.rut || '';
         let representativeName = cached.representativeName || fbUser.displayName || '';
         let phone = cached.phone || '';
+        let seenAlerts: string[] = cached.seenAlerts || [];
 
         try {
           const userDoc = await getDoc(doc(db, 'users', fbUser.uid));
@@ -130,6 +160,7 @@ export default function App() {
             if (uData.companyRut) rut = uData.companyRut;
             if (uData.displayName) representativeName = uData.displayName;
             if (uData.phone) phone = uData.phone;
+            if (Array.isArray(uData.seenAlerts)) seenAlerts = uData.seenAlerts;
           }
         } catch (e) {
           console.warn('Could not read user profile from Firestore:', e);
@@ -142,6 +173,7 @@ export default function App() {
           rut,
           representativeName,
           phone,
+          seenAlerts,
           createdAt: fbUser.metadata.creationTime || new Date().toISOString(),
           lastLogin: new Date().toISOString()
         };
@@ -155,7 +187,7 @@ export default function App() {
         setProfile(loadActiveProfile(getCleanDefaultProfile(user), user.id));
         setActiveFormulation(loadActiveFormulation(user.id));
         setAuditResult(loadActiveAudit(user.id));
-        setActiveTab(prev => (prev === 'diagnostic' ? 'my-application' : prev));
+        setActiveTab(prev => (prev === 'diagnostic' ? 'my-applications' : prev));
       } else {
         activeUserIdRef.current = undefined;
         setCurrentUser(null);
@@ -168,15 +200,6 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Track the user ID that owns the currently active in-memory profile
-  const activeUserIdRef = useRef<string | undefined>(currentUser?.id);
-
-  // Active Chilean Company Profile with local persistence scoped per user
-  const [profile, setProfile] = useState<CompanyProfile>(() => {
-    const user = getCurrentUser();
-    return loadActiveProfile(getCleanDefaultProfile(user), user?.id);
-  });
-
   // Auto-save changes strictly under current user scope
   useEffect(() => {
     if (activeUserIdRef.current === currentUser?.id) {
@@ -185,35 +208,64 @@ export default function App() {
         syncCompanyToFirestore(profile, currentUser.id).catch(() => {});
       }
     }
-  }, [profile]);
+  }, [profile, currentUser]);
 
   useEffect(() => {
     if (activeUserIdRef.current === currentUser?.id) {
       saveActiveFormulation(activeFormulation, currentUser?.id);
     }
-  }, [activeFormulation]);
+  }, [activeFormulation, currentUser]);
 
   useEffect(() => {
     if (activeUserIdRef.current === currentUser?.id) {
       saveActiveAudit(auditResult, currentUser?.id);
     }
-  }, [auditResult]);
+  }, [auditResult, currentUser]);
 
-  // Unified Single Source of Truth Expediente per user and fund
-  const {
-    expediente,
-    updateProfile,
-    updateTaxFolder,
-    updateRoadmapConfirmations,
-    updateDocStatuses,
-    addGeneratedDoc,
-    updateGeneratedDocStatus,
-    deleteGeneratedDoc,
-    saveSectionAnswers,
-    updateFormulation,
-    updateAuditResult
-  } = useExpediente(selectedFund, profile);
-
+  // Active postulation expediente (Single Source of Truth per application, Requirement 1, 2, 4)
+  const activeExpediente: ExpedienteData = useMemo(() => {
+    const fund = activeFund;
+    const app = activeApplication;
+    return {
+      id: app?.id || `exp_guest_${fund.id}`,
+      ownerId: currentUser?.id || 'guest',
+      fundId: fund.id,
+      fundName: fund.name,
+      createdAt: app?.createdAt || new Date().toISOString(),
+      updatedAt: app?.updatedAt || new Date().toISOString(),
+      profile,
+      taxFolder: {
+        fileName: profile.taxFolderFileName,
+        uploadDate: profile.taxFolderUploadDate,
+        rut: profile.rut,
+        companyName: profile.companyName,
+        monthsActive: profile.monthsActive,
+        annualSalesCLP: profile.annualSalesCLP,
+        salesBracket: profile.salesBracket,
+        f29Periods: profile.taxFolderF29Periods || 0,
+        siiStatusObservations: profile.taxFolderSummary,
+        admissibilityVerdict: profile.taxFolderUploaded ? 'aprobado' : null,
+        taxFolderUploaded: Boolean(profile.taxFolderUploaded)
+      },
+      roadmapConfirmations: app?.roadmapConfirmations || {
+        confirmedInicioActividades: false,
+        confirmedEstatutoSocial: false,
+        confirmedGarantia: false
+      },
+      docStatuses: app?.docStatuses || {
+        f29_sii: Boolean(profile.taxFolderUploaded),
+        estatuto_res: false,
+        deuda_tgr: false,
+        previsional_f30: false,
+        carta_interes_loi: false
+      },
+      generatedDocs: app?.generatedDocs || [],
+      answersBySection: app?.answersBySection || {},
+      generatedTextsBySection: app?.generatedTextsBySection || {},
+      formulation: app?.formulation || null,
+      auditResult: app?.auditResult || null
+    };
+  }, [activeApplication, activeFund, profile, currentUser]);
 
   const handleAuthSuccess = (user: CompanyUser) => {
     activeUserIdRef.current = user.id;
@@ -231,6 +283,7 @@ export default function App() {
     setProfile(getCleanDefaultProfile(null));
     setActiveFormulation(null);
     setAuditResult(null);
+    setActiveTab('diagnostic');
   };
 
   const handleApplySiiData = (updated: Partial<CompanyProfile>) => {
@@ -239,38 +292,48 @@ export default function App() {
       saveActiveProfile(next, currentUser?.id);
       return next;
     });
-    updateProfile(updated);
-    updateTaxFolder({
-      fileName: updated.taxFolderFileName,
-      uploadDate: updated.taxFolderUploadDate,
-      rut: updated.rut,
-      companyName: updated.companyName,
-      monthsActive: updated.monthsActive,
-      annualSalesCLP: updated.annualSalesCLP,
-      salesBracket: updated.salesBracket,
-      f29Periods: updated.taxFolderF29Periods,
-      siiStatusObservations: updated.taxFolderSummary,
-      admissibilityVerdict: updated.taxFolderUploaded ? 'aprobado' : null,
-      taxFolderUploaded: Boolean(updated.taxFolderUploaded)
-    });
   };
 
   // Flow handlers
-  const handleSelectFundToFormulate = (fund: ChileanFund) => {
-    setSelectedFund(fund);
-    setActiveTab('formulator');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  const handleSelectFundToFormulate = async (fund: ChileanFund) => {
+    const existing = activeApplications.find(a => a.fundId === fund.id);
+    if (existing) {
+      setActiveApplicationId(existing.id);
+      setActiveTab('my-application');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    const res = await createApplication(fund.id);
+    if (res.ok && res.application) {
+      setActiveApplicationId(res.application.id);
+      setActiveTab('my-application');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      setShowNewAppModal(true);
+    }
   };
 
-  const handleSelectFundToViewDocs = (fund: ChileanFund) => {
-    setSelectedFund(fund);
-    setActiveTab('documents');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  const handleSelectFundToViewDocs = async (fund: ChileanFund) => {
+    const existing = activeApplications.find(a => a.fundId === fund.id);
+    if (existing) {
+      setActiveApplicationId(existing.id);
+      setActiveTab('documents');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      const res = await createApplication(fund.id);
+      if (res.ok && res.application) {
+        setActiveApplicationId(res.application.id);
+        setActiveTab('documents');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        setActiveTab('documents');
+      }
+    }
   };
 
   const handleSendToAudit = (formulation: FormulationOutput, fund: ChileanFund) => {
     setActiveFormulation(formulation);
-    setSelectedFund(fund);
+    updateActiveFormulation(formulation);
     setActiveTab('auditor');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -281,8 +344,6 @@ export default function App() {
       <div className="bg-slate-900 border-b border-slate-800 px-4 py-2 text-xs">
         <div className="max-w-7xl mx-auto flex items-center justify-between text-slate-300">
           <div className="flex items-center gap-4 text-[11px] overflow-x-auto no-scrollbar">
-
-            
             {/* Authenticated User Status in Ticker */}
             {currentUser ? (
               <span className="inline-flex items-center gap-1 text-emerald-400 font-bold whitespace-nowrap">
@@ -298,7 +359,6 @@ export default function App() {
                 <span>Acceso Empresas: Iniciar Sesión / Registrar</span>
               </button>
             )}
-
 
             <span className="text-slate-600 hidden sm:inline">•</span>
             <span className="hidden sm:inline whitespace-nowrap">
@@ -352,8 +412,8 @@ export default function App() {
 
       {/* Main Container */}
       <main className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 pt-4 pb-28 sm:py-8">
-        {/* Persistent Return to Dashboard Button Bar - STRICTLY VISIBLE ONLY WHEN LOGGED IN */}
-        {currentUser && activeTab !== 'my-application' && (
+        {/* Persistent Return to Active Postulation Button Bar - Visible when logged in and outside of application views */}
+        {currentUser && activeTab !== 'my-application' && activeTab !== 'my-applications' && activeApplication && (
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-white border border-emerald-200/90 shadow-sm animate-fade-in">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0">
@@ -362,7 +422,7 @@ export default function App() {
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs font-bold text-slate-900 truncate max-w-[280px] sm:max-w-md">
-                    Postulación Activa: {selectedFund.name}
+                    Postulación Activa: {activeFund.name}
                   </span>
                   <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
                     Convocatoria 2026
@@ -391,20 +451,68 @@ export default function App() {
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-bold shadow-sm shadow-emerald-600/20 active:scale-95 transition-all cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span>Volver a Mi Postulación</span>
+              <span>Volver a Mi Hoja de Ruta</span>
             </button>
           </div>
         )}
 
+        {/* Tab: Pago Resultado (Mercado Pago) */}
         {activeTab === 'pago-resultado' && (
           <PaymentResult
             onNavigateToRoadmap={() => {
               window.history.pushState({}, '', '/');
-              setActiveTab('my-application');
+              setActiveTab('my-applications');
             }}
           />
         )}
 
+        {/* Tab: Mis Postulaciones Dashboard (Requirement 5) */}
+        {activeTab === 'my-applications' && (
+          currentUser ? (
+            <MyApplicationsDashboard
+              profile={profile}
+              activeApplications={activeApplications}
+              archivedApplications={archivedApplications}
+              convocatorias={activeConvocatorias}
+              funds={liveFunds}
+              currentUser={currentUser}
+              onContinueApplication={(appId) => {
+                setActiveApplicationId(appId);
+                setActiveTab('my-application');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              onArchiveApplication={archiveApplication}
+              onReactivateApplication={reactivateApplication}
+              onOpenNewApplicationModal={() => setShowNewAppModal(true)}
+              onOpenProfile={() => setShowProfileModal(true)}
+              onOpenSiiModal={() => setShowSiiModal(true)}
+              onSelectFundToFormulate={handleSelectFundToFormulate}
+              onNavigateTab={setActiveTab}
+            />
+          ) : (
+            <AuthGateView
+              onOpenAuthModal={(mode) => { setAuthModalMode(mode); setShowAuthModal(true); }}
+              onNavigateHome={() => setActiveTab('diagnostic')}
+              title="Bóveda de Mis Postulaciones a Fondos Concursables"
+              description="Gestiona hasta 3 postulaciones simultáneas con tu empresa, resguarda tus expedientes oficiales y formula propuestas con IA en tu entorno privado."
+            />
+          )
+        )}
+
+        {/* Tab: Convocatorias Abiertas Oficiales de CORFO (Requirement 7) */}
+        {activeTab === 'convocatorias' && (
+          <ConvocatoriasView
+            convocatorias={convocatorias}
+            syncMeta={syncMeta}
+            isStale={isConvocatoriasStale}
+            loading={convocatoriasLoading}
+            onRefresh={refreshConvocatorias}
+            onSelectFundToFormulate={handleSelectFundToFormulate}
+            onOpenNewApplicationModal={() => setShowNewAppModal(true)}
+          />
+        )}
+
+        {/* Tab: Quick Diagnostic Matcher */}
         {activeTab === 'diagnostic' && (
           <InstantWowMatcher
             onSelectFundToFormulate={handleSelectFundToFormulate}
@@ -415,9 +523,9 @@ export default function App() {
           />
         )}
 
+        {/* Tab: Advanced Diagnostic */}
         {activeTab === 'advanced-diagnostic' && (
           <div className="space-y-6 animate-fade-in">
-            {/* Back Button to Instant Matcher */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-200">
               <button
                 onClick={() => setActiveTab('diagnostic')}
@@ -440,30 +548,33 @@ export default function App() {
           </div>
         )}
 
+        {/* Tab: Fund Catalogue */}
         {activeTab === 'catalog' && (
           <FundCatalog
+            funds={liveFunds}
             onSelectFundToFormulate={handleSelectFundToFormulate}
             onSelectFundToViewDocs={handleSelectFundToViewDocs}
           />
         )}
 
+        {/* Tab: AI Formulator */}
         {activeTab === 'formulator' && (
           currentUser ? (
             <AiFormulator
-              selectedFund={selectedFund}
-              setSelectedFund={setSelectedFund}
-              profile={expediente.profile || profile}
-              initialFormulation={expediente.formulation || activeFormulation}
-              expediente={expediente}
-              onSaveSectionAnswers={saveSectionAnswers}
+              selectedFund={activeFund}
+              setSelectedFund={() => {}}
+              profile={activeExpediente.profile || profile}
+              initialFormulation={activeExpediente.formulation || activeFormulation}
+              expediente={activeExpediente}
+              onSaveSectionAnswers={saveActiveSectionAnswers}
               onSaveFormulation={(f) => {
                 setActiveFormulation(f);
                 saveActiveFormulation(f, currentUser?.id);
-                updateFormulation(f);
+                updateActiveFormulation(f);
               }}
               onSendToAudit={(f, fund) => {
                 handleSendToAudit(f, fund);
-                updateFormulation(f);
+                updateActiveFormulation(f);
               }}
               onNavigateTab={setActiveTab}
             />
@@ -477,15 +588,16 @@ export default function App() {
           )
         )}
 
+        {/* Tab: Blind Auditor */}
         {activeTab === 'auditor' && (
           currentUser ? (
             <BlindAuditor
-              initialFund={selectedFund}
-              initialFormulation={expediente.formulation || activeFormulation}
+              initialFund={activeFund}
+              initialFormulation={activeExpediente.formulation || activeFormulation}
               onSaveAudit={(res) => {
                 setAuditResult(res);
                 saveActiveAudit(res, currentUser?.id);
-                updateAuditResult(res);
+                updateActiveAuditResult(res);
               }}
               onNavigateTab={setActiveTab}
             />
@@ -499,21 +611,22 @@ export default function App() {
           )
         )}
 
+        {/* Tab: Roadmap / My Active Application */}
         {activeTab === 'my-application' && (
           currentUser ? (
             <MyActiveApplication
-              profile={expediente.profile || profile}
-              selectedFund={selectedFund}
-              formulation={expediente.formulation || activeFormulation}
-              auditResult={expediente.auditResult || auditResult}
+              profile={activeExpediente.profile || profile}
+              selectedFund={activeFund}
+              formulation={activeExpediente.formulation || activeFormulation}
+              auditResult={activeExpediente.auditResult || auditResult}
               currentUser={currentUser}
-              expediente={expediente}
-              onUpdateRoadmapConfirmations={updateRoadmapConfirmations}
-              onUpdateDocStatuses={updateDocStatuses}
+              expediente={activeExpediente}
+              onUpdateRoadmapConfirmations={updateActiveRoadmapConfirmations}
+              onUpdateDocStatuses={updateActiveDocStatuses}
               onNavigateTab={setActiveTab}
               onOpenSiiModal={() => setShowSiiModal(true)}
               onOpenAuthModal={() => { setAuthModalMode('login'); setShowAuthModal(true); }}
-              onSelectFund={(fund) => setSelectedFund(fund)}
+              onSelectFund={(fund) => handleSelectFundToFormulate(fund)}
             />
           ) : (
             <AuthGateView
@@ -525,18 +638,19 @@ export default function App() {
           )
         )}
 
+        {/* Tab: Document Manager */}
         {activeTab === 'documents' && (
           currentUser ? (
             <DocumentManager
-              profile={expediente.profile || profile}
-              activeFund={selectedFund}
-              formulation={expediente.formulation || activeFormulation}
+              profile={activeExpediente.profile || profile}
+              activeFund={activeFund}
+              formulation={activeExpediente.formulation || activeFormulation}
               currentUser={currentUser}
-              expediente={expediente}
-              onUpdateDocStatuses={updateDocStatuses}
-              onAddGeneratedDoc={addGeneratedDoc}
-              onUpdateGeneratedDocStatus={updateGeneratedDocStatus}
-              onDeleteGeneratedDoc={deleteGeneratedDoc}
+              expediente={activeExpediente}
+              onUpdateDocStatuses={updateActiveDocStatuses}
+              onAddGeneratedDoc={addActiveGeneratedDoc}
+              onUpdateGeneratedDocStatus={updateActiveGeneratedDocStatus}
+              onDeleteGeneratedDoc={deleteActiveGeneratedDoc}
               onNavigateTab={setActiveTab}
               onOpenSiiModal={() => setShowSiiModal(true)}
               onUpdateValidationCount={(count: number) => {
@@ -545,7 +659,6 @@ export default function App() {
                   saveActiveProfile(updated, currentUser?.id);
                   return updated;
                 });
-                updateProfile({ customerValidationCount: count });
               }}
             />
           ) : (
@@ -558,13 +671,37 @@ export default function App() {
           )
         )}
 
+        {/* Tab: AI Advisor */}
         {activeTab === 'advisor' && (
           <ExpertChat
             profile={profile}
-            currentFund={selectedFund}
+            currentFund={activeFund}
           />
         )}
       </main>
+
+      {/* New Application Modal (Requirement 7, 8, 9, 10, 11) */}
+      <NewApplicationModal
+        isOpen={showNewAppModal}
+        onClose={() => setShowNewAppModal(false)}
+        profile={profile}
+        activeApplications={activeApplications}
+        funds={liveFunds}
+        onCreateApplication={async (fundId) => {
+          const res = await createApplication(fundId);
+          if (res.ok && res.application) {
+            setActiveTab('my-application');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+          return res;
+        }}
+        onOpenExistingApplication={(appId) => {
+          setActiveApplicationId(appId);
+          setActiveTab('my-application');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        onArchiveApplication={archiveApplication}
+      />
 
       {/* Authentication Modal */}
       <AuthModal
