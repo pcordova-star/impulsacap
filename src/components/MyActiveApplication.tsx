@@ -121,7 +121,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
   const agencyUrl = agencyUrls[selectedFund.agency] || 'https://www.corfo.cl';
 
   // User-confirmed steps (persisted in localStorage scoped to current user)
-  const userKey = currentUser?.id || 'guest';
+  const userKey = (currentUser as any)?.uid || currentUser?.id || currentUser?.email || 'guest';
   const [confirmedInicioActividades, setConfirmedInicioActividades] = useState<boolean>(() => {
     return localStorage.getItem(`confirmed_inicio_${userKey}`) === 'true';
   });
@@ -132,20 +132,35 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
     return localStorage.getItem(`confirmed_garantia_${userKey}`) === 'true';
   });
 
+  // Re-sync with localStorage if user session changes
+  useEffect(() => {
+    setConfirmedInicioActividades(localStorage.getItem(`confirmed_inicio_${userKey}`) === 'true');
+    setConfirmedEstatutoSocial(localStorage.getItem(`confirmed_estatuto_${userKey}`) === 'true');
+    setConfirmedGarantia(localStorage.getItem(`confirmed_garantia_${userKey}`) === 'true');
+  }, [userKey]);
+
   const toggleInicioActividades = () => {
-    const next = !confirmedInicioActividades;
-    setConfirmedInicioActividades(next);
-    localStorage.setItem(`confirmed_inicio_${userKey}`, String(next));
+    setConfirmedInicioActividades(prev => {
+      const next = !prev;
+      localStorage.setItem(`confirmed_inicio_${userKey}`, String(next));
+      return next;
+    });
   };
+
   const toggleEstatutoSocial = () => {
-    const next = !confirmedEstatutoSocial;
-    setConfirmedEstatutoSocial(next);
-    localStorage.setItem(`confirmed_estatuto_${userKey}`, String(next));
+    setConfirmedEstatutoSocial(prev => {
+      const next = !prev;
+      localStorage.setItem(`confirmed_estatuto_${userKey}`, String(next));
+      return next;
+    });
   };
+
   const toggleGarantia = () => {
-    const next = !confirmedGarantia;
-    setConfirmedGarantia(next);
-    localStorage.setItem(`confirmed_garantia_${userKey}`, String(next));
+    setConfirmedGarantia(prev => {
+      const next = !prev;
+      localStorage.setItem(`confirmed_garantia_${userKey}`, String(next));
+      return next;
+    });
   };
 
   // Close date check: only show countdown if closeDate exists and is in the future
@@ -220,10 +235,12 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
     return 6;
   }, [isRutValid, confirmedInicioActividades, hasTaxFolder, confirmedEstatutoSocial, hasLetters, hasFormulation, hasBudget, confirmedGarantia, isAuditApproved]);
 
-  // Persist current active step for the user
+  // Persist current active step for the user and auto-open next step
   useEffect(() => {
     const storageKey = `impulsacap_${userKey}_active_step`;
     localStorage.setItem(storageKey, String(currentStepNumber));
+    // Al completarse el paso actual y avanzar, abrir automáticamente el siguiente
+    setExpandedStep(currentStepNumber);
   }, [currentStepNumber, userKey]);
 
   const steps = useMemo(() => [
@@ -236,7 +253,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
       status: (isRutValid && confirmedInicioActividades && hasTaxFolder) ? ('completed' as const) : ('in_progress' as const),
       items: [
         { label: 'RUT de la empresa válido (Módulo 11)', done: isRutValid, detail: isRutValid ? activeRut : 'Ingresa un RUT válido' },
-        { label: 'Inicio de actividades en 1ª Categoría', done: confirmedInicioActividades, interactive: true, onToggle: toggleInicioActividades, detail: confirmedInicioActividades ? 'Confirmado por la empresa' : 'Marca la casilla si ya cuentas con inicio de actividades en 1ª Categoría' },
+        { label: 'Inicio de actividades en 1ª Categoría', done: confirmedInicioActividades, interactive: true, onToggle: toggleInicioActividades, detail: confirmedInicioActividades ? 'Confirmado por la empresa' : 'Haz clic para confirmar que ya cuentas con esto' },
         { 
           label: 'Carpeta Tributaria Electrónica F29', 
           done: hasTaxFolder, 
@@ -256,7 +273,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
       badge: 'Pertinencia Comercial',
       status: (confirmedEstatutoSocial && hasLetters) ? ('completed' as const) : ('in_progress' as const),
       items: [
-        { label: 'Estatuto social y poderes de representación', done: confirmedEstatutoSocial, interactive: true, onToggle: toggleEstatutoSocial, detail: confirmedEstatutoSocial ? 'Confirmado por la empresa' : 'Marca la casilla si cuentas con estatuto social y poderes vigentes' },
+        { label: 'Estatuto social y poderes de representación', done: confirmedEstatutoSocial, interactive: true, onToggle: toggleEstatutoSocial, detail: confirmedEstatutoSocial ? 'Confirmado por la empresa' : 'Haz clic para confirmar que ya cuentas con esto' },
         { label: 'Cartas de Intención de Compra / LOI', done: hasLetters, detail: hasLetters ? `${profile.customerValidationCount} cartas registradas` : 'Mínimo 2 cartas recomendadas' },
         { label: 'Acreditación de Liderazgo Femenino', done: profile.isFemaleLed, detail: profile.isFemaleLed ? `+${selectedFund.femaleBonusPct || 10}% cofinanciamiento adicional` : 'No postulado con bono de género' }
       ],
@@ -290,7 +307,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
         { label: 'Desglose en Cuentas Oficiales CORFO', done: hasBudget, detail: hasBudget ? `${formulation?.budgetBreakdown?.length} ítems presupuestados` : 'Recursos humanos, operaciones, difusión' },
         { label: 'Verificación de IVA no imputado al subsidio', done: hasBudget, detail: 'El subsidio fiscal no subsidia IVA recuperable' },
         { label: 'Aporte empresarial pecuniario', done: hasBudget, detail: `Hasta ${selectedFund.maxCoFinancePct}% subsidio / ${(100 - selectedFund.maxCoFinancePct)}% aporte privado` },
-        { label: 'Simulación de póliza de garantía para anticipo', done: confirmedGarantia, interactive: true, onToggle: toggleGarantia, detail: confirmedGarantia ? 'Simulación realizada y confirmada' : 'Marca la casilla o usa el simulador para estimar el anticipo' }
+        { label: 'Simulación de póliza de garantía para anticipo', done: confirmedGarantia, interactive: true, onToggle: toggleGarantia, detail: confirmedGarantia ? 'Simulación realizada y confirmada' : 'Haz clic para confirmar que ya cuentas con esto' }
       ],
       actionLabel: hasBudget ? 'Revisar Presupuesto & Garantías' : 'Configurar Presupuesto en Formulador',
       onAction: () => onNavigateTab('formulator')
@@ -716,7 +733,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
               const isCurrent = step.stepNumber === currentStepNumber && !isPlanLocked;
               const isCompleted = (step.stepNumber < currentStepNumber || step.status === 'completed') && !isPlanLocked;
               const isLocked = isPlanLocked || (step.stepNumber > currentStepNumber);
-              const isExpanded = isCurrent || (!isLocked && expandedStep === step.stepNumber);
+              const isExpanded = !isLocked && (expandedStep === step.stepNumber || (!expandedStep && isCurrent));
 
               return (
                 <React.Fragment key={step.id}>
@@ -861,30 +878,89 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
                         </p>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                          {step.items.map((item, idx) => (
-                            <div
-                              key={idx}
-                              className={`p-3 rounded-xl border flex items-start gap-2.5 text-xs ${
-                                item.done
-                                  ? 'bg-emerald-950/20 border-emerald-500/20 text-slate-200'
-                                  : 'bg-slate-900 border-slate-800 text-slate-400'
-                              }`}
-                            >
-                              {item.done ? (
-                                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                              ) : (
-                                <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                              )}
-                              <div>
-                                <p className={`font-semibold ${item.done ? 'text-white' : 'text-slate-300'}`}>
-                                  {item.label}
-                                </p>
-                                <p className="text-[11px] text-slate-400 mt-0.5">
-                                  {item.detail}
-                                </p>
+                          {step.items.map((item, idx) => {
+                            const isItemInteractive = Boolean((item as any).interactive && (item as any).onToggle);
+                            const itemToggle = (item as any).onToggle;
+                            const itemDetail = (isItemInteractive && !item.done)
+                              ? 'Haz clic para confirmar que ya cuentas con esto'
+                              : item.detail;
+
+                            if (isItemInteractive) {
+                              return (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  role="checkbox"
+                                  aria-checked={item.done}
+                                  onClick={itemToggle}
+                                  onKeyDown={(e) => {
+                                    if (e.key === ' ' || e.key === 'Enter') {
+                                      e.preventDefault();
+                                      itemToggle?.();
+                                    }
+                                  }}
+                                  className={`w-full text-left p-3 rounded-xl border flex items-start gap-2.5 text-xs transition-all cursor-pointer group focus:outline-hidden focus:ring-2 focus:ring-emerald-400/50 ${
+                                    item.done
+                                      ? 'bg-emerald-950/25 border-emerald-500/40 text-slate-200 hover:bg-emerald-950/40 hover:border-emerald-500/60'
+                                      : 'bg-slate-900 border-slate-700/80 text-slate-300 hover:bg-slate-800/90 hover:border-emerald-500/50 hover:shadow-md'
+                                  }`}
+                                >
+                                  {/* Casilla de verificación visible */}
+                                  {item.done ? (
+                                    <div className="w-4 h-4 rounded bg-emerald-500 border border-emerald-400 text-slate-950 flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+                                      <Check className="w-3 h-3 stroke-[3]" />
+                                    </div>
+                                  ) : (
+                                    <div className="w-4 h-4 rounded border-2 border-slate-500 bg-slate-950/80 group-hover:border-emerald-400 transition-colors shrink-0 mt-0.5" />
+                                  )}
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between gap-1">
+                                      <p className={`font-semibold ${item.done ? 'text-white' : 'text-slate-200 group-hover:text-emerald-300 transition-colors'}`}>
+                                        {item.label}
+                                      </p>
+                                      <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                                        item.done
+                                          ? 'text-emerald-400 bg-emerald-950/50'
+                                          : 'text-amber-300/80 bg-amber-950/30'
+                                      }`}>
+                                        {item.done ? 'Confirmado' : 'Pendiente'}
+                                      </span>
+                                    </div>
+                                    <p className={`text-[11px] mt-0.5 ${
+                                      item.done ? 'text-slate-400' : 'text-emerald-400/90 font-medium'
+                                    }`}>
+                                      {itemDetail}
+                                    </p>
+                                  </div>
+                                </button>
+                              );
+                            }
+
+                            return (
+                              <div
+                                key={idx}
+                                className={`p-3 rounded-xl border flex items-start gap-2.5 text-xs ${
+                                  item.done
+                                    ? 'bg-emerald-950/20 border-emerald-500/20 text-slate-200'
+                                    : 'bg-slate-900 border-slate-800 text-slate-400'
+                                }`}
+                              >
+                                {item.done ? (
+                                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                                ) : (
+                                  <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                                )}
+                                <div>
+                                  <p className={`font-semibold ${item.done ? 'text-white' : 'text-slate-300'}`}>
+                                    {item.label}
+                                  </p>
+                                  <p className="text-[11px] text-slate-400 mt-0.5">
+                                    {item.detail}
+                                  </p>
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
 
