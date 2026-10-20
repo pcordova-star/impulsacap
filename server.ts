@@ -22,6 +22,16 @@ import {
   isValidTaxSales, 
   parseNumberCLP 
 } from './server/taxFolderExtractor';
+import {
+  sendEmail,
+  getAdminEmail,
+  isEmailConfigured,
+  welcomeEmail,
+  purchaseEmail,
+  adminSaleEmail,
+  reminderEmail,
+  testEmail,
+} from './server/email';
 
 dotenv.config();
 
@@ -185,6 +195,72 @@ async function getEntitlementsWithUserToken(uid: string, token: string) {
 }
 
 // Middleware: verifica plan semestral activo
+// Middleware: tareas administrativas automáticas (GitHub Actions), protegidas con x-import-token
+const requireAdminToken = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const expected = process.env.CONVOCATORIAS_IMPORT_TOKEN;
+  const provided = req.headers['x-import-token'];
+  if (!expected || typeof provided !== 'string' || provided !== expected) {
+    return res.status(401).json({ error: 'Token administrativo inválido o no configurado en x-import-token.' });
+  }
+  return next();
+};
+
+// Correos de compra (usuario + administrador). Nunca lanza errores ni bloquea el webhook.
+async function sendPurchaseNotifications(args: {
+  uid: string;
+  paymentId: string;
+  amount: number;
+  expiresAt: string;
+  paymentDocRef: FirebaseFirestore.DocumentReference;
+}) {
+  try {
+    const { uid, paymentId, amount, expiresAt, paymentDocRef } = args;
+
+    let userEmail = '';
+    try {
+      userEmail = (await adminAuth.getUser(uid)).email || '';
+    } catch (e: any) {
+      console.warn(`[email] No se pudo obtener el correo del usuario ${uid}:`, e?.message);
+    }
+
+    let companyName = '';
+    try {
+      const userDoc = await adminDb.collection('users').doc(uid).get();
+      companyName = String(userDoc.data()?.companyName || '');
+    } catch {}
+
+    let isFirstPurchase = true;
+    try {
+      const prev = await adminDb.collection('payments')
+        .where('uid', '==', uid)
+        .where('status', '==', 'approved')
+        .get();
+      isFirstPurchase = prev.docs.filter(d => d.id !== paymentId).length === 0;
+    } catch {}
+
+    const userMail = purchaseEmail({ amount, paymentId, expiresAt });
+    const sentUser = userEmail
+      ? await sendEmail({ to: userEmail, ...userMail, idempotencyKey: `purchase-user-${paymentId}` })
+      : false;
+
+    const adminTo = getAdminEmail();
+    const sentAdmin = adminTo
+      ? await sendEmail({
+          to: adminTo,
+          ...adminSaleEmail({ userEmail, companyName, amount, isFirstPurchase, paymentId, expiresAt }),
+          idempotencyKey: `purchase-admin-${paymentId}`,
+        })
+      : false;
+
+    await paymentDocRef.set({
+      emailSentAt: sentUser ? new Date().toISOString() : null,
+      adminEmailSentAt: sentAdmin ? new Date().toISOString() : null,
+    }, { merge: true });
+  } catch (err: any) {
+    console.error('[email] Error en notificaciones de compra:', err?.message || err);
+  }
+}
+
 const requireActivePlan = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const user = (req as AuthenticatedRequest).user;
   if (!user || !user.uid) {
@@ -1454,6 +1530,15 @@ app.post('/api/pagos/webhook', async (req, res) => {
     }, { merge: true });
 
     console.log(`Plan semestral activated for user ${uid} until ${expiresAt.toISOString()}`);
+
+    // Correos de confirmación (usuario) y nueva venta (administrador). No bloquean ni hacen fallar el webhook.
+    await sendPurchaseNotifications({
+      uid,
+      paymentId: String(paymentId),
+      amount: transactionAmount,
+      expiresAt: expiresAt.toISOString(),
+      paymentDocRef,
+    });
     // Recién al finalizar todo el procesamiento y guardado exitoso se responde 200
     return res.status(200).send('OK');
   } catch (err: any) {
@@ -1735,6 +1820,138 @@ app.get('/api/convocatorias', async (req, res) => {
     console.error('Error in GET /api/convocatorias:', err?.message);
     return res.status(500).json({ error: 'Error al obtener convocatorias.' });
   }
+});
+
+// -------------------------------------------------------------
+// CORREOS AUTOMÁTICOS (Resend)
+// -------------------------------------------------------------
+
+// Fecha calendario en Chile (YYYY-MM-DD) para calcular días restantes sin errores de zona horaria
+function chileDateKey(d: Date): string {
+  return d.toLocaleDateString('en-CA', { timeZone: 'America/Santiago' });
+}
+function calendarDaysBetween(fromKey: string, toKey: string): number {
+  const [fy, fm, fd] = fromKey.split('-').map(Number);
+  const [ty, tm, td] = toKey.split('-').map(Number);
+  return Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86400000);
+}
+
+// Bienvenida: la app la solicita al detectar una cuenta nueva. Se envía una sola vez por usuario.
+app.post('/api/cuenta/bienvenida', requireAuth, async (req, res) => {
+  const user = (req as AuthenticatedRequest).user!;
+  try {
+    if (!isFirestoreAdminAuthorized) {
+      return res.json({ sent: false, reason: 'firestore_no_autorizado' });
+    }
+
+    // Solo cuentas creadas en los últimos 7 días (evita enviar bienvenidas a cuentas antiguas)
+    const record = await adminAuth.getUser(user.uid);
+    const createdAt = new Date(record.metadata.creationTime || 0).getTime();
+    if (!createdAt || Date.now() - createdAt > 7 * 86400000) {
+      return res.json({ sent: false, reason: 'cuenta_antigua' });
+    }
+    if (!record.email) {
+      return res.json({ sent: false, reason: 'sin_correo' });
+    }
+
+    // create() falla si el registro ya existe: garantiza un solo envío aunque la app llame varias veces
+    const logRef = adminDb.collection('email_log').doc(`welcome_${user.uid}`);
+    try {
+      await logRef.create({ uid: user.uid, type: 'welcome', requestedAt: new Date().toISOString() });
+    } catch {
+      return res.json({ sent: false, reason: 'ya_enviado' });
+    }
+
+    let name = record.displayName || '';
+    try {
+      const userDoc = await adminDb.collection('users').doc(user.uid).get();
+      name = String(userDoc.data()?.displayName || name || '');
+    } catch {}
+    const firstName = name.trim().split(/\s+/)[0] || '';
+
+    const sent = await sendEmail({ to: record.email, ...welcomeEmail(firstName), idempotencyKey: `welcome-${user.uid}` });
+    await logRef.set({ sentAt: sent ? new Date().toISOString() : null }, { merge: true });
+    return res.json({ sent });
+  } catch (err: any) {
+    console.error('[email] Error en /api/cuenta/bienvenida:', err?.message);
+    return res.json({ sent: false, reason: 'error' });
+  }
+});
+
+// Recordatorios de vencimiento del Plan Semestral (llamado a diario por GitHub Actions)
+app.post('/api/admin/recordatorios', requireAdminToken, async (req, res) => {
+  if (!isFirestoreAdminAuthorized) {
+    return res.status(503).json({ error: 'Firestore Admin no está autorizado.' });
+  }
+  if (!isEmailConfigured()) {
+    return res.status(503).json({ error: 'RESEND_API_KEY no está configurada.' });
+  }
+
+  const todayKey = chileDateKey(new Date());
+  const summary = { revisados: 0, aviso7d: 0, avisoVencido: 0, omitidos: 0, errores: 0 };
+
+  try {
+    const snap = await adminDb.collection('entitlements').where('status', '==', 'active').get();
+
+    for (const docSnap of snap.docs) {
+      summary.revisados++;
+      const uid = docSnap.id;
+      const data = docSnap.data() || {};
+      const expiresAt: string | undefined = data.expiresAt;
+      if (!expiresAt || isNaN(new Date(expiresAt).getTime())) { summary.omitidos++; continue; }
+      if (data.emailRemindersOptOut === true) { summary.omitidos++; continue; }
+
+      const daysLeft = calendarDaysBetween(todayKey, chileDateKey(new Date(expiresAt)));
+
+      let kind: '7d' | 'expired' | null = null;
+      if (daysLeft >= 1 && daysLeft <= 7 && data.reminder7dForExpiresAt !== expiresAt) {
+        kind = '7d';
+      } else if (daysLeft <= 0 && daysLeft >= -3 && data.reminderExpiredForExpiresAt !== expiresAt) {
+        // Solo planes vencidos en los últimos 3 días, para no escribir a cuentas vencidas hace tiempo
+        kind = 'expired';
+      }
+      if (!kind) { summary.omitidos++; continue; }
+
+      try {
+        const email = (await adminAuth.getUser(uid)).email;
+        if (!email) { summary.omitidos++; continue; }
+
+        const sent = await sendEmail({
+          to: email,
+          ...reminderEmail(kind, expiresAt),
+          idempotencyKey: `reminder-${kind}-${uid}-${expiresAt}`,
+        });
+        if (!sent) { summary.errores++; continue; }
+
+        const now = new Date().toISOString();
+        await docSnap.ref.set(
+          kind === '7d'
+            ? { reminder7dSentAt: now, reminder7dForExpiresAt: expiresAt }
+            : { reminderExpiredSentAt: now, reminderExpiredForExpiresAt: expiresAt },
+          { merge: true }
+        );
+        if (kind === '7d') summary.aviso7d++; else summary.avisoVencido++;
+      } catch (e: any) {
+        console.error(`[email] Error en recordatorio para ${uid}:`, e?.message);
+        summary.errores++;
+      }
+    }
+
+    console.log('[email] Recordatorios:', JSON.stringify(summary));
+    return res.json({ ok: true, ...summary });
+  } catch (err: any) {
+    console.error('[email] Error en /api/admin/recordatorios:', err?.message);
+    return res.status(500).json({ error: 'Error al procesar recordatorios', ...summary });
+  }
+});
+
+// Correo de prueba al administrador, para verificar la configuración de Resend
+app.get('/api/admin/test-email', requireAdminToken, async (req, res) => {
+  const to = getAdminEmail();
+  if (!isEmailConfigured()) return res.status(503).json({ sent: false, error: 'RESEND_API_KEY no está configurada.' });
+  if (!to) return res.status(503).json({ sent: false, error: 'ADMIN_EMAIL no está configurado.' });
+  const sent = await sendEmail({ to, ...testEmail() });
+  return res.status(sent ? 200 : 502).json({ sent, to });
 });
 
 app.get('/api/health', (req, res) => {

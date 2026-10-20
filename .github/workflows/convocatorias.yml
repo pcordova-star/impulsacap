@@ -78,3 +78,30 @@ jobs:
           fi
 
           echo "Sincronización completada con éxito."
+
+      - name: Enviar recordatorios de vencimiento del Plan Semestral
+        # Corre aunque falle la sincronización de convocatorias
+        if: ${{ !cancelled() }}
+        run: |
+          if [ -z "${{ secrets.APP_URL }}" ] || [ -z "${{ secrets.CONVOCATORIAS_IMPORT_TOKEN }}" ]; then
+            echo "::error::Faltan los secrets APP_URL o CONVOCATORIAS_IMPORT_TOKEN."
+            exit 1
+          fi
+
+          BASE_URL=$(echo "${{ secrets.APP_URL }}" | sed 's:/*$::')
+          ENDPOINT="${BASE_URL}/api/admin/recordatorios"
+
+          echo "Solicitando recordatorios en: $ENDPOINT"
+          HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$ENDPOINT" \
+            -H "x-import-token: ${{ secrets.CONVOCATORIAS_IMPORT_TOKEN }}")
+
+          HTTP_BODY=$(echo "$HTTP_RESPONSE" | sed '$d')
+          HTTP_STATUS=$(echo "$HTTP_RESPONSE" | tail -n 1)
+
+          echo "Código HTTP de respuesta: $HTTP_STATUS"
+          echo "Resultado: $HTTP_BODY"
+
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "::error::Fallo al enviar recordatorios. Código HTTP $HTTP_STATUS: $HTTP_BODY"
+            exit 1
+          fi

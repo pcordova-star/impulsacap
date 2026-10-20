@@ -35,6 +35,7 @@ import { auth, db } from './firebase';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { Lock, Sparkles, Building2, Upload } from 'lucide-react';
+import { apiFetch } from './utils/apiFetch';
 import { 
   onRequestLogin, 
   executePendingPostLoginAction, 
@@ -187,6 +188,16 @@ export default function App() {
 
           try {
             localStorage.setItem(`impulsacap_user_meta_${fbUser.uid}`, JSON.stringify(user));
+          } catch {}
+
+          // Correo de bienvenida para cuentas nuevas (el servidor garantiza un solo envío por usuario)
+          try {
+            const createdMs = new Date(fbUser.metadata.creationTime || 0).getTime();
+            const welcomeKey = `impulsacap_welcome_requested_${fbUser.uid}`;
+            if (createdMs && Date.now() - createdMs < 24 * 3600 * 1000 && !localStorage.getItem(welcomeKey)) {
+              localStorage.setItem(welcomeKey, '1');
+              apiFetch('/api/cuenta/bienvenida', { method: 'POST' }).catch(() => {});
+            }
           } catch {}
 
           activeUserIdRef.current = user.id;
