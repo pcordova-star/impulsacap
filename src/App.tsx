@@ -10,7 +10,7 @@ import { MyApplicationsDashboard } from './components/MyApplicationsDashboard';
 import { NewApplicationModal } from './components/NewApplicationModal';
 import { HelpBot } from './components/HelpBot';
 import { MonitorHero } from './components/MonitorHero';
-import { PlanPaywallCard } from './components/PlanPaywallCard';
+import { HowItWorks, PlanComparison, LandingFaq } from './components/LandingSections';
 import { SiiUploaderModal } from './components/SiiUploaderModal';
 import { AuthModal } from './components/AuthModal';
 import { AuthGateView } from './components/AuthGateView';
@@ -569,8 +569,11 @@ export default function App() {
               }}
             />
 
-            {/* 2. ASISTENTE DE 5 PREGUNTAS */}
-            <div id="asistente-5-preguntas" className="min-w-0 max-w-full">
+            {/* 2. CÓMO FUNCIONA: las 3 etapas del recorrido */}
+            <HowItWorks />
+
+            {/* 3. ASISTENTE DE 5 PREGUNTAS */}
+            <div id="asistente-5-preguntas" className="min-w-0 max-w-full scroll-mt-24">
               <InstantWowMatcher
                 onSelectFundToFormulate={handleSelectFundToFormulate}
                 onNavigateTab={handleNavigateTab}
@@ -580,12 +583,15 @@ export default function App() {
               />
             </div>
 
-            {/* 3. BENEFICIOS DEL PLAN SEMESTRAL */}
-            <div className="pt-2 min-w-0 max-w-full">
-              <PlanPaywallCard
-                highlightText="Asegura el éxito de tus postulaciones con el Plan Semestral: formulador técnico con IA, auditoría ciega oficial y expediente consolidado para fondos CORFO y SERCOTEC."
-              />
-            </div>
+            {/* 4. GRATIS VS. PLAN SEMESTRAL */}
+            <PlanComparison
+              onStartFree={() => {
+                document.getElementById('asistente-5-preguntas')?.scrollIntoView({ behavior: 'smooth' });
+              }}
+            />
+
+            {/* 5. PREGUNTAS FRECUENTES */}
+            <LandingFaq />
           </div>
         )}
 

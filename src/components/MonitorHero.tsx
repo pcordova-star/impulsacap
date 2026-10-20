@@ -164,32 +164,40 @@ export const MonitorHero: React.FC<MonitorHeroProps> = ({
           <span className="text-xs text-slate-500">Pronto sumaremos Sercotec, ANID y gobiernos regionales</span>
         </div>
 
-        {/* Título */}
-        <div className="max-w-3xl space-y-3 min-w-0">
-          <h1 className="text-[28px] leading-[1.1] sm:text-5xl lg:text-[56px] font-black tracking-tight text-white break-words">
-            Todas las convocatorias abiertas, en un solo lugar
-          </h1>
-          <p className="text-[15px] sm:text-lg text-slate-300 leading-relaxed max-w-2xl">
-            {loading || hasNoData ? (
-              'Revisamos el portal de CORFO todos los días para que no se te pase ningún fondo.'
-            ) : (
-              <>
-                Revisamos el portal de CORFO todos los días. Hoy hay{' '}
-                <strong className="text-cyan-300 font-bold">{totalOpen} {totalOpen === 1 ? 'convocatoria abierta' : 'convocatorias abiertas'}</strong>
-                {closingSoonCount > 0 && (
-                  <>
-                    {' '}y{' '}
-                    <strong className="text-amber-300 font-bold">
-                      {closingSoonCount} {closingSoonCount === 1 ? 'cierra' : 'cierran'} en los próximos 7 días
-                    </strong>
-                  </>
-                )}
-                .
-              </>
+        <div className="grid gap-8 lg:gap-10 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:items-center min-w-0">
+        {/* Columna izquierda: propuesta de valor y acciones */}
+        <div className="space-y-6 min-w-0">
+          <div className="space-y-4 min-w-0">
+            <h1 className="text-[28px] leading-[1.1] sm:text-[44px] lg:text-[46px] font-black tracking-tight text-white break-words">
+              Postula a fondos CORFO con todo listo, sin perderte ninguna convocatoria
+            </h1>
+            <p className="text-[15px] sm:text-lg text-slate-300 leading-relaxed max-w-xl">
+              ImpulsaCap te dice a qué fondos puedes postular, te avisa cuándo cierran y te ayuda a preparar la postulación completa: requisitos, formulario, cartas y expediente.
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3">
+            <button
+              onClick={onScrollToAssistant}
+              className="monitor-cta group relative inline-flex items-center justify-center gap-2.5 px-6 sm:px-7 py-4 rounded-2xl text-[#04131c] font-black text-base whitespace-nowrap shadow-[0_0_32px_rgba(34,211,238,0.35)] hover:shadow-[0_0_44px_rgba(34,211,238,0.55)] active:scale-[0.98] transition-shadow cursor-pointer w-full sm:w-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#0D182E]"
+            >
+              <Sparkles className="w-5 h-5" />
+              <span>¿A cuáles califico?<span className="hidden sm:inline"> Descúbrelo en 1 minuto</span></span>
+              <ChevronDown className="w-5 h-5 transition-transform group-hover:translate-y-0.5" />
+            </button>
+            {!hasNoData && !loading && (
+              <button
+                onClick={onViewAllConvocatorias}
+                className="inline-flex items-center justify-center gap-2 px-6 py-4 rounded-2xl font-bold text-sm whitespace-nowrap bg-slate-800/80 hover:bg-slate-700/80 text-slate-100 border border-slate-700/80 transition-colors cursor-pointer w-full sm:w-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+              >
+                <span>Ver las {totalOpen} convocatorias</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
             )}
-          </p>
+          </div>
         </div>
 
+        {/* Columna derecha: mapa de cierres en vivo */}
+        <div className="min-w-0">
         {/* Cargando */}
         {loading && (
           <div className="rounded-2xl bg-slate-900/50 border border-slate-700/60 p-5 sm:p-6 space-y-4 animate-pulse">
@@ -215,8 +223,13 @@ export const MonitorHero: React.FC<MonitorHeroProps> = ({
         {!loading && !hasNoData && (
           <div className="rounded-2xl bg-slate-950/40 backdrop-blur-sm border border-cyan-400/15 p-4 sm:p-6 space-y-5 min-w-0">
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-              <h2 className="text-sm sm:text-base font-bold text-white">Cuándo cierra cada una</h2>
-              <p className="text-xs text-slate-400">Toca un punto para ver la convocatoria</p>
+              <h2 className="text-sm sm:text-base font-bold text-white">
+                Hoy hay <span className="text-cyan-300">{totalOpen} {totalOpen === 1 ? 'convocatoria abierta' : 'convocatorias abiertas'}</span>
+                {closingSoonCount > 0 && (
+                  <> y <span className="text-amber-300">{closingSoonCount} {closingSoonCount === 1 ? 'cierra' : 'cierran'} esta semana</span></>
+                )}
+              </h2>
+              <p className="text-xs text-slate-400">Toca un punto para ver cuándo cierra</p>
             </div>
 
             {/* Línea de tiempo */}
@@ -314,7 +327,7 @@ export const MonitorHero: React.FC<MonitorHeroProps> = ({
               <div
                 key={selectedCall.id}
                 aria-live="polite"
-                className={`rounded-xl border p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-4 min-w-0 ${
+                className={`rounded-xl border p-4 sm:p-5 flex flex-col gap-4 min-w-0 ${
                   typeof selectedCall.diasRestantes === 'number' && selectedCall.diasRestantes <= URGENT_DAYS
                     ? 'bg-amber-400/[0.07] border-amber-300/30'
                     : 'bg-slate-900/70 border-slate-700/70'
@@ -350,7 +363,7 @@ export const MonitorHero: React.FC<MonitorHeroProps> = ({
                     href={selectedCall.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-600 text-sm font-semibold text-slate-100 hover:bg-slate-800 hover:border-slate-500 transition-colors shrink-0"
+                    className="sm:self-start inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-600 text-sm font-semibold text-slate-100 hover:bg-slate-800 hover:border-slate-500 transition-colors shrink-0"
                   >
                     Ver bases en CORFO
                     <ExternalLink className="w-4 h-4" />
@@ -361,29 +374,7 @@ export const MonitorHero: React.FC<MonitorHeroProps> = ({
           </div>
         )}
 
-        {/* Acciones */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          {!hasNoData && !loading && (
-            <button
-              onClick={onViewAllConvocatorias}
-              className="monitor-cta group relative inline-flex items-center justify-center gap-2.5 px-7 sm:px-8 py-4 rounded-2xl text-[#04131c] font-black text-base shadow-[0_0_32px_rgba(34,211,238,0.35)] hover:shadow-[0_0_44px_rgba(34,211,238,0.55)] active:scale-[0.98] transition-shadow cursor-pointer w-full sm:w-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#0D182E]"
-            >
-              <span>Ver las {totalOpen} convocatorias<span className="hidden sm:inline"> abiertas</span></span>
-              <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
-            </button>
-          )}
-          <button
-            onClick={onScrollToAssistant}
-            className={`inline-flex items-center justify-center gap-2 px-6 py-4 rounded-2xl font-bold text-sm transition-colors cursor-pointer w-full sm:w-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
-              hasNoData
-                ? 'bg-cyan-400 hover:bg-cyan-300 text-slate-950'
-                : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-100 border border-slate-700/80'
-            }`}
-          >
-            <Sparkles className={`w-4 h-4 ${hasNoData ? '' : 'text-cyan-300'}`} />
-            <span>¿A cuáles califico?<span className="hidden sm:inline"> Descúbrelo en 1 minuto</span></span>
-            <ChevronDown className="w-4 h-4 opacity-70" />
-          </button>
+        </div>
         </div>
       </div>
     </section>

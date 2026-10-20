@@ -560,9 +560,9 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
               <span className="text-emerald-600 font-black">✦</span>
               <span>Diagnóstico en 1 minuto</span>
             </div>
-            <h1 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight leading-tight break-words">
+            <h2 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight leading-tight break-words">
               Descubre a qué fondos concursables califica tu empresa
-            </h1>
+            </h2>
             <p className="text-slate-600 text-xs sm:text-sm max-w-xl mx-auto break-words">
               Responde 5 breves preguntas paso a paso para que nuestra IA analice las bases oficiales de CORFO, SERCOTEC y Start-Up Chile.
             </p>
