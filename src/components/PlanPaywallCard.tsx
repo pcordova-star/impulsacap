@@ -22,6 +22,9 @@ interface PlanPaywallCardProps {
   highlightText?: string;
 }
 
+import { auth } from '../firebase';
+import { requestLogin } from '../utils/authEvents';
+
 export const PlanPaywallCard: React.FC<PlanPaywallCardProps> = ({
   compact = false,
   highlightText
@@ -33,6 +36,29 @@ export const PlanPaywallCard: React.FC<PlanPaywallCardProps> = ({
   const handleCheckout = async () => {
     setLoading(true);
     setError(null);
+
+    // 1. Espera a que Firebase termine de restaurar la sesión
+    if (auth.authStateReady) {
+      try {
+        await auth.authStateReady();
+      } catch (err) {
+        console.warn('authStateReady error:', err);
+      }
+    }
+
+    // 2. Si no hay sesión, abre el modal de inicio de sesión en vez de mostrar error, y continúa con el pago
+    if (!auth.currentUser) {
+      setLoading(false);
+      requestLogin({
+        message: 'Inicia sesión para continuar con el pago del Plan Semestral.',
+        mode: 'login',
+        onSuccess: async () => {
+          await handleCheckout();
+        }
+      });
+      return;
+    }
+
     try {
       const res = await apiFetch('/api/pagos/crear', {
         method: 'POST'

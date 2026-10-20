@@ -1,10 +1,43 @@
 import { auth } from '../firebase';
+import { logoutCompanyUser } from './storage';
+import { requestLogin } from './authEvents';
+
+export interface ApiFetchOptions extends RequestInit {
+  requireAuth?: boolean;
+}
 
 /**
- * Wrapper over standard fetch that automatically attaches the Firebase ID Token
- * in the Authorization header (Bearer <token>) when a user is signed in.
+ * Wrapper over standard fetch that:
+ * 1. Waits for Firebase to finish restoring session (auth.authStateReady()) before reading auth.currentUser.
+ * 2. If no user after authStateReady and route is not public, throws Error("Debes iniciar sesión") without making the request.
+ * 3. Automatically attaches the Firebase ID Token in Authorization: Bearer <token>.
+ * 4. On 401 response, closes local session and prompts login with "Tu sesión expiró. Inicia sesión nuevamente para continuar."
  */
-export async function apiFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+export async function apiFetch(input: RequestInfo | URL, init: ApiFetchOptions = {}): Promise<Response> {
+  const url = typeof input === 'string' 
+    ? input 
+    : input instanceof URL 
+      ? input.pathname 
+      : (input as Request).url;
+
+  // 1. Espera a que Firebase termine de restaurar la sesión
+  if (auth.authStateReady) {
+    try {
+      await auth.authStateReady();
+    } catch (err) {
+      console.warn('Error waiting for auth.authStateReady in apiFetch:', err);
+    }
+  }
+
+  const isPublicEndpoint = init.requireAuth === false ||
+    url.includes('/api/gemini/instant-match') ||
+    url.includes('/api/ayuda/chat');
+
+  // Si después de eso no hay usuario, no hagas la solicitud: lanza un error "Debes iniciar sesión"
+  if (!auth.currentUser && !isPublicEndpoint) {
+    throw new Error('Debes iniciar sesión');
+  }
+
   const headers = new Headers(init.headers || {});
 
   if (!headers.has('Accept')) {
@@ -23,8 +56,24 @@ export async function apiFetch(input: RequestInfo | URL, init: RequestInit = {})
     }
   }
 
-  return fetch(input, {
+  const response = await fetch(input, {
     ...init,
     headers
   });
+
+  // 4. Cuando el servidor responda 401, cierra la sesión local y pide iniciar sesión de nuevo con el mensaje
+  if (response.status === 401) {
+    try {
+      await logoutCompanyUser();
+    } catch (err) {
+      console.warn('Error signing out on 401 in apiFetch:', err);
+    }
+
+    requestLogin({
+      message: 'Tu sesión expiró. Inicia sesión nuevamente para continuar.',
+      mode: 'login'
+    });
+  }
+
+  return response;
 }

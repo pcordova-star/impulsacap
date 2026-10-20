@@ -34,6 +34,7 @@ interface AuthModalProps {
   onAuthSuccess: (user: CompanyUser) => void;
   initialMode?: 'login' | 'register';
   customTitle?: string;
+  initialMessage?: string;
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({
@@ -41,15 +42,28 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onClose,
   onAuthSuccess,
   initialMode = 'login',
-  customTitle
+  customTitle,
+  initialMessage
 }) => {
   const [mode, setMode] = useState<'login' | 'register'>(initialMode);
   const [showPassword, setShowPassword] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(initialMessage || null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      if (initialMode) setMode(initialMode);
+      if (initialMessage) {
+        setErrorMsg(initialMessage);
+      } else {
+        setErrorMsg(null);
+      }
+      setSuccessMsg(null);
+    }
+  }, [isOpen, initialMode, initialMessage]);
 
   // Login form state
   const [loginEmail, setLoginEmail] = useState('');

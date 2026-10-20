@@ -35,6 +35,11 @@ import { auth, db } from './firebase';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { Lock, Sparkles, Building2, Upload } from 'lucide-react';
+import { 
+  onRequestLogin, 
+  executePendingPostLoginAction, 
+  clearPendingPostLoginAction 
+} from './utils/authEvents';
 
 // Lazy-loaded components for optimal performance (Requirement 9)
 const SmartDiagnostic = React.lazy(() => 
@@ -42,11 +47,14 @@ const SmartDiagnostic = React.lazy(() =>
 );
 
 export default function App() {
+  // Loading state while Firebase verifies initial session (Requirement 2)
+  const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
+
   const [activeTab, setActiveTab] = useState<string>(() => {
     if (typeof window !== 'undefined' && window.location.pathname.startsWith('/pago/resultado')) {
       return 'pago-resultado';
     }
-    return getCurrentUser() ? 'my-applications' : 'diagnostic';
+    return 'diagnostic';
   });
 
   // Active sub-tab inside a postulation workspace (Requirement 2)
@@ -64,30 +72,26 @@ export default function App() {
     return () => window.removeEventListener('popstate', handleUrlRoute);
   }, []);
 
-  // Authenticated Company Session
-  const [currentUser, setCurrentUser] = useState<CompanyUser | null>(() => getCurrentUser());
+  // Authenticated Company Session - STRICTLY initialized via onAuthStateChanged
+  const [currentUser, setCurrentUser] = useState<CompanyUser | null>(null);
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
+  const [authModalMessage, setAuthModalMessage] = useState<string>('');
 
   // Formulations & Audits scoped to user
-  const [activeFormulation, setActiveFormulation] = useState<FormulationOutput | null>(() => 
-    loadActiveFormulation(getCurrentUser()?.id)
-  );
-  const [auditResult, setAuditResult] = useState<BlindAuditResult | null>(() => 
-    loadActiveAudit(getCurrentUser()?.id)
-  );
+  const [activeFormulation, setActiveFormulation] = useState<FormulationOutput | null>(null);
+  const [auditResult, setAuditResult] = useState<BlindAuditResult | null>(null);
 
   // SII Uploader Modal
   const [showSiiModal, setShowSiiModal] = useState<boolean>(false);
 
   // Active Chilean Company Profile with local persistence scoped per user
   const [profile, setProfile] = useState<CompanyProfile>(() => {
-    const user = getCurrentUser();
-    return loadActiveProfile(getCleanDefaultProfile(user), user?.id);
+    return getCleanDefaultProfile(null);
   });
 
   // Track the user ID that owns the currently active in-memory profile
-  const activeUserIdRef = useRef<string | undefined>(currentUser?.id);
+  const activeUserIdRef = useRef<string | undefined>(undefined);
 
   // Applications & Multi-Fund Management
   const {
@@ -126,66 +130,83 @@ export default function App() {
   const [intendedConvocatoria, setIntendedConvocatoria] = useState<Convocatoria | null>(null);
   const [highlightedConvocatoriaId, setHighlightedConvocatoriaId] = useState<string | null>(null);
 
-  // Firebase Auth listener: session driven by onAuthStateChanged
+  // Listen for login requests from components (PlanPaywallCard, PaymentResult) or 401 handler
+  useEffect(() => {
+    const unsubscribe = onRequestLogin((options) => {
+      setAuthModalMode(options.mode || 'login');
+      setAuthModalMessage(options.message || '');
+      setShowAuthModal(true);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Firebase Auth listener: session driven strictly by onAuthStateChanged (Requirement 2)
   useEffect(() => {
     initFirebaseService();
 
     const unsubscribe = onAuthStateChanged(auth, async (fbUser: FirebaseUser | null) => {
-      if (fbUser) {
-        let cached: Partial<CompanyUser> = {};
-        try {
-          const raw = localStorage.getItem(`impulsacap_user_meta_${fbUser.uid}`);
-          if (raw) cached = JSON.parse(raw);
-        } catch {}
+      try {
+        if (fbUser) {
+          let cached: Partial<CompanyUser> = {};
+          try {
+            const raw = localStorage.getItem(`impulsacap_user_meta_${fbUser.uid}`);
+            if (raw) cached = JSON.parse(raw);
+          } catch {}
 
-        let companyName = cached.companyName || fbUser.displayName || 'Mi Empresa SpA';
-        let rut = cached.rut || '';
-        let representativeName = cached.representativeName || fbUser.displayName || '';
-        let phone = cached.phone || '';
-        let seenAlerts: string[] = cached.seenAlerts || [];
+          let companyName = cached.companyName || fbUser.displayName || 'Mi Empresa SpA';
+          let rut = cached.rut || '';
+          let representativeName = cached.representativeName || fbUser.displayName || '';
+          let phone = cached.phone || '';
+          let seenAlerts: string[] = cached.seenAlerts || [];
 
-        try {
-          const userDoc = await getDoc(doc(db, 'users', fbUser.uid));
-          if (userDoc.exists()) {
-            const uData = userDoc.data();
-            if (uData.companyName) companyName = uData.companyName;
-            if (uData.companyRut) rut = uData.companyRut;
-            if (uData.displayName) representativeName = uData.displayName;
-            if (uData.phone) phone = uData.phone;
-            if (Array.isArray(uData.seenAlerts)) seenAlerts = uData.seenAlerts;
+          try {
+            const userDoc = await getDoc(doc(db, 'users', fbUser.uid));
+            if (userDoc.exists()) {
+              const uData = userDoc.data();
+              if (uData.companyName) companyName = uData.companyName;
+              if (uData.companyRut) rut = uData.companyRut;
+              if (uData.displayName) representativeName = uData.displayName;
+              if (uData.phone) phone = uData.phone;
+              if (Array.isArray(uData.seenAlerts)) seenAlerts = uData.seenAlerts;
+            }
+          } catch (e) {
+            console.warn('Could not read user profile from Firestore:', e);
           }
-        } catch (e) {
-          console.warn('Could not read user profile from Firestore:', e);
+
+          const user: CompanyUser = {
+            id: fbUser.uid,
+            email: fbUser.email || '',
+            companyName,
+            rut,
+            representativeName,
+            phone,
+            seenAlerts,
+            createdAt: fbUser.metadata.creationTime || new Date().toISOString(),
+            lastLogin: new Date().toISOString()
+          };
+
+          try {
+            localStorage.setItem(`impulsacap_user_meta_${fbUser.uid}`, JSON.stringify(user));
+          } catch {}
+
+          activeUserIdRef.current = user.id;
+          setCurrentUser(user);
+          setProfile(loadActiveProfile(getCleanDefaultProfile(user), user.id));
+          setActiveFormulation(loadActiveFormulation(user.id));
+          setAuditResult(loadActiveAudit(user.id));
+          setActiveTab(prev => (prev === 'diagnostic' ? 'my-applications' : prev));
+        } else {
+          activeUserIdRef.current = undefined;
+          setCurrentUser(null);
+          setProfile(getCleanDefaultProfile(null));
+          setActiveFormulation(null);
+          setAuditResult(null);
+          setActiveTab(prev => (prev === 'my-applications' || prev === 'postulation' || prev === 'my-company' ? 'diagnostic' : prev));
         }
-
-        const user: CompanyUser = {
-          id: fbUser.uid,
-          email: fbUser.email || '',
-          companyName,
-          rut,
-          representativeName,
-          phone,
-          seenAlerts,
-          createdAt: fbUser.metadata.creationTime || new Date().toISOString(),
-          lastLogin: new Date().toISOString()
-        };
-
-        try {
-          localStorage.setItem(`impulsacap_user_meta_${fbUser.uid}`, JSON.stringify(user));
-        } catch {}
-
-        activeUserIdRef.current = user.id;
-        setCurrentUser(user);
-        setProfile(loadActiveProfile(getCleanDefaultProfile(user), user.id));
-        setActiveFormulation(loadActiveFormulation(user.id));
-        setAuditResult(loadActiveAudit(user.id));
-        setActiveTab(prev => (prev === 'diagnostic' ? 'my-applications' : prev));
-      } else {
-        activeUserIdRef.current = undefined;
-        setCurrentUser(null);
-        setProfile(getCleanDefaultProfile(null));
-        setActiveFormulation(null);
-        setAuditResult(null);
+      } catch (err) {
+        console.error('Error processing onAuthStateChanged in App:', err);
+      } finally {
+        setIsAuthChecking(false);
       }
     });
 
@@ -259,13 +280,17 @@ export default function App() {
     };
   }, [activeApplication, activeFund, profile, currentUser]);
 
-  const handleAuthSuccess = (user: CompanyUser) => {
+  const handleAuthSuccess = async (user: CompanyUser) => {
     activeUserIdRef.current = user.id;
     setCurrentUser(user);
     setProfile(loadActiveProfile(getCleanDefaultProfile(user), user.id));
     setActiveFormulation(loadActiveFormulation(user.id));
     setAuditResult(loadActiveAudit(user.id));
     setShowAuthModal(false);
+    setAuthModalMessage('');
+
+    // Execute any pending post-login action (like continuing payment!)
+    await executePendingPostLoginAction();
 
     if (intendedConvocatoria) {
       const conv = intendedConvocatoria;
@@ -409,6 +434,26 @@ export default function App() {
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  // Loading state while Firebase verifies initial session (Requirement 2)
+  if (isAuthChecking) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 text-white selection:bg-blue-600">
+        <div className="flex flex-col items-center gap-4 text-center max-w-sm animate-fade-in">
+          <div className="w-14 h-14 rounded-2xl bg-blue-600/20 border border-cyan-500/40 flex items-center justify-center text-cyan-400 shadow-xl shadow-cyan-500/10">
+            <Sparkles className="w-7 h-7 text-cyan-400 animate-spin" />
+          </div>
+          <div className="space-y-1.5">
+            <h2 className="text-base font-black text-white tracking-tight">ImpulsaCap</h2>
+            <p className="text-xs text-slate-400 font-mono flex items-center justify-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
+              <span>Verificando sesión segura...</span>
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-blue-600 selection:text-white overflow-x-hidden w-full max-w-full">
@@ -706,9 +751,14 @@ export default function App() {
       {/* Authentication Modal */}
       <AuthModal
         isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
+        onClose={() => {
+          setShowAuthModal(false);
+          setAuthModalMessage('');
+          clearPendingPostLoginAction();
+        }}
         onAuthSuccess={handleAuthSuccess}
         initialMode={authModalMode}
+        initialMessage={authModalMessage}
       />
 
       {/* Sii Tax Folder Uploader Modal */}

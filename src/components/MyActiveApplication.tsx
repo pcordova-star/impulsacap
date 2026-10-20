@@ -43,6 +43,8 @@ import { GuaranteesCalculator } from './GuaranteesCalculator';
 import { usePlan } from '../hooks/usePlan';
 import { PlanPaywallCard } from './PlanPaywallCard';
 import { apiFetch } from '../utils/apiFetch';
+import { auth } from '../firebase';
+import { requestLogin } from '../utils/authEvents';
 import { ExpedienteData, RoadmapConfirmations, DocChecklistStatuses } from '../types/expediente';
 
 interface MyActiveApplicationProps {
@@ -102,6 +104,27 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
   };
 
   const handleRenewPlan = async () => {
+    // 1. Espera a que Firebase termine de restaurar la sesión
+    if (auth.authStateReady) {
+      try {
+        await auth.authStateReady();
+      } catch (err) {
+        console.warn('authStateReady error:', err);
+      }
+    }
+
+    // 2. Si no hay sesión, abre el modal de inicio de sesión en vez de mostrar error, y continúa con el pago
+    if (!auth.currentUser) {
+      requestLogin({
+        message: 'Inicia sesión para continuar con el pago del Plan Semestral.',
+        mode: 'login',
+        onSuccess: async () => {
+          await handleRenewPlan();
+        }
+      });
+      return;
+    }
+
     try {
       const res = await apiFetch('/api/pagos/crear', { method: 'POST' });
       const data = await res.json();
