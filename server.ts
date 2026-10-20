@@ -296,6 +296,16 @@ const requireActivePlan = async (req: express.Request, res: express.Response, ne
       return res.status(402).json({ error: 'Necesitas el Plan Semestral para usar esta herramienta' });
     }
 
+    // Derecho a retracto (Ley 19.496, art. 3 bis): antes del primer uso de cada compra, el usuario
+    // debe confirmar que inicia el servicio. El cliente muestra el aviso y llama a /api/plan/iniciar-servicio.
+    const lastPaymentId = data.lastPaymentId ? String(data.lastPaymentId) : '';
+    if (lastPaymentId && data.serviceStartedForPaymentId !== lastPaymentId) {
+      return res.status(409).json({
+        code: 'SERVICE_START_CONFIRMATION_REQUIRED',
+        error: 'Antes de usar esta herramienta, confirma que comienzas a usar tu Plan Semestral.'
+      });
+    }
+
     return next();
   } catch (err: any) {
     console.error('Error in requireActivePlan:', err?.message);
@@ -2097,6 +2107,38 @@ app.get('/api/admin/test-email', requireAdminToken, async (req, res) => {
   if (!to) return res.status(503).json({ sent: false, error: 'ADMIN_EMAIL no está configurado.' });
   const sent = await sendEmail({ to, ...testEmail() });
   return res.status(sent ? 200 : 502).json({ sent, to });
+});
+
+// Registra que el usuario confirmó el inicio del servicio del plan (fin del plazo de retracto para esa compra)
+app.post('/api/plan/iniciar-servicio', requireAuth, async (req, res) => {
+  try {
+    const user = (req as AuthenticatedRequest).user!;
+    if (!isFirestoreAdminAuthorized) {
+      return res.status(503).json({ error: 'No pudimos registrar la confirmación. Intenta nuevamente en unos minutos.' });
+    }
+    const entRef = adminDb.collection('entitlements').doc(user.uid);
+    const entSnap = await entRef.get();
+    const ent = entSnap.exists ? entSnap.data() : null;
+    const expTime = ent?.expiresAt ? new Date(ent.expiresAt).getTime() : NaN;
+    if (!ent || ent.status !== 'active' || isNaN(expTime) || expTime <= Date.now()) {
+      return res.status(402).json({ error: 'Necesitas el Plan Semestral para usar esta herramienta' });
+    }
+    const lastPaymentId = ent.lastPaymentId ? String(ent.lastPaymentId) : '';
+    if (!lastPaymentId || ent.serviceStartedForPaymentId === lastPaymentId) {
+      return res.json({ ok: true });
+    }
+    const now = new Date().toISOString();
+    await entRef.set({ serviceStartedForPaymentId: lastPaymentId, serviceStartedAt: now }, { merge: true });
+    try {
+      await adminDb.collection('payments').doc(lastPaymentId).set({ serviceStartedAt: now, serviceStartConfirmedByUser: true }, { merge: true });
+    } catch (e: any) {
+      console.warn('[plan] No se pudo registrar serviceStartedAt en payments:', e?.message);
+    }
+    return res.json({ ok: true });
+  } catch (err: any) {
+    console.error('Error in /api/plan/iniciar-servicio:', err?.message);
+    return res.status(500).json({ error: 'No pudimos registrar la confirmación. Intenta nuevamente.' });
+  }
 });
 
 app.get('/api/health', (req, res) => {

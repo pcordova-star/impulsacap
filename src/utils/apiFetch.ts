@@ -1,9 +1,12 @@
 import { auth } from '../firebase';
 import { logoutCompanyUser } from './storage';
 import { requestLogin } from './authEvents';
+import { requestServiceStartConfirmation } from './serviceStartEvents';
 
 export interface ApiFetchOptions extends RequestInit {
   requireAuth?: boolean;
+  /** Uso interno: evita pedir dos veces la confirmación de inicio del plan. */
+  skipServiceStartConfirmation?: boolean;
 }
 
 /**
@@ -56,10 +59,33 @@ export async function apiFetch(input: RequestInfo | URL, init: ApiFetchOptions =
     }
   }
 
+  const { requireAuth: _requireAuth, skipServiceStartConfirmation, ...fetchInit } = init;
   const response = await fetch(input, {
-    ...init,
+    ...fetchInit,
     headers
   });
+
+  // Primer uso de una herramienta del plan tras una compra: pedir confirmación (derecho a retracto)
+  if (response.status === 409 && !skipServiceStartConfirmation) {
+    let code = '';
+    try {
+      code = (await response.clone().json())?.code || '';
+    } catch {
+      code = '';
+    }
+    if (code === 'SERVICE_START_CONFIRMATION_REQUIRED') {
+      const accepted = await requestServiceStartConfirmation();
+      if (accepted) {
+        const startRes = await fetch('/api/plan/iniciar-servicio', {
+          method: 'POST',
+          headers: { Accept: 'application/json', ...(headers.has('Authorization') ? { Authorization: headers.get('Authorization') as string } : {}) }
+        });
+        if (startRes.ok) {
+          return apiFetch(input, { ...init, skipServiceStartConfirmation: true });
+        }
+      }
+    }
+  }
 
   // 4. Cuando el servidor responda 401, cierra la sesión local y pide iniciar sesión de nuevo con el mensaje
   if (response.status === 401) {

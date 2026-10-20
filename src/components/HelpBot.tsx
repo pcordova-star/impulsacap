@@ -28,13 +28,13 @@ interface BotMessage {
 
 const STATIC_FAQS: Record<string, string> = {
   '¿Cómo funciona ImpulsaCap?':
-    'ImpulsaCap te guía paso a paso para preparar postulaciones ganadoras a fondos del Estado (CORFO, SERCOTEC, etc.). Subes tu Carpeta Tributaria del SII para validar requisitos, formulas tu proyecto con Inteligencia Artificial, estructuras el presupuesto por cuentas aprobadas, simulas la evaluación de un comité con el Auditor Ciego y descargas tu expediente listo para copiar a e-CORFO.',
+    'ImpulsaCap te guía paso a paso para preparar postulaciones completas a fondos del Estado (CORFO, SERCOTEC, etc.). Subes tu Carpeta Tributaria del SII para validar requisitos, formulas tu proyecto con Inteligencia Artificial, estructuras el presupuesto por cuentas aprobadas, simulas la evaluación de un comité con el Auditor Ciego y descargas tu expediente listo para copiar a e-CORFO.',
   '¿Qué incluye el Plan Semestral y cuánto cuesta?':
     'El Plan Semestral tiene un precio normal de $39.990 CLP, con 50% de descuento en tu primera compra quedando en $19.990 CLP. Incluye 6 meses de acceso completo para hasta 3 postulaciones simultáneas: formulador técnico con IA, simulación de auditoría ciega, generador de cartas de interés (LOI), expediente consolidado en PDF y asesor experto por postulación.',
   '¿Cómo pago y qué pasa después?':
-    'El pago se realiza mediante Mercado Pago (tarjetas de crédito, débito o Webpay). Es un pago único: no tiene renovación automática ni cobros recurrentes. Una vez procesado el pago, tu cuenta se activa inmediatamente y desbloquea todas las herramientas premium en tu bóveda empresarial.',
+    'El pago se hace con Mercado Pago, con los medios que ofrece (por ejemplo, tarjeta de crédito o débito). Es un pago único, IVA incluido, sin renovación automática. Cuando Mercado Pago confirma el pago, normalmente en segundos, tu plan se activa y te llega un correo de confirmación. Tienes derecho a retracto dentro de 10 días desde el pago, mientras no hayas comenzado a usar el plan.',
   '¿Qué hacen con mis datos?':
-    'Tu privacidad está protegida. La Carpeta Tributaria y los antecedentes de tu empresa se procesan bajo cifrado con el único fin de calcular la admisibilidad y redactar tu propuesta. No compartimos tus datos con terceros ni los utilizamos para entrenar modelos públicos.'
+    'Usamos tus datos solo para prestarte el servicio y no los vendemos. Cada usuario solo puede ver sus propios datos. El archivo de tu carpeta tributaria no se guarda: se procesa en el momento y conservamos solo un resumen. Para operar usamos proveedores como Google (alojamiento e IA) y Mercado Pago (pagos). El detalle está en la Política de Privacidad, en impulsacap.cl/privacidad.'
 };
 
 export const HelpBot: React.FC<HelpBotProps> = ({

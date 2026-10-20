@@ -189,7 +189,11 @@ export const PlanPaywallCard: React.FC<PlanPaywallCardProps> = ({
               )}
             </div>
             <p className="text-xs text-slate-400 font-medium">
-              Pago único. No se renueva automáticamente.
+              Pago único, IVA incluido. No se renueva automáticamente.
+            </p>
+            <p className="text-[11px] text-slate-400 leading-relaxed max-w-md">
+              Al pagar aceptas los{' '}
+              <a href="/terminos" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">Términos y Condiciones</a>. Tienes derecho a retracto dentro de 10 días desde el pago, mientras no comiences a usar el plan.
             </p>
           </div>
 
@@ -228,7 +232,7 @@ export const PlanPaywallCard: React.FC<PlanPaywallCardProps> = ({
         <div className="flex flex-wrap items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-white/10">
           <span className="flex items-center gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-            Pago 100% seguro procesado a través de Mercado Pago Checkout Pro
+            Pago seguro procesado por Mercado Pago
           </span>
           <span className="hidden sm:inline">Tarjetas de Crédito, Débito / Redcompra</span>
         </div>

@@ -13,6 +13,8 @@ import { MonitorHero } from './components/MonitorHero';
 import { HowItWorks, PlanComparison, LandingFaq } from './components/LandingSections';
 import { SiiUploaderModal } from './components/SiiUploaderModal';
 import { AuthModal } from './components/AuthModal';
+import { TermsPage, PrivacyPage } from './components/LegalPages';
+import { ServiceStartModal } from './components/ServiceStartModal';
 import { AuthGateView } from './components/AuthGateView';
 import { PaymentResult } from './components/PaymentResult';
 import { useApplications } from './hooks/useApplications';
@@ -47,6 +49,13 @@ const SmartDiagnostic = React.lazy(() =>
   import('./components/SmartDiagnostic').then(m => ({ default: m.SmartDiagnostic }))
 );
 
+// Páginas legales públicas (/terminos y /privacidad)
+function legalTabForPath(pathname: string): 'terminos' | 'privacidad' | null {
+  if (pathname.startsWith('/terminos')) return 'terminos';
+  if (pathname.startsWith('/privacidad')) return 'privacidad';
+  return null;
+}
+
 export default function App() {
   // Loading state while Firebase verifies initial session (Requirement 2)
   const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
@@ -55,6 +64,8 @@ export default function App() {
     if (typeof window !== 'undefined' && window.location.pathname.startsWith('/pago/resultado')) {
       return 'pago-resultado';
     }
+    const legal = typeof window !== 'undefined' ? legalTabForPath(window.location.pathname) : null;
+    if (legal) return legal;
     return 'diagnostic';
   });
 
@@ -64,14 +75,41 @@ export default function App() {
   // URL sync for /pago/resultado
   useEffect(() => {
     const handleUrlRoute = () => {
-      if (typeof window !== 'undefined' && window.location.pathname.startsWith('/pago/resultado')) {
+      if (typeof window === 'undefined') return;
+      if (window.location.pathname.startsWith('/pago/resultado')) {
         setActiveTab('pago-resultado');
+        return;
+      }
+      const legal = legalTabForPath(window.location.pathname);
+      if (legal) {
+        setActiveTab(legal);
+      } else {
+        setActiveTab(prev => (prev === 'terminos' || prev === 'privacidad' ? 'diagnostic' : prev));
       }
     };
     handleUrlRoute();
     window.addEventListener('popstate', handleUrlRoute);
     return () => window.removeEventListener('popstate', handleUrlRoute);
   }, []);
+
+  // Al salir de una página legal por la navegación de la app, la URL vuelve a "/"
+  useEffect(() => {
+    if (activeTab !== 'terminos' && activeTab !== 'privacidad' && legalTabForPath(window.location.pathname)) {
+      window.history.replaceState({}, '', '/');
+    }
+  }, [activeTab]);
+
+  const openLegalPage = (tab: 'terminos' | 'privacidad') => {
+    window.history.pushState({}, '', tab === 'terminos' ? '/terminos' : '/privacidad');
+    setActiveTab(tab);
+    window.scrollTo({ top: 0 });
+  };
+
+  const leaveLegalPage = () => {
+    window.history.pushState({}, '', '/');
+    setActiveTab('diagnostic');
+    window.scrollTo({ top: 0 });
+  };
 
   // Authenticated Company Session - STRICTLY initialized via onAuthStateChanged
   const [currentUser, setCurrentUser] = useState<CompanyUser | null>(null);
@@ -552,6 +590,14 @@ export default function App() {
           />
         )}
 
+        {/* Páginas legales */}
+        {activeTab === 'terminos' && (
+          <TermsPage onBack={leaveLegalPage} onOpenOther={() => openLegalPage('privacidad')} />
+        )}
+        {activeTab === 'privacidad' && (
+          <PrivacyPage onBack={leaveLegalPage} onOpenOther={() => openLegalPage('terminos')} />
+        )}
+
         {/* Tab: Inicio (Guest Visitor Home - Requirements 1 & 4: Hero -> Asistente -> Beneficios Plan) */}
         {activeTab === 'diagnostic' && (
           <div className="space-y-10 min-w-0 max-w-full">
@@ -785,6 +831,9 @@ export default function App() {
         initialMessage={authModalMessage}
       />
 
+      {/* Aviso de inicio del servicio del plan (derecho a retracto) */}
+      <ServiceStartModal onOpenTerms={() => openLegalPage('terminos')} />
+
       {/* Sii Tax Folder Uploader Modal */}
       <SiiUploaderModal
         isOpen={showSiiModal}
@@ -801,18 +850,21 @@ export default function App() {
             </span>
             <span>— Plataforma Inteligente para Fondos Concursables en Chile</span>
           </div>
-          <div className="flex items-center gap-4 text-slate-400 font-medium">
-            <span>CORFO</span>
-            <span>•</span>
-            <span>SERCOTEC</span>
-            <span>•</span>
-            <span>ANID</span>
-            <span>•</span>
-            <span>Start-Up Chile</span>
-            <span>•</span>
-            <span>FIA</span>
-          </div>
+          <nav aria-label="Información legal" className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 font-medium">
+            <button type="button" onClick={() => openLegalPage('terminos')} className="hover:text-slate-900 underline-offset-2 hover:underline cursor-pointer">
+              Términos y Condiciones
+            </button>
+            <button type="button" onClick={() => openLegalPage('privacidad')} className="hover:text-slate-900 underline-offset-2 hover:underline cursor-pointer">
+              Política de Privacidad
+            </button>
+            <a href="mailto:contacto@impulsacap.cl" className="hover:text-slate-900 underline-offset-2 hover:underline">
+              contacto@impulsacap.cl
+            </a>
+          </nav>
         </div>
+        <p className="max-w-7xl mx-auto mt-4 text-[11px] text-slate-400">
+          ImpulsaCap es operado por Tresna SpA. No somos un organismo público ni representamos a CORFO, SERCOTEC u otras instituciones.
+        </p>
       </footer>
     </div>
   );

@@ -50,6 +50,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(initialMessage || null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
 
@@ -135,6 +136,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     e.preventDefault();
     setErrorMsg(null);
     setSuccessMsg(null);
+
+    if (!acceptedTerms) {
+      setErrorMsg('Para crear tu cuenta debes aceptar los Términos y Condiciones y la Política de Privacidad.');
+      return;
+    }
 
     const cleanRut = regRut?.trim() || '';
     if (cleanRut && !validateRut(cleanRut)) {
@@ -565,6 +571,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
             </div>
 
+            <label className="flex items-start gap-2.5 text-xs text-slate-700 leading-relaxed cursor-pointer">
+              <input
+                type="checkbox"
+                checked={acceptedTerms}
+                onChange={(e) => setAcceptedTerms(e.target.checked)}
+                required
+                className="mt-0.5 w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 shrink-0"
+              />
+              <span>
+                Acepto los{' '}
+                <a href="/terminos" target="_blank" rel="noopener noreferrer" className="text-blue-700 underline underline-offset-2">Términos y Condiciones</a>
+                {' '}y la{' '}
+                <a href="/privacidad" target="_blank" rel="noopener noreferrer" className="text-blue-700 underline underline-offset-2">Política de Privacidad</a>
+                {' '}de ImpulsaCap, y declaro ser mayor de 18 años.
+              </span>
+            </label>
+
             <div className="pt-2">
               <button
                 type="submit"
@@ -572,7 +595,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-md shadow-emerald-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
               >
                 <Sparkles className="w-4 h-4" />
-                <span>{isSubmitting ? 'Registrando en Firebase Auth...' : 'Registrar Empresa y Proteger Bóveda'}</span>
+                <span>{isSubmitting ? 'Creando tu cuenta…' : 'Crear mi cuenta'}</span>
               </button>
             </div>
           </form>
@@ -582,7 +605,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-start gap-3">
           <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
           <div className="text-[11px] text-slate-600 leading-relaxed">
-            <strong className="text-slate-900">Garantía de Privacidad Exclusiva:</strong> Los balances tributarios F29, la formulación confidencial y el estado del expediente están estrictamente encriptados y solo pueden ser consultados mediante tu correo y contraseña.
+            <strong className="text-slate-900">Tus datos solo los ves tú.</strong> Las reglas de la base de datos impiden que otro usuario acceda a tu empresa, tu carpeta tributaria o tus postulaciones. Si ingresas con Google, aceptas los{' '}
+            <a href="/terminos" target="_blank" rel="noopener noreferrer" className="text-blue-700 underline underline-offset-2">Términos y Condiciones</a>
+            {' '}y la{' '}
+            <a href="/privacidad" target="_blank" rel="noopener noreferrer" className="text-blue-700 underline underline-offset-2">Política de Privacidad</a>.
           </div>
         </div>
       </div>

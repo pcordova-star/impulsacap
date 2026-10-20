@@ -263,7 +263,7 @@ export const PlanComparison: React.FC<{ onStartFree: () => void }> = ({ onStartF
                 <p className="text-sm text-slate-400"><s>{formatCLP(39990)}</s> 50% en tu primera compra</p>
               )}
             </div>
-            <p className="text-sm text-slate-300">Pago único por 6 meses. No se renueva solo.</p>
+            <p className="text-sm text-slate-300">Pago único por 6 meses, IVA incluido. No se renueva solo.</p>
           </div>
           <ul className="space-y-2.5 flex-1">
             <li className="text-sm text-cyan-200">Todo lo gratis, más:</li>
@@ -290,6 +290,10 @@ export const PlanComparison: React.FC<{ onStartFree: () => void }> = ({ onStartF
                 {loading ? 'Abriendo Mercado Pago…' : 'Activar Plan Semestral'}
               </button>
               <p className="text-xs text-slate-400 text-center">Pagas de forma segura con Mercado Pago.</p>
+              <p className="text-xs text-slate-400 text-center leading-relaxed">
+                Al pagar aceptas los{' '}
+                <a href="/terminos" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">Términos y Condiciones</a>. Tienes derecho a retracto dentro de 10 días desde el pago, mientras no comiences a usar el plan.
+              </p>
               {error && <p className="text-xs text-rose-300 text-center" role="alert">{error}</p>}
             </div>
           )}
