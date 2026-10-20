@@ -1,19 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Convocatoria, ConvocatoriasSyncMeta } from '../types/convocatoria';
-import { 
-  Sparkles, 
-  ArrowRight, 
-  Clock, 
-  MapPin, 
-  ChevronRight, 
-  ChevronDown,
-  Activity,
-  Layers,
-  Calendar,
-  AlertTriangle,
-  Building2,
-  ExternalLink
-} from 'lucide-react';
+import { Sparkles, ArrowRight, Clock, MapPin, ChevronDown, ExternalLink, Coins, CalendarClock } from 'lucide-react';
 
 interface MonitorHeroProps {
   convocatorias: Convocatoria[];
@@ -23,71 +10,49 @@ interface MonitorHeroProps {
   onScrollToAssistant: () => void;
 }
 
-// Parses string like "Hasta $25.000.000", "50 millones", "UF 2.000" into approximate CLP
-function parseTopeCLP(topeStr?: string | null): number | null {
-  if (!topeStr) return null;
-  const str = topeStr.toLowerCase().replace(/\s+/g, ' ');
-  
-  // Word millions (e.g., "50 millones", "15 millones")
-  const millonMatch = str.match(/(\d+(?:[.,]\d+)?)\s*(?:millones|millón|m)/);
-  if (millonMatch) {
-    const num = parseFloat(millonMatch[1].replace(',', '.'));
-    if (!isNaN(num) && num > 0) return Math.round(num * 1_000_000);
-  }
+/**
+ * Hero de la portada: "mapa de cierres" en vivo.
+ * Cada convocatoria abierta es un punto sobre una línea de tiempo (Hoy → 60+ días),
+ * ubicado según los días que le quedan. Las que cierran en 7 días o menos se marcan en ámbar.
+ * Las que no tienen fecha de cierre (ventanilla abierta o por confirmar) van en una fila aparte.
+ */
 
-  // Standard CLP formatting: $15.000.000 or 15.000.000
-  const clpMatch = str.match(/\$?\s*([0-9]{1,3}(?:\.[0-9]{3})+)/);
-  if (clpMatch) {
-    const cleanNum = parseInt(clpMatch[1].replace(/\./g, ''), 10);
-    if (!isNaN(cleanNum) && cleanNum > 0) return cleanNum;
-  }
-
-  // UF estimate (~ $38.500 CLP)
-  const ufMatch = str.match(/([0-9]{1,3}(?:\.[0-9]{3})*)\s*uf|uf\s*([0-9]{1,3}(?:\.[0-9]{3})*)/);
-  if (ufMatch) {
-    const rawVal = ufMatch[1] || ufMatch[2];
-    const ufNum = parseInt(rawVal.replace(/\./g, ''), 10);
-    if (!isNaN(ufNum) && ufNum > 0) return ufNum * 38_500;
-  }
-
-  return null;
+// Escala por tramos: la primera semana ocupa más espacio porque es lo urgente.
+// 0–7 días → 0–28 %, 7–30 → 28–65 %, 30–60 → 65–95 %, >60 → 98 %.
+const TICKS = [
+  { days: 0, label: 'Hoy' },
+  { days: 7, label: '7 días' },
+  { days: 30, label: '30 días' },
+  { days: 60, label: '60+ días' }
+];
+function positionForDays(d: number): number {
+  if (d <= 0) return 0;
+  if (d <= 7) return (d / 7) * 28;
+  if (d <= 30) return 28 + ((d - 7) / 23) * 37;
+  if (d <= 60) return 65 + ((d - 30) / 30) * 30;
+  return 98;
 }
 
-// Counter animation hook (~1 sec duration, respects prefers-reduced-motion)
-function useAnimatedCounter(target: number, duration: number = 900): number {
-  const [value, setValue] = useState<number>(0);
+const URGENT_DAYS = 7;
+const LANE_HEIGHT = 24; // px entre filas de puntos
+const MIN_TRACK_HEIGHT = 76;
+const MIN_GAP_PCT = 3.6; // separación mínima horizontal para no encimar puntos
+const MAX_LANES = 5;
 
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      setValue(target);
-      return;
-    }
+type TimedPoint = { call: Convocatoria; days: number; pct: number; lane: number };
 
-    if (target <= 0) {
-      setValue(0);
-      return;
-    }
-
-    const start = performance.now();
-    let frameId: number;
-
-    const tick = (now: number) => {
-      const elapsed = now - start;
-      const progress = Math.min(1, elapsed / duration);
-      // easeOutExpo
-      const current = progress === 1 ? target : Math.round(target * (1 - Math.pow(2, -10 * progress)));
-      setValue(current);
-
-      if (progress < 1) {
-        frameId = requestAnimationFrame(tick);
-      }
-    };
-
-    frameId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frameId);
-  }, [target, duration]);
-
-  return value;
+function closingText(call: Convocatoria): string {
+  const d = call.diasRestantes;
+  if (d === null || d === undefined) {
+    return call.permanente ? 'Ventanilla abierta, sin fecha de cierre' : 'Fecha de cierre por confirmar';
+  }
+  const fecha = call.cierre ? new Date(call.cierre + (call.cierre.length === 10 ? 'T12:00:00' : '')) : null;
+  const fechaTxt = fecha && !isNaN(fecha.getTime())
+    ? fecha.toLocaleDateString('es-CL', { day: 'numeric', month: 'long' })
+    : '';
+  if (d === 0) return fechaTxt ? `Cierra hoy, ${fechaTxt}` : 'Cierra hoy';
+  if (d === 1) return fechaTxt ? `Cierra mañana, ${fechaTxt}` : 'Cierra mañana';
+  return fechaTxt ? `Cierra en ${d} días, el ${fechaTxt}` : `Cierra en ${d} días`;
 }
 
 export const MonitorHero: React.FC<MonitorHeroProps> = ({
@@ -97,379 +62,329 @@ export const MonitorHero: React.FC<MonitorHeroProps> = ({
   onViewAllConvocatorias,
   onScrollToAssistant
 }) => {
-  const prefersReducedMotion = typeof window !== 'undefined' 
+  const prefersReducedMotion = typeof window !== 'undefined'
     && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // Active (vigente) calls
-  const activeCalls = useMemo(() => {
-    return convocatorias.filter(c => c.vigente);
-  }, [convocatorias]);
-
-  // Metric 1: Convocatorias abiertas
+  const activeCalls = useMemo(() => convocatorias.filter(c => c.vigente), [convocatorias]);
   const totalOpen = activeCalls.length;
 
-  // Metric 2: Cierran en 7 días o menos
-  const closingSoonCalls = useMemo(() => {
-    return activeCalls.filter(c => c.diasRestantes !== null && c.diasRestantes !== undefined && c.diasRestantes <= 7 && c.diasRestantes >= 0);
-  }, [activeCalls]);
-  const totalClosingSoon = closingSoonCalls.length;
+  // Puntos con fecha, ordenados por cierre y repartidos en filas para que no se encimen
+  const { timedPoints, laneCount } = useMemo(() => {
+    const timed = activeCalls
+      .filter(c => typeof c.diasRestantes === 'number' && (c.diasRestantes as number) >= 0)
+      .map(c => ({ call: c, days: c.diasRestantes as number, pct: positionForDays(c.diasRestantes as number), lane: 0 }))
+      .sort((a, b) => a.days - b.days);
 
-  // Metric 3: Sum of caps or unique regions count
-  const { metric3Type, metric3Value, metric3Formatted } = useMemo(() => {
-    let parsedSum = 0;
-    let countParsed = 0;
-
-    activeCalls.forEach(c => {
-      const val = parseTopeCLP(c.tope_aprox);
-      if (val && val > 0) {
-        parsedSum += val;
-        countParsed++;
+    const laneLastPct: number[] = [];
+    timed.forEach(p => {
+      let lane = laneLastPct.findIndex(last => p.pct - last >= MIN_GAP_PCT);
+      if (lane === -1) {
+        lane = laneLastPct.length < MAX_LANES ? laneLastPct.length : laneLastPct.indexOf(Math.min(...laneLastPct));
       }
+      laneLastPct[lane] = p.pct;
+      p.lane = lane;
     });
-
-    // If at least 2 calls have parseable numbers and total > 0
-    if (countParsed >= 2 && parsedSum > 0) {
-      const millions = Math.round(parsedSum / 1_000_000);
-      return {
-        metric3Type: 'monto' as const,
-        metric3Value: millions,
-        metric3Formatted: millions >= 1000 
-          ? `$${(millions / 1000).toFixed(1).replace('.', ',')}B` 
-          : `$${millions.toLocaleString('es-CL')}M`
-      };
-    }
-
-    // Fallback: Regiones con convocatorias
-    const uniqueRegions = new Set(
-      activeCalls.map(c => c.alcance).filter(r => r && r !== 'Todo Chile' && r !== 'Nacional')
-    );
-    const regionsCount = Math.max(uniqueRegions.size, 1);
-    return {
-      metric3Type: 'regiones' as const,
-      metric3Value: regionsCount,
-      metric3Formatted: `${regionsCount}`
-    };
+    return { timedPoints: timed as TimedPoint[], laneCount: Math.max(1, laneLastPct.length) };
   }, [activeCalls]);
 
-  // Animated counters
-  const animatedOpen = useAnimatedCounter(totalOpen, 900);
-  const animatedClosingSoon = useAnimatedCounter(totalClosingSoon, 900);
-  const animatedMetric3 = useAnimatedCounter(metric3Value, 1000);
+  const undatedCalls = useMemo(
+    () => activeCalls.filter(c => typeof c.diasRestantes !== 'number' || (c.diasRestantes as number) < 0),
+    [activeCalls]
+  );
 
-  // Sync date formatting and status
+  const closingSoonCount = timedPoints.filter(p => p.days <= URGENT_DAYS).length;
+
+  // Selección: por defecto la que cierra antes, así el panel siempre muestra algo útil (también en celular)
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedCall = useMemo(() => {
+    const byId = selectedId ? activeCalls.find(c => c.id === selectedId) : null;
+    return byId || timedPoints[0]?.call || undatedCalls[0] || null;
+  }, [selectedId, activeCalls, timedPoints, undatedCalls]);
+
+  // Única animación de entrada: los puntos aparecen en orden de cierre
+  const [revealed, setRevealed] = useState<boolean>(prefersReducedMotion);
+  useEffect(() => {
+    if (prefersReducedMotion || loading || totalOpen === 0) return;
+    const id = requestAnimationFrame(() => setRevealed(true));
+    return () => cancelAnimationFrame(id);
+  }, [loading, totalOpen, prefersReducedMotion]);
+
   const syncStatus = useMemo(() => {
-    if (!syncMeta?.lastSyncAt) {
-      return { text: 'Estamos actualizando las convocatorias', isLive: false, timeOnly: '' };
-    }
+    if (!syncMeta?.lastSyncAt) return { text: 'Actualizando convocatorias', isLive: false };
     const syncDate = new Date(syncMeta.lastSyncAt);
-    if (isNaN(syncDate.getTime())) {
-      return { text: 'Estamos actualizando las convocatorias', isLive: false, timeOnly: '' };
-    }
+    if (isNaN(syncDate.getTime())) return { text: 'Actualizando convocatorias', isLive: false };
     const now = new Date();
-    const diffHours = (now.getTime() - syncDate.getTime()) / (1000 * 60 * 60);
-
-    if (diffHours > 48) {
-      const formattedDate = syncDate.toLocaleDateString('es-CL', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-      });
-      return { text: `Actualizado el ${formattedDate}`, isLive: false, timeOnly: '' };
-    }
-
-    const isToday = syncDate.toDateString() === now.toDateString();
+    const diffHours = (now.getTime() - syncDate.getTime()) / 36e5;
     const timeStr = syncDate.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
-    if (isToday) {
-      return { text: `Actualizado hoy a las ${timeStr}`, isLive: true, timeOnly: timeStr };
+    if (diffHours > 48) {
+      return { text: `Actualizado el ${syncDate.toLocaleDateString('es-CL', { day: 'numeric', month: 'long' })}`, isLive: false };
     }
-    const dateStr = syncDate.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit' });
-    return { text: `Actualizado el ${dateStr} a las ${timeStr}`, isLive: true, timeOnly: timeStr };
+    if (syncDate.toDateString() === now.toDateString()) {
+      return { text: `Actualizado hoy a las ${timeStr}`, isLive: true };
+    }
+    return { text: `Actualizado el ${syncDate.toLocaleDateString('es-CL', { day: 'numeric', month: 'long' })} a las ${timeStr}`, isLive: true };
   }, [syncMeta]);
 
-  // Urgent calls for the ticker (closing soonest)
-  const tickerCalls = useMemo(() => {
-    return [...activeCalls]
-      .sort((a, b) => {
-        const dA = a.diasRestantes ?? 9999;
-        const dB = b.diasRestantes ?? 9999;
-        return dA - dB;
-      })
-      .slice(0, 6);
-  }, [activeCalls]);
-
-  // Ticker rotation state (every 3 seconds)
-  const [tickerIndex, setTickerIndex] = useState<number>(0);
-  const [isTickerHovered, setIsTickerHovered] = useState<boolean>(false);
-
-  useEffect(() => {
-    if (isTickerHovered || tickerCalls.length <= 1 || prefersReducedMotion) return;
-    const interval = setInterval(() => {
-      setTickerIndex(prev => (prev + 1) % tickerCalls.length);
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [isTickerHovered, tickerCalls.length, prefersReducedMotion]);
-
-  const currentTickerCall = tickerCalls[tickerIndex] || tickerCalls[0];
   const hasNoData = !loading && totalOpen === 0;
+  const lanesHeight = laneCount * LANE_HEIGHT;
+  const trackHeight = Math.max(MIN_TRACK_HEIGHT, lanesHeight + 20);
+  const lanesTop = (trackHeight - lanesHeight) / 2;
+
+  const dotClasses = (days: number, isSelected: boolean) => {
+    const urgent = days <= URGENT_DAYS;
+    const base = urgent
+      ? 'bg-amber-300 shadow-[0_0_14px_rgba(252,211,77,0.75)]'
+      : 'bg-cyan-300 shadow-[0_0_12px_rgba(103,232,249,0.6)]';
+    const ring = isSelected ? 'ring-2 ring-white ring-offset-2 ring-offset-[#0D182E] scale-125' : 'hover:scale-125';
+    return `${base} ${ring}`;
+  };
 
   return (
-    <section className="relative overflow-hidden rounded-3xl border border-cyan-500/20 bg-gradient-to-br from-[#0B1220] via-[#0D182E] to-[#0F1E3A] text-white shadow-2xl shadow-cyan-950/40 mb-8 max-w-full">
-      {/* SUTIL TECH BACKGROUND GRID PATTERN & SLOW DRIFTING GRADIENT */}
-      <div 
-        className="absolute inset-0 pointer-events-none opacity-30"
-        style={{
-          backgroundImage: `radial-gradient(rgba(56, 189, 248, 0.28) 1px, transparent 1px)`,
-          backgroundSize: '24px 24px'
-        }}
+    <section className="relative overflow-hidden rounded-3xl border border-cyan-400/20 bg-gradient-to-br from-[#0B1220] via-[#0D182E] to-[#0F1E3A] text-white shadow-2xl shadow-cyan-950/40 mb-8 max-w-full">
+      <div
+        className="absolute inset-0 pointer-events-none opacity-25"
+        style={{ backgroundImage: 'radial-gradient(rgba(56,189,248,0.28) 1px, transparent 1px)', backgroundSize: '24px 24px' }}
       />
       <div className="absolute -top-32 -right-32 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute -bottom-32 -left-32 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
-      <div className="relative z-10 p-5 sm:p-9 lg:p-12 space-y-7 max-w-full min-w-0">
-        
-        {/* TOP STATUS BAR: EN VIVO + MONITOR CORFO */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-5">
-          <div className="flex flex-wrap items-center gap-2.5">
-            {/* Monitor Brand Chip */}
-            <span className="px-3 py-1 rounded-full bg-slate-800/90 border border-cyan-500/30 text-cyan-300 font-mono text-[11px] font-black tracking-wider uppercase flex items-center gap-1.5 shadow-xs">
-              <Activity className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Monitor CORFO</span>
-            </span>
-
-            {/* Live Indicator with pulsing dot */}
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900/90 border border-slate-700/80 text-slate-200 text-xs font-semibold">
-              {syncStatus.isLive && (
-                <span className="relative flex h-2 w-2">
-                  <span className={`absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 ${prefersReducedMotion ? '' : 'animate-ping'}`} />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
-                </span>
+      <div className="relative z-10 p-5 sm:p-9 lg:p-12 space-y-7 min-w-0">
+        {/* Estado del monitor */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900/80 border border-slate-700/80 text-xs text-slate-200">
+            <span className="relative flex h-2 w-2 shrink-0">
+              {syncStatus.isLive && !prefersReducedMotion && (
+                <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
               )}
-              <span className="text-[11px] font-bold text-emerald-400 tracking-wide uppercase">
-                {syncStatus.isLive ? 'EN VIVO' : 'ESTADO'}:
-              </span>
-              <span className="text-[11px] text-slate-300 font-medium">
-                {syncStatus.text}
-              </span>
-            </div>
-          </div>
-
-          {/* Honest disclaimer about source */}
-          <div className="text-[11px] text-slate-400 font-medium flex flex-wrap items-center gap-1 break-words">
-            <span>Fuente: Portal oficial CORFO.</span>
-            <span className="text-cyan-400 font-semibold">Próximamente: Sercotec, ANID y gobiernos regionales.</span>
-          </div>
+              <span className={`relative inline-flex rounded-full h-2 w-2 ${syncStatus.isLive ? 'bg-emerald-400' : 'bg-slate-500'}`} />
+            </span>
+            <span className="font-semibold text-white whitespace-nowrap">Monitoreando CORFO</span>
+          </span>
+          <span className="text-xs text-slate-400">{syncStatus.text}</span>
+          <span className="text-xs text-slate-500">Pronto sumaremos Sercotec, ANID y gobiernos regionales</span>
         </div>
 
-        {/* HERO TITLE & SUBTITLE */}
+        {/* Título */}
         <div className="max-w-3xl space-y-3 min-w-0">
-          <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight leading-[1.15] break-words">
+          <h1 className="text-[28px] leading-[1.1] sm:text-5xl lg:text-[56px] font-black tracking-tight text-white break-words">
             Todas las convocatorias abiertas, en un solo lugar
           </h1>
-          <p className="text-sm sm:text-base text-slate-300 leading-relaxed font-normal break-words">
-            Monitoreamos a diario el portal de CORFO para que no se te pase ninguna oportunidad de financiamiento no reembolsable en Chile.
+          <p className="text-[15px] sm:text-lg text-slate-300 leading-relaxed max-w-2xl">
+            {loading || hasNoData ? (
+              'Revisamos el portal de CORFO todos los días para que no se te pase ningún fondo.'
+            ) : (
+              <>
+                Revisamos el portal de CORFO todos los días. Hoy hay{' '}
+                <strong className="text-cyan-300 font-bold">{totalOpen} {totalOpen === 1 ? 'convocatoria abierta' : 'convocatorias abiertas'}</strong>
+                {closingSoonCount > 0 && (
+                  <>
+                    {' '}y{' '}
+                    <strong className="text-amber-300 font-bold">
+                      {closingSoonCount} {closingSoonCount === 1 ? 'cierra' : 'cierran'} en los próximos 7 días
+                    </strong>
+                  </>
+                )}
+                .
+              </>
+            )}
           </p>
         </div>
 
-        {/* LOADING SKELETON STATE */}
+        {/* Cargando */}
         {loading && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
-              {[1, 2, 3].map(i => (
-                <div key={i} className={`p-4 sm:p-6 rounded-2xl bg-slate-800/40 border border-slate-700/60 animate-pulse space-y-2 ${i === 3 ? 'col-span-2 sm:col-span-1' : ''}`}>
-                  <div className="h-8 sm:h-12 bg-slate-700/60 rounded-lg w-20" />
-                  <div className="h-3 bg-slate-700/40 rounded-md w-28" />
-                </div>
-              ))}
-            </div>
-            <div className="h-16 rounded-2xl bg-slate-800/40 border border-slate-700/60 animate-pulse" />
+          <div className="rounded-2xl bg-slate-900/50 border border-slate-700/60 p-5 sm:p-6 space-y-4 animate-pulse">
+            <div className="h-24 rounded-xl bg-slate-800/60" />
+            <div className="h-16 rounded-xl bg-slate-800/40" />
           </div>
         )}
 
-        {/* EMPTY OR ERROR STATE: NO ZERO COUNTERS */}
+        {/* Sin datos */}
         {hasNoData && (
-          <div className="p-6 rounded-2xl bg-slate-900/80 border border-cyan-500/20 text-slate-300 space-y-4">
+          <div className="p-6 rounded-2xl bg-slate-900/70 border border-cyan-500/20 space-y-3">
             <div className="flex items-center gap-2 text-cyan-300 font-semibold text-sm">
-              <Clock className="w-4 h-4 text-cyan-400" />
+              <Clock className="w-4 h-4" />
               <span>Estamos actualizando las convocatorias</span>
             </div>
-            <p className="text-xs text-slate-400 max-w-xl">
-              El monitor está sincronizando los últimos llamados oficiales de CORFO. Puedes usar el asistente ahora mismo para descubrir a cuáles calificas según el perfil de tu empresa.
+            <p className="text-sm text-slate-400 max-w-xl">
+              Mientras tanto, responde 5 preguntas y te mostramos a qué fondos podría postular tu empresa.
             </p>
-            <div>
-              <button
-                onClick={onScrollToAssistant}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs shadow-lg transition-all cursor-pointer"
-              >
-                <span>¿A cuáles califico? Descúbrelo en 1 minuto</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
           </div>
         )}
 
-        {/* REAL DATA VIEW */}
+        {/* Mapa de cierres */}
         {!loading && !hasNoData && (
-          <div className="space-y-6 min-w-0">
-            
-            {/* 3 CONTADORES GRANDES: 48px en escritorio, 36px en móvil, fuente monoespaciada con brillo cian */}
-            {/* Disposición móvil compacta 2+1, 3 en escritorio */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
-              
-              {/* Counter 1: Convocatorias abiertas */}
-              <div className="p-4 sm:p-6 rounded-2xl bg-slate-900/60 backdrop-blur-md border border-cyan-500/20 hover:border-cyan-400/40 transition-colors shadow-lg">
-                <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-cyan-400 block truncate">
-                  Convocatorias abiertas
-                </span>
-                <div className="flex items-baseline gap-2 mt-1 sm:mt-2">
-                  <span className="text-[36px] sm:text-[48px] font-black font-mono tracking-tight text-cyan-300 drop-shadow-[0_0_12px_rgba(6,182,212,0.45)] leading-none">
-                    {animatedOpen}
-                  </span>
-                  <span className="text-[10px] sm:text-xs font-bold text-emerald-400 bg-emerald-950/70 border border-emerald-500/30 px-1.5 sm:px-2 py-0.5 rounded-full shrink-0">
-                    Vigentes
-                  </span>
-                </div>
-                <p className="text-[10px] sm:text-xs text-slate-400 mt-2 truncate">
-                  Disponibles en CORFO
-                </p>
-              </div>
+          <div className="rounded-2xl bg-slate-950/40 backdrop-blur-sm border border-cyan-400/15 p-4 sm:p-6 space-y-5 min-w-0">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+              <h2 className="text-sm sm:text-base font-bold text-white">Cuándo cierra cada una</h2>
+              <p className="text-xs text-slate-400">Toca un punto para ver la convocatoria</p>
+            </div>
 
-              {/* Counter 2: Cierran en 7 días o menos */}
-              <div className="p-4 sm:p-6 rounded-2xl bg-slate-900/60 backdrop-blur-md border border-amber-500/30 hover:border-amber-400/50 transition-colors shadow-lg">
-                <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-amber-400 block truncate">
-                  Cierran en ≤ 7 días
-                </span>
-                <div className="flex items-baseline gap-2 mt-1 sm:mt-2">
-                  <span className="text-[36px] sm:text-[48px] font-black font-mono tracking-tight text-amber-300 drop-shadow-[0_0_12px_rgba(245,158,11,0.4)] leading-none">
-                    {animatedClosingSoon}
-                  </span>
-                  {totalClosingSoon > 0 && (
-                    <span className="text-[10px] sm:text-xs font-bold text-rose-300 bg-rose-950/70 border border-rose-500/40 px-1.5 sm:px-2 py-0.5 rounded-full shrink-0">
-                      Crítico
-                    </span>
-                  )}
-                </div>
-                <p className="text-[10px] sm:text-xs text-slate-400 mt-2 truncate">
-                  {totalClosingSoon === 1 
-                    ? '1 en recta final' 
-                    : totalClosingSoon > 1 
-                    ? `${totalClosingSoon} en recta final` 
-                    : 'Sin urgencias'}
-                </p>
+            {/* Línea de tiempo */}
+            <div className="px-2 min-w-0">
+              <div className="relative" style={{ height: trackHeight }}>
+                {/* Zona urgente (primera semana) */}
+                <div
+                  className="absolute top-0 bottom-0 left-0 rounded-l-lg bg-gradient-to-r from-amber-400/15 to-amber-400/5 border-l-2 border-amber-300/60"
+                  style={{ width: `${positionForDays(URGENT_DAYS)}%` }}
+                />
+                {/* Líneas guía de cada tramo */}
+                {TICKS.slice(1).map(t => (
+                  <div
+                    key={t.days}
+                    className="absolute top-0 bottom-0 w-px bg-slate-700/70"
+                    style={{ left: `${positionForDays(t.days)}%` }}
+                  />
+                ))}
+                {/* Barrido del monitor */}
+                {!prefersReducedMotion && (
+                  <div className="absolute inset-0 overflow-hidden rounded-lg pointer-events-none" aria-hidden="true">
+                    <div className="monitor-sweep absolute top-0 bottom-0 w-20 bg-gradient-to-r from-transparent to-cyan-300/15 border-r border-cyan-300/50" />
+                  </div>
+                )}
+                {/* Puntos */}
+                {timedPoints.map((p, i) => {
+                  const isSelected = selectedCall?.id === p.call.id;
+                  return (
+                    <button
+                      key={p.call.id}
+                      type="button"
+                      onClick={() => setSelectedId(p.call.id)}
+                      onMouseEnter={() => setSelectedId(p.call.id)}
+                      onFocus={() => setSelectedId(p.call.id)}
+                      aria-label={`${p.call.titulo}. ${closingText(p.call)}`}
+                      aria-pressed={isSelected}
+                      className="absolute p-1.5 rounded-full cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                      style={{
+                        left: `${p.pct}%`,
+                        top: lanesTop + p.lane * LANE_HEIGHT + LANE_HEIGHT / 2 - 13,
+                        opacity: revealed ? 1 : 0,
+                        transform: `translateX(-50%) scale(${revealed ? 1 : 0.2})`,
+                        transition: prefersReducedMotion ? undefined : `opacity 420ms ease-out ${i * 70}ms, transform 520ms cubic-bezier(0.34,1.56,0.64,1) ${i * 70}ms`
+                      }}
+                    >
+                      <span className={`block w-3.5 h-3.5 rounded-full transition-transform duration-150 ${dotClasses(p.days, isSelected)}`} />
+                    </button>
+                  );
+                })}
               </div>
-
-              {/* Counter 3: Monto máximo disponible o Regiones (en móvil ocupa 2 columnas para balance) */}
-              <div className="col-span-2 sm:col-span-1 p-4 sm:p-6 rounded-2xl bg-slate-900/60 backdrop-blur-md border border-emerald-500/20 hover:border-emerald-400/40 transition-colors shadow-lg">
-                <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-emerald-400 block truncate">
-                  {metric3Type === 'monto' ? 'Monto máx. disponible' : 'Regiones con convocatorias'}
-                </span>
-                <div className="flex items-baseline gap-2 mt-1 sm:mt-2">
-                  <span className="text-[32px] sm:text-[44px] font-black font-mono tracking-tight text-emerald-300 drop-shadow-[0_0_12px_rgba(16,185,129,0.45)] leading-none">
-                    {metric3Type === 'monto' 
-                      ? (animatedMetric3 >= 1000 
-                          ? `$${(animatedMetric3 / 1000).toFixed(1).replace('.', ',')}B` 
-                          : `$${animatedMetric3}M`)
-                      : `${animatedMetric3}`}
+              {/* Etiquetas del eje */}
+              <div className="relative h-5 mt-2 text-[11px] text-slate-400">
+                {TICKS.map((t, idx) => (
+                  <span
+                    key={t.days}
+                    className={`absolute whitespace-nowrap ${idx === 0 ? '' : idx === TICKS.length - 1 ? '-translate-x-full' : '-translate-x-1/2'} ${t.days === 0 ? 'text-amber-300 font-semibold' : ''}`}
+                    style={{ left: `${idx === TICKS.length - 1 ? 100 : positionForDays(t.days)}%` }}
+                  >
+                    {t.label}
                   </span>
-                  <span className="text-[10px] sm:text-xs font-bold text-slate-300 bg-slate-800/80 px-2 py-0.5 rounded-full border border-slate-700 shrink-0">
-                    {metric3Type === 'monto' ? 'CLP Subsidio' : 'Regiones'}
-                  </span>
-                </div>
-                <p className="text-[10px] sm:text-xs text-slate-400 mt-2 truncate">
-                  {metric3Type === 'monto' ? 'Suma de topes interpretados' : 'Cobertura territorial activa'}
-                </p>
+                ))}
               </div>
             </div>
 
-            {/* TICKER DE CONVOCATORIAS QUE CIERRAN ANTES (Efecto de Vidrio: fondo translúcido, desenfoque y borde sutil) */}
-            {tickerCalls.length > 0 && currentTickerCall && (
-              <div 
-                onMouseEnter={() => setIsTickerHovered(true)}
-                onMouseLeave={() => setIsTickerHovered(false)}
-                className="group relative p-3.5 sm:p-4 rounded-2xl bg-slate-800/50 backdrop-blur-md border border-cyan-500/25 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all cursor-pointer hover:border-cyan-400/50 hover:bg-slate-800/70 min-w-0"
-                onClick={onViewAllConvocatorias}
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-400/30 flex items-center justify-center text-cyan-400 shrink-0 shadow-inner">
-                    <Clock className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30">
-                        Próximas a cerrar ({tickerIndex + 1}/{tickerCalls.length})
-                      </span>
-                      {isTickerHovered && (
-                        <span className="text-[10px] text-slate-400 italic">
-                          (Pausado)
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-1">
-                      <p className="text-xs sm:text-sm font-bold text-white truncate max-w-full sm:max-w-md">
-                        {currentTickerCall.titulo}
-                      </p>
-                      <span className="text-slate-600 text-xs hidden sm:inline">•</span>
-                      <span className="text-[11px] text-slate-300 flex items-center gap-1 shrink-0">
-                        <MapPin className="w-3 h-3 text-cyan-400" />
-                        <span>{currentTickerCall.alcance}</span>
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2.5 sm:gap-3 shrink-0 justify-between sm:justify-end border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-700/60">
-                  {currentTickerCall.tope_aprox && (
-                    <span className="text-xs text-emerald-400 font-mono font-bold">
-                      {currentTickerCall.tope_aprox}
-                    </span>
-                  )}
-                  {currentTickerCall.diasRestantes !== null && currentTickerCall.diasRestantes !== undefined ? (
-                    <span className={`px-2.5 py-1 rounded-xl text-xs font-bold ${
-                      currentTickerCall.diasRestantes <= 7
-                        ? 'bg-amber-400 text-slate-950 font-black shadow-xs shadow-amber-400/20'
-                        : 'bg-slate-700/80 text-slate-200'
-                    }`}>
-                      {currentTickerCall.diasRestantes === 0 
-                        ? '¡Cierra hoy!' 
-                        : `${currentTickerCall.diasRestantes} días restantes`}
-                    </span>
-                  ) : (
-                    <span className="text-[11px] text-slate-400 bg-slate-800 px-2 py-1 rounded-lg">
-                      Abierta
-                    </span>
-                  )}
-                  <ChevronRight className="w-4 h-4 text-cyan-400 group-hover:translate-x-1 transition-transform" />
+            {/* Sin fecha de cierre */}
+            {undatedCalls.length > 0 && (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pt-1">
+                <span className="text-xs text-slate-400">Sin fecha de cierre ({undatedCalls.length})</span>
+                <div className="flex flex-wrap gap-1">
+                  {undatedCalls.map(c => {
+                    const isSelected = selectedCall?.id === c.id;
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => setSelectedId(c.id)}
+                        onMouseEnter={() => setSelectedId(c.id)}
+                        onFocus={() => setSelectedId(c.id)}
+                        aria-label={`${c.titulo}. ${closingText(c)}`}
+                        aria-pressed={isSelected}
+                        className="p-1.5 rounded-full cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                      >
+                        <span className={`block w-3 h-3 rounded-full border-2 transition-transform duration-150 ${
+                          c.permanente ? 'border-emerald-300' : 'border-slate-400'
+                        } ${isSelected ? 'bg-white/90 scale-125' : 'hover:scale-125'}`} />
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
 
-            {/* BOTONES PRINCIPALES: Ancho completo en móvil */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
-              
-              {/* Botón Principal: Borde de gradiente animado y brillo sutil */}
-              <button
-                onClick={onViewAllConvocatorias}
-                className="relative group overflow-hidden px-6 sm:px-8 py-3.5 sm:py-4 rounded-2xl bg-gradient-to-r from-blue-600 via-cyan-600 to-emerald-500 text-white font-black text-sm sm:text-base shadow-xl shadow-cyan-900/30 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2.5 border border-cyan-300/40 w-full sm:w-auto"
+            {/* Convocatoria seleccionada */}
+            {selectedCall && (
+              <div
+                key={selectedCall.id}
+                aria-live="polite"
+                className={`rounded-xl border p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-4 min-w-0 ${
+                  typeof selectedCall.diasRestantes === 'number' && selectedCall.diasRestantes <= URGENT_DAYS
+                    ? 'bg-amber-400/[0.07] border-amber-300/30'
+                    : 'bg-slate-900/70 border-slate-700/70'
+                }`}
               >
-                {/* Shimmer sweep effect */}
-                {!prefersReducedMotion && (
-                  <span className="absolute inset-0 w-1/2 h-full bg-gradient-to-r from-transparent via-white/30 to-transparent skew-x-12 animate-shimmer pointer-events-none" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <p className="text-base sm:text-lg font-bold text-white leading-snug break-words">
+                    {selectedCall.titulo}
+                  </p>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-[13px] text-slate-300">
+                    <span className={`inline-flex items-center gap-1.5 ${
+                      typeof selectedCall.diasRestantes === 'number' && selectedCall.diasRestantes <= URGENT_DAYS ? 'text-amber-300 font-semibold' : ''
+                    }`}>
+                      <CalendarClock className="w-4 h-4 shrink-0" />
+                      {closingText(selectedCall)}
+                    </span>
+                    {selectedCall.alcance && (
+                      <span className="inline-flex items-center gap-1.5">
+                        <MapPin className="w-4 h-4 shrink-0 text-slate-400" />
+                        {selectedCall.alcance}
+                      </span>
+                    )}
+                    {selectedCall.tope_aprox && (
+                      <span className="inline-flex items-center gap-1.5">
+                        <Coins className="w-4 h-4 shrink-0 text-slate-400" />
+                        {selectedCall.tope_aprox}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {selectedCall.url && (
+                  <a
+                    href={selectedCall.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-600 text-sm font-semibold text-slate-100 hover:bg-slate-800 hover:border-slate-500 transition-colors shrink-0"
+                  >
+                    Ver bases en CORFO
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
                 )}
-                <span>Ver las {totalOpen > 0 ? totalOpen : ''} convocatorias abiertas →</span>
-              </button>
-
-              {/* Botón Secundario: ¿A cuáles califico? Descúbrelo en 1 minuto */}
-              <button
-                onClick={onScrollToAssistant}
-                className="px-5 sm:px-6 py-3.5 sm:py-4 rounded-2xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 hover:text-white font-bold text-xs sm:text-sm transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2 border border-slate-700/80 w-full sm:w-auto"
-              >
-                <Sparkles className="w-4 h-4 text-cyan-400" />
-                <span>¿A cuáles califico? Descúbrelo en 1 minuto</span>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-              </button>
-            </div>
+              </div>
+            )}
           </div>
         )}
 
+        {/* Acciones */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          {!hasNoData && !loading && (
+            <button
+              onClick={onViewAllConvocatorias}
+              className="monitor-cta group relative inline-flex items-center justify-center gap-2.5 px-7 sm:px-8 py-4 rounded-2xl text-[#04131c] font-black text-base shadow-[0_0_32px_rgba(34,211,238,0.35)] hover:shadow-[0_0_44px_rgba(34,211,238,0.55)] active:scale-[0.98] transition-shadow cursor-pointer w-full sm:w-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#0D182E]"
+            >
+              <span>Ver las {totalOpen} convocatorias<span className="hidden sm:inline"> abiertas</span></span>
+              <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
+            </button>
+          )}
+          <button
+            onClick={onScrollToAssistant}
+            className={`inline-flex items-center justify-center gap-2 px-6 py-4 rounded-2xl font-bold text-sm transition-colors cursor-pointer w-full sm:w-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
+              hasNoData
+                ? 'bg-cyan-400 hover:bg-cyan-300 text-slate-950'
+                : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-100 border border-slate-700/80'
+            }`}
+          >
+            <Sparkles className={`w-4 h-4 ${hasNoData ? '' : 'text-cyan-300'}`} />
+            <span>¿A cuáles califico?<span className="hidden sm:inline"> Descúbrelo en 1 minuto</span></span>
+            <ChevronDown className="w-4 h-4 opacity-70" />
+          </button>
+        </div>
       </div>
     </section>
   );

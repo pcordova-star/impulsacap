@@ -17,3 +17,36 @@
     animation: none !important;
   }
 }
+
+/* Botón principal del monitor: relleno cian→esmeralda con un brillo que recorre el borde */
+@property --monitor-cta-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+.monitor-cta {
+  border: 2px solid transparent;
+  background:
+    linear-gradient(100deg, #22d3ee, #34d399) padding-box,
+    conic-gradient(from var(--monitor-cta-angle), #22d3ee 0deg, #ffffff 40deg, #22d3ee 80deg, #34d399 200deg, #22d3ee 360deg) border-box;
+  animation: monitorCtaSpin 3.2s linear infinite;
+}
+@keyframes monitorCtaSpin {
+  to { --monitor-cta-angle: 360deg; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .monitor-cta { animation: none; }
+}
+
+/* Barrido tipo radar sobre la línea de tiempo del monitor */
+.monitor-sweep {
+  left: -5rem;
+  animation: monitorSweep 7s linear infinite;
+}
+@keyframes monitorSweep {
+  0% { left: -5rem; }
+  70%, 100% { left: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .monitor-sweep { display: none; }
+}
