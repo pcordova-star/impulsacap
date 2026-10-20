@@ -14,8 +14,25 @@ import { CHILEAN_FUNDS } from './src/data/chileanFunds';
 import { evaluateChileanGrantMatch, isNonActivityQuery, normalizeText } from './src/utils/grantMatcher';
 import { calculateDaysRemaining } from './src/utils/convocatorias';
 import { validateRut, formatRut } from './src/utils/rutValidator';
+import rateLimit from 'express-rate-limit';
+import { 
+  extractTaxFolderData, 
+  isValidTaxRut, 
+  isValidTaxCompanyName, 
+  isValidTaxSales, 
+  parseNumberCLP 
+} from './server/taxFolderExtractor';
 
 dotenv.config();
+
+// Registrar errores no controlados sin detener el servidor (Requirement 5)
+process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
+  console.error('[Unhandled Rejection] Promesa no manejada:', promise, 'Motivo:', reason?.message || reason);
+});
+
+process.on('uncaughtException', (err: Error) => {
+  console.error('[Uncaught Exception] Excepción no capturada:', err?.message || err, err?.stack);
+});
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,8 +40,35 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+// Límite de express.json: 15mb para subida de Carpeta Tributaria / F29 y 2mb en general (Requirement 7)
+app.use('/api/gemini/parse-tax-folder', express.json({ limit: '15mb' }));
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ limit: '2mb', extended: true }));
+
+// Límite de solicitudes con respuesta en español (Requirement 6)
+const instantMatchLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  statusCode: 429,
+  message: { error: 'Demasiadas solicitudes de análisis rápido desde tu IP. Por favor, espera un minuto antes de reintentar.' }
+});
+
+const generalGeminiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  statusCode: 429,
+  keyGenerator: (req: any) => {
+    return req.user?.uid || req.ip || 'anonymous';
+  },
+  message: { error: 'Has alcanzado el límite de 30 consultas de IA por minuto. Por favor, espera un momento antes de continuar.' }
+});
+
+app.use('/api/gemini/instant-match', instantMatchLimiter);
+app.use('/api/gemini', generalGeminiLimiter);
 
 // Shared Gemini client utility (User-Agent header required for telemetry)
 const apiKey = process.env.GEMINI_API_KEY || '';
@@ -478,84 +522,6 @@ Responde ÚNICAMENTE en JSON con este formato estricto:
 });
 
 
-// Parser determinista de respaldo para Carpeta Tributaria Electrónica SII (PDF o texto)
-function parseSiiText(text: string, fileName?: string) {
-  const clean = text.replace(/\r\n/g, '\n');
-
-  // Extraer RUT
-  const rutMatch = clean.match(/(?:R\.?U\.?T\.?|Rol\s+Único\s+Tributario)\s*[:.]?\s*([0-9]{1,2}\.?[0-9]{3}\.?[0-9]{3}-?[0-9kK])/i);
-  let rut = rutMatch ? rutMatch[1].trim() : '';
-  if (rut && validateRut(rut)) {
-    rut = formatRut(rut);
-  } else if (!rut) {
-    const anyRut = clean.match(/\b([0-9]{7,8}-[0-9kK])\b/i);
-    if (anyRut && validateRut(anyRut[1])) {
-      rut = formatRut(anyRut[1]);
-    }
-  }
-
-  // Extraer Razón Social
-  const nameMatch = clean.match(/(?:Razón\s+Social|Nombre\s+o\s+Razón\s+Social)\s*[:.]?\s*([^\n\r]+)/i);
-  let companyName = nameMatch ? nameMatch[1].trim().replace(/\s+/g, ' ') : '';
-  if (!companyName || companyName.length < 3) {
-    companyName = fileName ? fileName.replace(/\.[^/.]+$/, '').replace(/[_.-]+/g, ' ') : 'Mi Empresa SpA';
-  }
-
-  // Tipo societario
-  let companyType: 'spa' | 'srl' | 'eirl' | 'sa' | 'persona_natural' = 'spa';
-  const lowerText = (companyName + ' ' + clean).toLowerCase();
-  if (lowerText.includes('spa') || lowerText.includes('por acciones')) companyType = 'spa';
-  else if (lowerText.includes('eirl') || lowerText.includes('individual de responsabilidad')) companyType = 'eirl';
-  else if (lowerText.includes('limitada') || lowerText.includes('ltda') || lowerText.includes('srl')) companyType = 'srl';
-  else if (lowerText.includes('s.a.') || lowerText.includes('sociedad anonima')) companyType = 'sa';
-  else if (lowerText.includes('persona natural')) companyType = 'persona_natural';
-
-  // Código de Verificación
-  const codeMatch = clean.match(/(?:Código\s+de\s+Verificación|Cod\.\s*Verif(?:icación)?)\s*[:.]?\s*([A-Za-z0-9]{6,16})/i);
-  const verificationCode = codeMatch ? codeMatch[1].trim() : 'SII' + Math.random().toString(36).substring(2, 8).toUpperCase();
-
-  // Fecha Inicio de Actividades
-  const dateMatch = clean.match(/(?:Inicio\s+de\s+Actividades|Fecha\s+Inicio)\s*[:.]?\s*([0-9]{2}[-/][0-9]{2}[-/][0-9]{4})/i);
-  let monthsActive = 18;
-  if (dateMatch) {
-    const parts = dateMatch[1].split(/[-/]/);
-    const startDate = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
-    const now = new Date();
-    const diffMonths = (now.getFullYear() - startDate.getFullYear()) * 12 + (now.getMonth() - startDate.getMonth());
-    if (diffMonths > 0) monthsActive = diffMonths;
-  }
-
-  // Ventas Netas del periodo F29
-  const salesMatches = [...clean.matchAll(/(?:Total\s+Ventas|Ventas\s+Netas|Facturación|Base\s+Imponible)[^\d]*([0-9]{1,3}(?:\.[0-9]{3})*)/gi)];
-  let annualSalesCLP = 0;
-  if (salesMatches.length > 0) {
-    const rawNum = salesMatches[salesMatches.length - 1][1].replace(/\./g, '');
-    annualSalesCLP = parseInt(rawNum, 10) || 0;
-  }
-
-  let salesBracket: 'sin_ventas' | 'menor_60m' | 'micro_200_a_2400uf' | 'pequena_2400_a_25000uf' | 'mediana_25000_a_100000uf' = 'sin_ventas';
-  if (annualSalesCLP === 0) salesBracket = 'sin_ventas';
-  else if (annualSalesCLP <= 60000000) salesBracket = 'menor_60m';
-  else if (annualSalesCLP <= 950000000) salesBracket = 'pequena_2400_a_25000uf';
-  else salesBracket = 'mediana_25000_a_100000uf';
-
-  return {
-    rut: rut || '76.845.920-K',
-    companyName: companyName || 'Mi Empresa SpA',
-    companyType,
-    monthsActive,
-    annualSalesCLP,
-    salesBracket,
-    hasMissingF29: false,
-    siiStatusObservations: `Carpeta Tributaria Electrónica validada exitosamente. Inicio de actividades en 1ª Categoría con ${monthsActive} meses de antigüedad.`,
-    admissibilityVerdict: '100% Admisible para Fondos CORFO y SERCOTEC',
-    bestFitFundRecommendation: annualSalesCLP > 0 ? 'CORFO Semilla Expande / Sercotec Crece' : 'CORFO Semilla Inicia / Sercotec Emprende',
-    periodsFound: 12,
-    verificationCode,
-    firstCategory: true
-  };
-}
-
 // 0.1 Lector Inteligente de Carpeta Tributaria Electrónica SII (PDF o Texto)
 app.post('/api/gemini/parse-tax-folder', requireAuth, async (req, res) => {
   try {
@@ -577,8 +543,9 @@ app.post('/api/gemini/parse-tax-folder', requireAuth, async (req, res) => {
       extractedText = rawText;
     }
 
-    // Build reliable deterministic base from extracted text
-    const deterministicData = parseSiiText(extractedText || rawText || '', fileName);
+    // Extracción determinista de base sin valores inventados (Requirement 1, 2, 3)
+    const deterministicData = extractTaxFolderData(extractedText || rawText || '', fileName);
+    let finalResult: any = { ...deterministicData, analizadoCon: 'sii-parser' };
 
     // Try Gemini AI enhancement if available
     try {
@@ -593,31 +560,29 @@ app.post('/api/gemini/parse-tax-folder', requireAuth, async (req, res) => {
             },
           },
           {
-            text: `Analiza esta Carpeta Tributaria Electrónica SII (${fileName || 'documento'}). Extrae RUT de la empresa con guión y dígito verificador, Razón Social oficial completa, inicio de actividades, tipo societario ('spa'|'srl'|'eirl'|'sa'|'persona_natural') y facturación anual F29 en CLP.`,
+            text: `Analiza esta Carpeta Tributaria Electrónica SII (${fileName || 'documento'}). Extrae con exactitud legal y sin inventar datos: RUT, Razón Social oficial completa (sin palabras de encabezado), inicio de actividades, tipo societario ('spa'|'srl'|'eirl'|'sa'|'persona_natural'), periodos F29 y facturación anual en CLP.`,
           },
         ];
       } else {
         contents = `Analiza la siguiente información de Carpeta Tributaria Electrónica / F29 del SII de Chile:${(extractedText || rawText || '').slice(0, 15000)}`;
       }
 
-      const systemInstruction = `Eres un auditor tributario y analista de admisibilidad experto en el Servicio de Impuestos Internos de Chile (SII) y fondos concursables (CORFO, SERCOTEC, ANID).
-Analiza el documento o texto de la "Carpeta Tributaria Electrónica para Solicitar Créditos / Subsidios" o Formulario 29 del SII.
-Extrae los datos tributarios oficiales de la empresa con exactitud matemática y legal.
-Responde ÚNICAMENTE un JSON con este formato estricto:
+      const systemInstruction = `Eres un analista tributario experto en el SII de Chile. Analiza la Carpeta Tributaria o Formulario 29.
+REGLAS ESTRICTAS DE EXTRACCIÓN (NO INVENTAR DATOS):
+1. 'rut': solo si es un RUT válido con dígito verificador módulo 11. Si no lo encuentras o no es válido, responde "".
+2. 'companyName': Razón Social oficial limpia. PROHIBIDO incluir encabezados o etiquetas como "RUT", "Fecha", "Forma de actuación", "Nombre", "Incorporación" o "Actividad". Debe tener al menos 3 letras. Si no la encuentras, responde "".
+3. 'annualSalesCLP': Ventas netas acumuladas de los últimos 12 meses solo si son superiores a $1.000 CLP. Si no hay ventas o no se detecta, responde 0.
+4. 'companyType': 'spa'|'srl'|'eirl'|'sa'|'persona_natural' solo si está explícito o deducible legalmente. Si no, responde "".
+5. 'startDate': Fecha de inicio de actividades (DD/MM/AAAA) si aparece. Si no, "".
+6. 'periodsFound': Número entero de periodos F29 identificados en el texto.
+Responde ÚNICAMENTE un JSON con:
 {
-  "rut": "XX.XXX.XXX-X",
-  "companyName": "Razón Social Oficial",
-  "companyType": "spa",
-  "monthsActive": 18,
-  "annualSalesCLP": 25000000,
-  "salesBracket": "menor_60m",
-  "hasMissingF29": false,
-  "siiStatusObservations": "Inicio de actividades en 1ª Categoría vigente. 12 periodos F29 declarados y pagados sin morosidad ante la TGR.",
-  "admissibilityVerdict": "100% Admisible para Fondos CORFO y SERCOTEC",
-  "bestFitFundRecommendation": "CORFO Semilla Inicia / Expande",
-  "periodsFound": 12,
-  "verificationCode": "9B8F21A47C",
-  "firstCategory": true
+  "rut": "",
+  "companyName": "",
+  "companyType": "",
+  "startDate": "",
+  "annualSalesCLP": 0,
+  "periodsFound": 0
 }`;
 
       const aiResponse = await ai.models.generateContent({
@@ -633,17 +598,96 @@ Responde ÚNICAMENTE un JSON con este formato estricto:
       const text = aiResponse.text || '';
       if (text) {
         const parsed = JSON.parse(text);
-        if (parsed.rut && validateRut(parsed.rut)) {
-          parsed.rut = formatRut(parsed.rut);
+
+        // Requirement 1: Validación estricta antes de usar el dato de la IA (no mezclar a ciegas)
+        const finalRut = isValidTaxRut(parsed.rut)
+          ? formatRut(parsed.rut)
+          : (isValidTaxRut(deterministicData.rut) ? formatRut(deterministicData.rut) : '');
+
+        const finalCompanyName = isValidTaxCompanyName(parsed.companyName)
+          ? parsed.companyName.trim()
+          : (isValidTaxCompanyName(deterministicData.companyName) ? deterministicData.companyName.trim() : '');
+
+        const finalSales = isValidTaxSales(parsed.annualSalesCLP)
+          ? parseNumberCLP(parsed.annualSalesCLP)
+          : (isValidTaxSales(deterministicData.annualSalesCLP) ? deterministicData.annualSalesCLP : 0);
+
+        const allowedTypes = ['spa', 'srl', 'eirl', 'sa', 'persona_natural'];
+        const finalCompanyType = (parsed.companyType && allowedTypes.includes(parsed.companyType))
+          ? parsed.companyType
+          : (deterministicData.companyType || '');
+
+        const finalStartDate = parsed.startDate && /^\d{2}[-/]\d{2}[-/]\d{4}$/.test(parsed.startDate)
+          ? parsed.startDate
+          : deterministicData.startDate;
+
+        let finalMonthsActive = deterministicData.monthsActive;
+        if (finalStartDate && finalMonthsActive === null) {
+          const parts = finalStartDate.split(/[-/]/);
+          if (parts.length === 3) {
+            const m = parseInt(parts[1], 10);
+            const y = parseInt(parts[2], 10);
+            if (!isNaN(y) && !isNaN(m)) {
+              const now = new Date();
+              finalMonthsActive = Math.max(0, (now.getFullYear() - y) * 12 + (now.getMonth() + 1 - m));
+            }
+          }
         }
-        return res.json({ ...deterministicData, ...parsed, analizadoCon: 'ia' });
+
+        const finalPeriodsFound = typeof parsed.periodsFound === 'number' && parsed.periodsFound >= 0
+          ? parsed.periodsFound
+          : deterministicData.periodsFound;
+
+        let finalSalesBracket = '';
+        if (finalSales > 0) {
+          if (finalSales < 60000000) finalSalesBracket = 'menor_60m';
+          else if (finalSales / 39000 < 2400) finalSalesBracket = 'micro_200_a_2400uf';
+          else if (finalSales / 39000 < 25000) finalSalesBracket = 'pequena_2400_a_25000uf';
+          else if (finalSales / 39000 < 100000) finalSalesBracket = 'mediana_25000_a_100000uf';
+          else finalSalesBracket = 'grande_mayor_100000uf';
+        } else if (finalPeriodsFound > 0) {
+          finalSalesBracket = 'sin_ventas';
+        }
+
+        // Resumen que SOLO describe lo que efectivamente se leyó (sin frases inventadas de TGR ni 100% admisible)
+        const descParts: string[] = [];
+        if (finalRut) descParts.push(`RUT: ${finalRut}`);
+        if (finalCompanyName) descParts.push(`Razón Social: ${finalCompanyName}`);
+        if (finalStartDate) descParts.push(`Inicio actividades: ${finalStartDate}${finalMonthsActive !== null ? ` (${finalMonthsActive} meses)` : ''}`);
+        if (finalPeriodsFound > 0) descParts.push(`${finalPeriodsFound} periodo(s) F29 detectado(s)`);
+        if (finalSales > 1000) {
+          descParts.push(`Ventas 12 meses: $${finalSales.toLocaleString('es-CL')} CLP`);
+        } else if (finalPeriodsFound > 0) {
+          descParts.push('Sin registro de ventas en los periodos informados');
+        }
+
+        const siiStatusObservations = descParts.length > 0
+          ? `Datos leídos de la Carpeta Tributaria: ${descParts.join(' | ')}.`
+          : 'No se detectaron datos tributarios legibles en el documento cargado.';
+
+        finalResult = {
+          rut: finalRut,
+          companyName: finalCompanyName,
+          companyType: finalCompanyType,
+          startDate: finalStartDate,
+          monthsActive: finalMonthsActive,
+          annualSalesCLP: finalSales,
+          salesBracket: finalSalesBracket,
+          periodsFound: finalPeriodsFound,
+          hasMissingF29: deterministicData.hasMissingF29,
+          siiStatusObservations,
+          admissibilityVerdict: descParts.length > 0 ? 'Datos tributarios extraídos' : 'Lectura pendiente',
+          bestFitFundRecommendation: deterministicData.bestFitFundRecommendation,
+          verificationCode: deterministicData.verificationCode,
+          firstCategory: Boolean(finalStartDate || finalRut),
+          analizadoCon: 'ia'
+        };
       }
     } catch (aiErr: any) {
       console.warn('Gemini enhancement unavailable for parse-tax-folder, using high-precision parser:', aiErr?.message);
     }
 
-    // Always succeed with deterministic extraction if AI is unavailable or depleted
-    return res.json({ ...deterministicData, analizadoCon: 'sii-parser' });
+    return res.json(finalResult);
   } catch (error: any) {
     console.error('Error in /api/gemini/parse-tax-folder:', error?.message);
     return res.status(503).json({ error: 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.' });
@@ -1243,16 +1287,32 @@ app.post('/api/pagos/webhook', async (req, res) => {
       return res.status(200).send('OK');
     }
 
-    // Verificación estricta: moneda CLP y monto 19990 o 39990
-    if (paymentInfo.currency_id !== 'CLP') {
-      console.warn(`Payment ${paymentId} rechazado: currency_id inválido (${paymentInfo.currency_id})`);
-      return res.status(400).json({ error: 'Moneda inválida' });
-    }
-
+    // Verificación estricta (Requirement 8): moneda CLP y monto 19990 o 39990
     const transactionAmount = Number(paymentInfo.transaction_amount);
-    if (transactionAmount !== 19990 && transactionAmount !== 39990) {
-      console.warn(`Payment ${paymentId} rechazado: transaction_amount inválido (${transactionAmount})`);
-      return res.status(400).json({ error: 'Monto de transacción inválido' });
+    const isCurrencyValid = paymentInfo.currency_id === 'CLP';
+    const isAmountValid = transactionAmount === 19990 || transactionAmount === 39990;
+
+    if (!isCurrencyValid || !isAmountValid) {
+      console.warn(`Payment ${paymentId} rechazado_validacion: currency_id=${paymentInfo.currency_id}, amount=${transactionAmount}`);
+      try {
+        if (isFirestoreAdminAuthorized) {
+          const externalRef = paymentInfo.external_reference || '';
+          const uid = externalRef.split(':')[0] || 'unknown';
+          await adminDb.collection('payments').doc(String(paymentId)).set({
+            uid,
+            amount: isNaN(transactionAmount) ? 0 : transactionAmount,
+            currencyId: paymentInfo.currency_id || 'unknown',
+            status: 'rechazado_validacion',
+            rejectedAt: new Date().toISOString(),
+            reason: !isCurrencyValid ? 'Moneda no es CLP' : 'Monto no corresponde a plan oficial (19.990 o 39.990)',
+            externalReference: externalRef
+          }, { merge: true });
+        }
+      } catch (dbErr: any) {
+        console.error('Error al registrar pago rechazado en Firestore:', dbErr?.message);
+      }
+      // Responde 200 (no 400), para que Mercado Pago no reintente indefinidamente
+      return res.status(200).json({ status: 'rechazado_validacion', message: 'Notificación procesada y descartada por validación de monto o moneda.' });
     }
 
     const externalRef = paymentInfo.external_reference || '';

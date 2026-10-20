@@ -4,10 +4,10 @@ import { PDFParse } from 'pdf-parse';
 export interface TaxFolderParsedResult {
   rut: string;
   companyName: string;
-  companyType: 'spa' | 'srl' | 'eirl' | 'sa' | 'persona_natural';
-  monthsActive: number;
+  companyType: 'spa' | 'srl' | 'eirl' | 'sa' | 'persona_natural' | '';
+  monthsActive: number | null;
   annualSalesCLP: number;
-  salesBracket: 'sin_ventas' | 'menor_60m' | 'micro_200_a_2400uf' | 'pequena_2400_a_25000uf' | 'mediana_25000_a_100000uf' | 'grande_mayor_100000uf';
+  salesBracket: 'sin_ventas' | 'menor_60m' | 'micro_200_a_2400uf' | 'pequena_2400_a_25000uf' | 'mediana_25000_a_100000uf' | 'grande_mayor_100000uf' | '';
   hasMissingF29: boolean;
   siiStatusObservations: string;
   admissibilityVerdict: string;
@@ -20,9 +20,11 @@ export interface TaxFolderParsedResult {
 
 const UF_CLP = 39000;
 
-function parseNumberCLP(val: string): number {
+export function parseNumberCLP(val: any): number {
+  if (typeof val === 'number') return Math.round(val);
   if (!val) return 0;
-  const cleaned = val.replace(/[^0-9.,]/g, '').trim();
+  const str = String(val).trim();
+  const cleaned = str.replace(/[^0-9.,]/g, '').trim();
   if (!cleaned) return 0;
   
   if (cleaned.includes('.') && cleaned.includes(',')) {
@@ -44,21 +46,40 @@ function parseNumberCLP(val: string): number {
   return isNaN(num) ? 0 : num;
 }
 
+export function isValidTaxRut(rut: any): boolean {
+  if (!rut || typeof rut !== 'string') return false;
+  return validateRut(rut);
+}
+
+export function isValidTaxCompanyName(name: any): boolean {
+  if (!name || typeof name !== 'string') return false;
+  const trimmed = name.trim();
+  if (trimmed.length < 3) return false;
+  const letters = trimmed.match(/[a-zA-ZáéíóúÁÉÍÓÚñÑ]/g);
+  if (!letters || letters.length < 3) return false;
+  // Sin palabras de encabezado como RUT, Fecha, Forma de actuación, Nombre, Incorporación
+  const forbiddenHeaders = /\b(?:RUT|Fecha|Forma\s+de\s+actuaci[oó]n|Nombre|Incorporaci[oó]n)\b/i;
+  if (forbiddenHeaders.test(trimmed)) return false;
+  return true;
+}
+
+export function isValidTaxSales(sales: any): boolean {
+  const num = parseNumberCLP(sales);
+  return num > 1000;
+}
+
 export function extractTaxFolderData(text: string, fileName?: string): TaxFolderParsedResult {
   const normText = text || '';
   const lines = normText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
 
-  // 1. Extraer RUT
+  // 1. Extraer RUT (solo si es válido módulo 11, sino queda vacío)
   let foundRut = '';
-  // Intento 1: buscar al lado de etiquetas oficiales
   const rutLabelMatch = normText.match(/(?:R\.?U\.?T\.?|RUT|Contribuyente|TITULAR)\s*[:\.\-]?\s*([0-9]{1,2}\.?[0-9]{3}\.?[0-9]{3}-?[0-9kK]|[0-9]{7,8}-?[0-9kK])/i);
-  if (rutLabelMatch && rutLabelMatch[1]) {
-    const cand = rutLabelMatch[1].trim();
-    foundRut = formatRut(cand);
+  if (rutLabelMatch && rutLabelMatch[1] && validateRut(rutLabelMatch[1])) {
+    foundRut = formatRut(rutLabelMatch[1].trim());
   }
 
-  // Intento 2: si no hubo etiqueta o RUT no validado, buscar cualquier RUT en el texto
-  if (!foundRut || !validateRut(foundRut)) {
+  if (!foundRut) {
     const rutMatches = normText.match(/\b([0-9]{1,2}\.?[0-9]{3}\.?[0-9]{3}-?[0-9kK]|[0-9]{7,8}-[0-9kK])\b/gi) || [];
     for (const cand of rutMatches) {
       if (validateRut(cand)) {
@@ -68,52 +89,42 @@ export function extractTaxFolderData(text: string, fileName?: string): TaxFolder
     }
   }
 
-  // Intento 3: nombre de archivo
   if (!foundRut && fileName) {
     const fileRutMatch = fileName.match(/([0-9]{7,8}-?[0-9kK])/i);
-    if (fileRutMatch) {
+    if (fileRutMatch && validateRut(fileRutMatch[1])) {
       foundRut = formatRut(fileRutMatch[1]);
     }
   }
 
-  // 2. Extraer Razón Social
+  // 2. Extraer Razón Social (sin palabras de encabezado y con al menos 3 letras)
   let foundName = '';
   const nameMatch = normText.match(/(?:Raz[oó]n\s+Social|Nombre\s+o\s+Raz[oó]n\s+Social|Nombre\s+del\s+Contribuyente|Nombre\s+Contribuyente)\s*[:\.]?\s*([^\n\r\|;]+)/i);
   if (nameMatch && nameMatch[1]) {
-    foundName = nameMatch[1].trim();
+    let candidate = nameMatch[1].trim();
+    candidate = candidate.replace(/\b(?:FECHA|RUT|ACTIVIDAD|DOMICILIO|C[OÓ]DIGO|INICIO|REGIMEN|FORMA\s+DE\s+ACTUACI[OÓ]N)\b.*/i, '').trim();
+    candidate = candidate.replace(/[;,|]+$/, '').trim();
+    if (isValidTaxCompanyName(candidate)) {
+      foundName = candidate;
+    }
   }
 
   if (!foundName) {
     const altNameMatch = normText.match(/(?:CONTRIBUYENTE|RAZON\s+SOCIAL|TITULAR)\s*[:\.]?\s*([^\n\r\|;]+)/i);
     if (altNameMatch && altNameMatch[1]) {
-      foundName = altNameMatch[1].trim();
+      let candidate = altNameMatch[1].trim();
+      candidate = candidate.replace(/\b(?:FECHA|RUT|ACTIVIDAD|DOMICILIO|C[OÓ]DIGO|INICIO|REGIMEN|FORMA\s+DE\s+ACTUACI[OÓ]N)\b.*/i, '').trim();
+      candidate = candidate.replace(/[;,|]+$/, '').trim();
+      if (isValidTaxCompanyName(candidate)) {
+        foundName = candidate;
+      }
     }
   }
 
-  // Limpiar etiquetas pegadas con límite de palabra \b para no cortar nombres como "FRUTICOLA"
-  if (foundName) {
-    foundName = foundName.replace(/\b(?:FECHA|RUT|ACTIVIDAD|DOMICILIO|C[OÓ]DIGO|INICIO|REGIMEN)\b.*/i, '').trim();
-    foundName = foundName.replace(/[;,|]+$/, '').trim();
-  }
+  // No usar nombres inventados como 'Empresa Contribuyente SpA'. Si no se detecta, queda vacío.
 
-  if (!foundName && fileName) {
-    const cleanFile = fileName
-      .replace(/\.[^/.]+$/, '')
-      .replace(/carpeta_tributaria|carpeta|tributaria|f29|sii|creditos|subsidios/gi, '')
-      .replace(/[_-]/g, ' ')
-      .trim();
-    if (cleanFile.length > 2) {
-      foundName = cleanFile;
-    }
-  }
-
-  if (!foundName) {
-    foundName = 'Empresa Contribuyente SpA';
-  }
-
-  // 3. Extraer Tipo de Empresa
+  // 3. Extraer Tipo de Empresa (solo si se detecta, de lo contrario queda vacío)
   const fullCheck = `${foundName} ${normText}`.toLowerCase();
-  let companyType: TaxFolderParsedResult['companyType'] = 'spa';
+  let companyType: TaxFolderParsedResult['companyType'] = '';
   if (/\b(?:spa|sociedad por acciones)\b/i.test(fullCheck)) {
     companyType = 'spa';
   } else if (/\b(?:eirl|empresario individual|empresa individual)\b/i.test(fullCheck)) {
@@ -131,114 +142,113 @@ export function extractTaxFolderData(text: string, fileName?: string): TaxFolder
     }
   }
 
-  // 4. Fecha de Inicio de Actividades y Meses Activo
-  let startDate = '';
-  let monthsActive = 12;
+  // 4. Fecha de Inicio de Actividades y Antigüedad (sin defaults inventados)
+  let startDate: string | undefined = undefined;
+  let monthsActive: number | null = null;
   const dateMatch = normText.match(/(?:Fecha\s+Inicio\s+Actividades|Inicio\s+de\s+Actividades|INICIO\s+ACTIVIDADES|Inicio\s+Actividades|Fecha\s+de\s+Inicio)\s*[:\.]?\s*([0-3]?[0-9][\/\-.][0-1]?[0-9][\/\-.][1-2][0-9]{3})/i);
   if (dateMatch && dateMatch[1]) {
     startDate = dateMatch[1].trim();
     const parts = startDate.split(/[\/\-.]/);
     if (parts.length === 3) {
-      const day = parseInt(parts[0], 10);
       const month = parseInt(parts[1], 10);
       const year = parseInt(parts[2], 10);
       if (!isNaN(year) && !isNaN(month)) {
         const now = new Date();
         const diff = (now.getFullYear() - year) * 12 + (now.getMonth() + 1 - month);
-        monthsActive = Math.max(1, Math.min(diff, 240));
+        monthsActive = Math.max(0, diff);
       }
     }
   }
 
-  // Contar periodos F29
+  // Contar periodos F29 efectivamente encontrados (sin número fijo de 12)
   const periodMatches = normText.match(/(?:PER[IÍ]ODO|Periodo|F29)\s*(?:TRIBUTARIO)?\s*[:\.]?\s*(?:20\d\d[-/]?\d\d|\d\d[-/]20\d\d|[0-9]{4}-[0-9]{2})/gi) || [];
-  const periodsFound = Math.max(periodMatches.length, normText.includes('F29') ? 12 : 12);
+  const periodsFound = periodMatches.length;
 
-  // 5. Ventas Anuales en CLP
+  // 5. Ventas Anuales en CLP (solo si son mayores a $1.000)
   let annualSalesCLP = 0;
-
-  // Intento A: Total explícito en el documento
   const totalMatch = normText.match(/(?:TOTAL\s+(?:FACTURACI[OÓ]N|VENTAS|DEBITO\s+FISCAL)|VENTAS\s+TOTALES|FACTURACI[OÓ]N\s+TOTAL|TOTAL\s+ANUAL|BASE\s+IMPONIBLE\s+ANUAL|VENTAS\s+NETAS\s+ACUMULADAS)[^:\n]*[:\.]?\s*[\$]?\s*([\d\.\,]+)/i);
   if (totalMatch && totalMatch[1]) {
-    annualSalesCLP = parseNumberCLP(totalMatch[1]);
+    const parsedVal = parseNumberCLP(totalMatch[1]);
+    if (parsedVal > 1000) annualSalesCLP = parsedVal;
   }
 
-  // Intento B: Sumar periodos mensuales F29 individuales si no hay total explícito
   if (annualSalesCLP === 0) {
     let sumMonthly = 0;
-    let foundMonths = 0;
     for (const line of lines) {
       const monthlyMatch = line.match(/(?:VENTAS\s+NETAS\s+AFECTAS|VENTAS\s+NETAS|BASE\s+IMPONIBLE|C[OÓ]DIGO\s+538|C[OÓ]D\.\s*538)\s*[:\.]?\s*[\$]?\s*([\d\.\,]+)/i);
       if (monthlyMatch && monthlyMatch[1]) {
         const val = parseNumberCLP(monthlyMatch[1]);
-        if (val > 0) {
-          sumMonthly += val;
-          foundMonths++;
-        }
+        if (val > 0) sumMonthly += val;
       }
     }
-    if (foundMonths > 0) {
-      annualSalesCLP = sumMonthly;
-    }
+    if (sumMonthly > 1000) annualSalesCLP = sumMonthly;
   }
 
   // 6. Tramo de ventas
-  let salesBracket: TaxFolderParsedResult['salesBracket'] = 'sin_ventas';
-  if (annualSalesCLP <= 0) {
-    salesBracket = 'sin_ventas';
-  } else if (annualSalesCLP < 60000000) {
-    salesBracket = 'menor_60m';
-  } else {
-    const ufVal = annualSalesCLP / UF_CLP;
-    if (ufVal < 2400) {
-      salesBracket = 'micro_200_a_2400uf';
-    } else if (ufVal < 25000) {
-      salesBracket = 'pequena_2400_a_25000uf';
-    } else if (ufVal < 100000) {
-      salesBracket = 'mediana_25000_a_100000uf';
+  let salesBracket: TaxFolderParsedResult['salesBracket'] = '';
+  if (annualSalesCLP > 0) {
+    if (annualSalesCLP < 60000000) {
+      salesBracket = 'menor_60m';
     } else {
-      salesBracket = 'grande_mayor_100000uf';
+      const ufVal = annualSalesCLP / UF_CLP;
+      if (ufVal < 2400) {
+        salesBracket = 'micro_200_a_2400uf';
+      } else if (ufVal < 25000) {
+        salesBracket = 'pequena_2400_a_25000uf';
+      } else if (ufVal < 100000) {
+        salesBracket = 'mediana_25000_a_100000uf';
+      } else {
+        salesBracket = 'grande_mayor_100000uf';
+      }
     }
+  } else if (periodsFound > 0) {
+    salesBracket = 'sin_ventas';
   }
 
-  // 7. Código Verificador
-  let verificationCode: string | undefined;
+  // 7. Código Verificador (solo si existe en el texto, no inventar)
+  let verificationCode: string | undefined = undefined;
   const verifMatch = normText.match(/(?:C[OÓ]DIGO\s+(?:DE\s+)?VERIFICACI[OÓ]N|C[OÓ]DIGO\s+VERIFICADOR)\s*[:\.]?\s*([A-Za-z0-9\-]+)/i);
   if (verifMatch && verifMatch[1]) {
     verificationCode = verifMatch[1].trim();
   }
 
-  // 8. Inconsistencias F29 o Deudas TGR
-  const hasMissingF29 = /(?:NO\s+DECLARADO|FUERA\s+DE\s+PLAZO|IMPAGO|MOROSIDAD\s+TGR\s*:\s*REGISTRA|DEUDA\s+TRIBUTARIA\s*:\s*REGISTRA)/i.test(normText);
+  // 8. Inconsistencias F29
+  const hasMissingF29 = /(?:NO\s+DECLARADO|FUERA\s+DE\s+PLAZO|IMPAGO)/i.test(normText);
 
-  // 9. Observaciones y Dictamen de Admisibilidad
-  let admissibilityVerdict = '100% Admisible para Fondos CORFO y SERCOTEC';
-  let siiStatusObservations = '';
-
-  if (hasMissingF29) {
-    admissibilityVerdict = 'Observaciones F29 Detectadas';
-    siiStatusObservations = 'Alerta de admisibilidad: Se detectaron periodos con declaraciones pendientes o inconsistencias en F29 ante el SII.';
-  } else {
-    const ventasTexto = annualSalesCLP > 0
-      ? `Facturación anual acreditada de $${annualSalesCLP.toLocaleString('es-CL')} CLP (~${Math.round(annualSalesCLP / UF_CLP)} UF).`
-      : 'Sin ventas registradas en el periodo (etapa inicial o pre-comercial).';
-    siiStatusObservations = `Carpeta Tributaria SII oficial validada. Inicio de 1ª Categoría acreditado (${monthsActive} meses). ${ventasTexto} Sin morosidades tributarias registradas ante la TGR.`;
+  // 9. Observaciones: solo describe lo que efectivamente se leyó (sin frases inventadas sobre TGR ni 100% admisible)
+  const descParts: string[] = [];
+  if (foundRut) descParts.push(`RUT: ${foundRut}`);
+  if (foundName) descParts.push(`Razón Social: ${foundName}`);
+  if (startDate) descParts.push(`Inicio de actividades: ${startDate}${monthsActive !== null ? ` (${monthsActive} meses)` : ''}`);
+  if (periodsFound > 0) descParts.push(`${periodsFound} periodo(s) F29 detectado(s)`);
+  if (annualSalesCLP > 1000) {
+    descParts.push(`Ventas 12 meses: $${annualSalesCLP.toLocaleString('es-CL')} CLP`);
+  } else if (periodsFound > 0) {
+    descParts.push('Sin registro de ventas en los periodos informados');
   }
 
-  // 10. Recomendación de fondo óptimo
-  let bestFitFundRecommendation = 'CORFO Semilla Inicia / Expande';
+  const siiStatusObservations = descParts.length > 0
+    ? `Datos leídos de la Carpeta Tributaria: ${descParts.join(' | ')}.`
+    : 'No se detectaron datos tributarios legibles en el documento cargado.';
+
+  const admissibilityVerdict = hasMissingF29
+    ? 'Observaciones en F29 detectadas'
+    : (descParts.length > 0 ? 'Datos tributarios extraídos' : 'Lectura pendiente');
+
+  // 10. Recomendación referencial de fondo
+  let bestFitFundRecommendation = '';
   if (salesBracket === 'sin_ventas') {
     bestFitFundRecommendation = 'CORFO Semilla Inicia / SERCOTEC Capital Semilla o Abeja';
   } else if (salesBracket === 'menor_60m') {
     bestFitFundRecommendation = 'CORFO Semilla Inicia / Expande / SERCOTEC Crece';
   } else if (salesBracket === 'micro_200_a_2400uf' || salesBracket === 'pequena_2400_a_25000uf') {
     bestFitFundRecommendation = 'SERCOTEC Crece / CORFO Crea y Valida';
-  } else {
+  } else if (salesBracket) {
     bestFitFundRecommendation = 'CORFO Innova Alta Tecnología / Crédito CORFO';
   }
 
   return {
-    rut: foundRut || '77.842.109-K',
+    rut: foundRut,
     companyName: foundName,
     companyType,
     monthsActive,
@@ -249,9 +259,9 @@ export function extractTaxFolderData(text: string, fileName?: string): TaxFolder
     admissibilityVerdict,
     bestFitFundRecommendation,
     periodsFound,
-    verificationCode: verificationCode || 'SII-VERIF-OK',
-    firstCategory: true,
-    startDate: startDate || undefined,
+    verificationCode,
+    firstCategory: Boolean(startDate || foundRut),
+    startDate,
   };
 }
 

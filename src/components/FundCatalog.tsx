@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ChileanFund, Agency, getFundVisibleStatus } from '../types/funds';
+import { Convocatoria } from '../types/convocatoria';
 import { CHILEAN_FUNDS } from '../data/chileanFunds';
 import { 
   Search, 
@@ -21,12 +22,14 @@ import { getGoogleCalendarUrl } from '../utils/calendarExport';
 
 interface FundCatalogProps {
   funds?: ChileanFund[];
+  convocatorias?: Convocatoria[];
   onSelectFundToFormulate: (fund: ChileanFund) => void;
   onSelectFundToViewDocs: (fund: ChileanFund) => void;
 }
 
 export const FundCatalog: React.FC<FundCatalogProps> = ({
   funds = CHILEAN_FUNDS,
+  convocatorias = [],
   onSelectFundToFormulate,
   onSelectFundToViewDocs
 }) => {
@@ -64,42 +67,46 @@ export const FundCatalog: React.FC<FundCatalogProps> = ({
   });
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-black text-white tracking-tight">
-            Catálogo Oficial de Fondos Concursables Chile 2026
-          </h2>
-          <p className="text-sm text-slate-400 mt-1">
-            Bases administrativas, topes presupuestarios, criterios de evaluación y gastos elegibles actualizados.
-          </p>
+    <div className="space-y-6 animate-fade-in max-w-6xl mx-auto">
+      {/* Header Banner */}
+      <div className="p-6 sm:p-8 rounded-3xl bg-white border border-slate-200 shadow-sm relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-blue-50/70 to-transparent rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1.5">
+            <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 font-mono text-[10px] font-bold tracking-wider">
+              PROGRAMAS DEL ESTADO
+            </span>
+            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+              Catálogo de Fondos Concursables Chile 2026
+            </h1>
+            <p className="text-xs text-slate-600 max-w-2xl leading-relaxed">
+              Bases administrativas, topes de subsidio, cuentas presupuestarias aprobadas y criterios oficiales de evaluación para postular a fondos públicos.
+            </p>
+          </div>
         </div>
       </div>
 
       {/* Filters & Search */}
-      <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
+      <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3.5">
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Buscar por nombre, palabra clave o sector (ej: software, I+D, ventas, agro)..."
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-sm focus:border-cyan-500 focus:outline-none placeholder:text-slate-500 placeholder:italic"
+              className="w-full pl-10 pr-4 py-2 text-xs rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-hidden focus:bg-white focus:border-blue-500 placeholder:text-slate-400"
             />
           </div>
 
           {/* Agency Filter on Mobile: Native Select; on Desktop: Pills */}
           <div className="sm:hidden w-full">
-            <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-              Organismo:
-            </label>
             <select
               value={selectedAgency}
               onChange={(e) => setSelectedAgency(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs font-semibold focus:border-cyan-500 focus:outline-none"
+              className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 border border-slate-200 text-slate-800 font-semibold focus:outline-hidden"
             >
               {agencies.map((agency) => (
                 <option key={agency.id} value={agency.id}>
@@ -114,10 +121,10 @@ export const FundCatalog: React.FC<FundCatalogProps> = ({
               <button
                 key={agency.id}
                 onClick={() => setSelectedAgency(agency.id)}
-                className={`px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                   selectedAgency === agency.id
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
-                    : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200'
                 }`}
               >
                 {agency.label}
@@ -127,14 +134,11 @@ export const FundCatalog: React.FC<FundCatalogProps> = ({
         </div>
 
         {/* Category: Native select on mobile, Pills on desktop */}
-        <div className="sm:hidden w-full pt-1">
-          <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-            Categoría:
-          </label>
+        <div className="sm:hidden w-full">
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
-            className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs font-semibold focus:border-cyan-500 focus:outline-none"
+            className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 border border-slate-200 text-slate-800 font-semibold focus:outline-hidden"
           >
             {categories.map((cat) => (
               <option key={cat} value={cat}>
@@ -144,16 +148,16 @@ export const FundCatalog: React.FC<FundCatalogProps> = ({
           </select>
         </div>
 
-        <div className="hidden sm:flex items-center gap-2 overflow-x-auto no-scrollbar pt-1 border-t border-slate-800/60 text-xs">
-          <span className="text-slate-500 font-medium">Categoría:</span>
+        <div className="hidden sm:flex items-center gap-2 overflow-x-auto no-scrollbar pt-1 border-t border-slate-100 text-xs">
+          <span className="text-slate-400 font-medium text-[11px]">Categoría:</span>
           {categories.map((cat) => (
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
-              className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                 selectedCategory === cat
-                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'bg-blue-50 text-blue-700 font-bold border border-blue-200'
+                  : 'text-slate-500 hover:text-slate-800'
               }`}
             >
               {cat === 'ALL' ? 'Todas' : cat}
@@ -163,129 +167,139 @@ export const FundCatalog: React.FC<FundCatalogProps> = ({
       </div>
 
       {/* Funds Accordion / Cards List */}
-      <div className="space-y-4">
+      <div className="space-y-3.5">
         {filteredFunds.map((fund) => {
           const isExpanded = expandedFundId === fund.id;
+          const matchingCall = convocatorias.find(c => 
+            c.vigente && (c.fundId === fund.id || (c.programa && fund.name.toLowerCase().includes(c.programa.toLowerCase())))
+          );
+          const hasOpenCall = Boolean(matchingCall) || fund.callStatus === 'abierta';
 
           return (
             <div
               key={fund.id}
-              className={`rounded-2xl border transition-all ${
+              className={`rounded-3xl border transition-all ${
                 isExpanded
-                  ? 'bg-slate-900 border-blue-600/40 shadow-xl'
-                  : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
+                  ? 'bg-white border-blue-300 shadow-md ring-2 ring-blue-500/10'
+                  : 'bg-white border-slate-200 hover:border-slate-300 shadow-xs'
               }`}
             >
               {/* Header Bar */}
               <div
                 onClick={() => setExpandedFundId(isExpanded ? null : fund.id)}
-                className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer select-none"
+                className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer select-none"
               >
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 flex flex-col items-center justify-center shrink-0">
-                    <span className="text-[10px] font-black uppercase text-slate-400">{fund.agency}</span>
-                    <span className="text-xs font-bold text-cyan-400">{fund.maxCoFinancePct}%</span>
+                <div className="flex items-start gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 flex flex-col items-center justify-center shrink-0">
+                    <span className="text-[10px] font-black uppercase text-slate-500">{fund.agency}</span>
+                    <span className="text-xs font-bold text-blue-700">{fund.maxCoFinancePct}%</span>
                   </div>
 
                   <div>
                     <div className="flex flex-wrap items-center gap-2 mb-1">
-                      <span className="text-xs font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-300">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-800 text-white font-mono">
                         {fund.agency}
                       </span>
-                      <span className="text-xs font-medium px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
                         {fund.category}
                       </span>
-                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                        getFundVisibleStatus(fund) === 'Abierta'
-                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                          : getFundVisibleStatus(fund) === 'Cerrada'
-                          ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                          : 'bg-slate-800 text-slate-400 border border-slate-700'
-                      }`}>
-                        ● {getFundVisibleStatus(fund)}
-                      </span>
+
+                      {/* Open Call Indicator (Requirement 1) */}
+                      {hasOpenCall ? (
+                        <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 flex items-center gap-1.5 shadow-2xs">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          <span>Convocatoria abierta {matchingCall?.diasRestantes !== undefined ? `(${matchingCall.diasRestantes} días)` : ''}</span>
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-medium px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
+                          ⚪ Sin convocatoria abierta (referencial)
+                        </span>
+                      )}
+
                       {fund.femaleBonusPct && (
-                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-pink-500/10 text-pink-300 border border-pink-500/20">
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-pink-50 text-pink-700 border border-pink-200">
                           +{fund.femaleBonusPct}% Bono Mujer
                         </span>
                       )}
                     </div>
 
-                    <h3 className="text-lg font-bold text-white group-hover:text-cyan-300">
+                    <h3 className="text-base sm:text-lg font-bold text-slate-900 group-hover:text-blue-700">
                       {fund.name}
                     </h3>
-                    <p className="text-xs text-slate-400 mt-0.5">
+                    <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">
                       {fund.summary}
                     </p>
                   </div>
                 </div>
 
                 {/* Right Quick Metrics */}
-                <div className="flex sm:flex-col items-center sm:items-end justify-between shrink-0 gap-1">
-                  <div className="text-right">
-                    <p className="text-xs font-bold text-cyan-400 sm:text-base">
+                <div className="flex sm:flex-col items-center sm:items-end justify-between shrink-0 gap-2 border-t sm:border-t-0 pt-3 sm:pt-0 border-slate-100">
+                  <div className="text-left sm:text-right">
+                    <p className="text-sm font-bold text-blue-700 sm:text-base">
                       {fund.subsidyFormatted}
                     </p>
-                    <p className="text-[11px] text-emerald-400 font-medium">
+                    <p className="text-[11px] text-emerald-700 font-semibold">
                       Hasta {fund.maxCoFinancePct}% cofinanciamiento
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-2 mt-2">
+                  <div className="flex items-center gap-2">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         onSelectFundToFormulate(fund);
                       }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-md transition-all"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition-all cursor-pointer active:scale-95"
                     >
-                      <Sparkles className="w-3.5 h-3.5 text-cyan-200" />
-                      <span>Formular</span>
+                      <Sparkles className="w-3.5 h-3.5 text-blue-200" />
+                      <span>Postular</span>
                     </button>
-                    {isExpanded ? (
-                      <ChevronUp className="w-5 h-5 text-slate-400" />
-                    ) : (
-                      <ChevronDown className="w-5 h-5 text-slate-400" />
-                    )}
+                    <div className="p-1 rounded-lg text-slate-400">
+                      {isExpanded ? (
+                        <ChevronUp className="w-5 h-5" />
+                      ) : (
+                        <ChevronDown className="w-5 h-5" />
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* Expanded Detailed Content */}
               {isExpanded && (
-                <div className="px-5 pb-6 pt-2 border-t border-slate-800/80 space-y-6 animate-fade-in text-sm">
+                <div className="px-5 pb-6 pt-2 border-t border-slate-100 space-y-6 animate-fade-in text-xs">
                   {/* Basic Specifications */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-xl bg-slate-950/70 border border-slate-800">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-200">
                     <div>
-                      <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Requisito de Ventas</p>
-                      <p className="text-xs text-slate-200 mt-1">{fund.salesRequirement}</p>
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Requisito de Ventas</p>
+                      <p className="text-xs text-slate-800 font-semibold mt-1">{fund.salesRequirement}</p>
                     </div>
                     <div>
-                      <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nivel de Madurez (TRL)</p>
-                      <p className="text-xs text-slate-200 mt-1">{fund.trlRange}</p>
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nivel de Madurez (TRL)</p>
+                      <p className="text-xs text-slate-800 font-semibold mt-1">{fund.trlRange}</p>
                     </div>
                     <div>
-                      <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Calendario Convocatoria</p>
-                      <p className="text-xs text-slate-200 mt-1">{fund.callSchedule}</p>
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Calendario Convocatoria</p>
+                      <p className="text-xs text-slate-800 font-semibold mt-1">{fund.callSchedule}</p>
                     </div>
                   </div>
 
                   {/* Criteria Grid */}
                   <div>
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2 mb-3">
-                      <ShieldCheck className="w-4 h-4 text-cyan-400" />
-                      Criterios y Ponderaciones Oficiales de Evaluación
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 mb-2.5">
+                      <ShieldCheck className="w-4 h-4 text-blue-600" />
+                      Criterios y Ponderaciones de Evaluación
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       {fund.evaluationCriteria.map((crit, cIdx) => (
-                        <div key={cIdx} className="p-3 rounded-xl bg-slate-950/50 border border-slate-800">
+                        <div key={cIdx} className="p-3 rounded-xl bg-slate-50 border border-slate-200">
                           <div className="flex items-center justify-between mb-1.5">
-                            <span className="text-xs font-bold text-white">{crit.name}</span>
-                            <span className="text-xs font-black px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                            <span className="text-xs font-bold text-slate-900">{crit.name}</span>
+                            <span className="text-xs font-extrabold px-2 py-0.5 rounded bg-blue-100 text-blue-800 border border-blue-200">
                               {crit.weight}%
                             </span>
                           </div>
-                          <p className="text-xs text-slate-400 leading-relaxed">{crit.description}</p>
+                          <p className="text-[11px] text-slate-600 leading-relaxed">{crit.description}</p>
                         </div>
                       ))}
                     </div>
@@ -293,30 +307,30 @@ export const FundCatalog: React.FC<FundCatalogProps> = ({
 
                   {/* Eligible & Ineligible Expenses */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="p-4 rounded-xl bg-emerald-950/10 border border-emerald-900/30">
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-2 mb-3">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-2 mb-2.5">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                         Gastos Financiables (Elegibles)
                       </h4>
-                      <ul className="space-y-2 text-xs text-slate-300">
+                      <ul className="space-y-1.5 text-xs text-slate-700">
                         {fund.eligibleExpenses.map((exp, eIdx) => (
                           <li key={eIdx} className="flex items-start gap-2">
-                            <span className="text-emerald-400 font-bold">•</span>
+                            <span className="text-emerald-600 font-bold">•</span>
                             <span>{exp}</span>
                           </li>
                         ))}
                       </ul>
                     </div>
 
-                    <div className="p-4 rounded-xl bg-rose-950/10 border border-rose-900/30">
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-rose-400 flex items-center gap-2 mb-3">
-                        <XCircle className="w-4 h-4 text-rose-400" />
+                    <div className="p-4 rounded-2xl bg-rose-50/60 border border-rose-200">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-rose-800 flex items-center gap-2 mb-2.5">
+                        <XCircle className="w-4 h-4 text-rose-600" />
                         Gastos Excluidos (No Elegibles)
                       </h4>
-                      <ul className="space-y-2 text-xs text-slate-300">
+                      <ul className="space-y-1.5 text-xs text-slate-700">
                         {fund.ineligibleExpenses.map((exp, eIdx) => (
                           <li key={eIdx} className="flex items-start gap-2">
-                            <span className="text-rose-400 font-bold">•</span>
+                            <span className="text-rose-600 font-bold">•</span>
                             <span>{exp}</span>
                           </li>
                         ))}
@@ -326,17 +340,17 @@ export const FundCatalog: React.FC<FundCatalogProps> = ({
 
                   {/* Presupuesto por Cuentas CORFO / SERCOTEC */}
                   <div>
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2 mb-3">
-                      <PieChart className="w-4 h-4 text-indigo-400" />
-                      Estructura de Cuentas Presupuestarias Aprobadas
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 mb-2.5">
+                      <PieChart className="w-4 h-4 text-indigo-600" />
+                      Estructura de Cuentas Presupuestarias
                     </h4>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                       {fund.corfoAccountsBudget.map((acc, aIdx) => (
-                        <div key={aIdx} className="p-3 rounded-lg bg-slate-950/60 border border-slate-800">
-                          <p className="text-xs font-bold text-white">{acc.account}</p>
-                          <p className="text-[11px] text-slate-400 mt-1 line-clamp-2">{acc.description}</p>
+                        <div key={aIdx} className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                          <p className="text-xs font-bold text-slate-900">{acc.account}</p>
+                          <p className="text-[11px] text-slate-500 mt-1 line-clamp-2">{acc.description}</p>
                           {acc.maxPct && (
-                            <p className="text-[10px] font-semibold text-cyan-400 mt-1">Tope máx: {acc.maxPct}%</p>
+                            <p className="text-[10px] font-bold text-blue-700 mt-1">Tope máx: {acc.maxPct}%</p>
                           )}
                         </div>
                       ))}
@@ -344,33 +358,33 @@ export const FundCatalog: React.FC<FundCatalogProps> = ({
                   </div>
 
                   {/* Bottom Action Footer */}
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-800">
-                    <p className="text-xs text-slate-400">
-                      ¿Listo para postular a este fondo? Nuestro redactor IA redactará las 5 secciones oficiales con terminología de evaluación CORFO/SERCOTEC.
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-200">
+                    <p className="text-xs text-slate-500">
+                      Formula tu proyecto con IA y genera el expediente completo para e-CORFO o SERCOTEC.
                     </p>
                     <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                       <a
                         href={getGoogleCalendarUrl(fund)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-700 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold transition-all"
-                        title="Agregar fecha de cierre a Google Calendar"
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-all"
+                        title="Agregar fecha a Google Calendar"
                       >
-                        <CalendarPlus className="w-3.5 h-3.5 text-amber-400" />
+                        <CalendarPlus className="w-3.5 h-3.5 text-amber-600" />
                         <span className="hidden sm:inline">Calendario</span>
                       </a>
                       <button
                         onClick={() => onSelectFundToViewDocs(fund)}
-                        className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-all cursor-pointer"
+                        className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-all cursor-pointer"
                       >
-                        Ver Documentos & F29
+                        Documentos y cartas
                       </button>
                       <button
                         onClick={() => onSelectFundToFormulate(fund)}
-                        className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-blue-600/30 transition-all cursor-pointer"
+                        className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs shadow-xs transition-all cursor-pointer"
                       >
-                        <Sparkles className="w-4 h-4 text-cyan-200" />
-                        <span>Formular Proyecto Ahora</span>
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Comenzar Postulación</span>
                       </button>
                     </div>
                   </div>

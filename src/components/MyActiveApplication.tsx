@@ -35,8 +35,9 @@ import {
 } from 'lucide-react';
 import { validateRut } from '../utils/rutValidator';
 import { getGoogleCalendarUrl, downloadIcsFile } from '../utils/calendarExport';
-import { CHILEAN_FUNDS } from '../data/chileanFunds';
-import { OfficialDossierModal } from './OfficialDossierModal';
+const OfficialDossierModal = React.lazy(() => 
+  import('./OfficialDossierModal').then(m => ({ default: m.OfficialDossierModal }))
+);
 import { AdmissibilityChecker } from './AdmissibilityChecker';
 import { GuaranteesCalculator } from './GuaranteesCalculator';
 import { usePlan } from '../hooks/usePlan';
@@ -1025,52 +1026,54 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
       )}
 
       {/* 8. OFFICIAL DOSSIER MODAL */}
-      <OfficialDossierModal
-        isOpen={showDossierModal}
-        onClose={() => setShowDossierModal(false)}
-        expediente={expediente || {
-          id: `exp_guest_${selectedFund.id}`,
-          ownerId: currentUser?.id || 'guest',
-          fundId: selectedFund.id,
-          fundName: selectedFund.name,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          profile,
-          taxFolder: {
-            fileName: profile.taxFolderFileName,
-            uploadDate: profile.taxFolderUploadDate,
-            rut: profile.rut,
-            companyName: profile.companyName,
-            monthsActive: profile.monthsActive,
-            annualSalesCLP: profile.annualSalesCLP,
-            salesBracket: profile.salesBracket,
-            f29Periods: profile.taxFolderF29Periods || 0,
-            siiStatusObservations: profile.taxFolderSummary,
-            admissibilityVerdict: profile.taxFolderUploaded ? 'aprobado' : null,
-            taxFolderUploaded: Boolean(profile.taxFolderUploaded)
-          },
-          roadmapConfirmations: {
-            confirmedInicioActividades,
-            confirmedEstatutoSocial,
-            confirmedGarantia
-          },
-          docStatuses: {
-            f29_sii: Boolean(profile.taxFolderUploaded),
-            estatuto_res: confirmedEstatutoSocial,
-            deuda_tgr: false,
-            previsional_f30: false,
-            carta_interes_loi: signedLoiCount > 0
-          },
-          generatedDocs: [],
-          answersBySection: {},
-          generatedTextsBySection: {},
-          formulation,
-          auditResult: auditResult || null
-        }}
-        fund={selectedFund}
-        onNavigateTab={onNavigateTab}
-        onOpenSiiModal={onOpenSiiModal}
-      />
+      <React.Suspense fallback={null}>
+        <OfficialDossierModal
+          isOpen={showDossierModal}
+          onClose={() => setShowDossierModal(false)}
+          expediente={expediente || {
+            id: `exp_guest_${selectedFund.id}`,
+            ownerId: currentUser?.id || 'guest',
+            fundId: selectedFund.id,
+            fundName: selectedFund.name,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            profile,
+            taxFolder: {
+              fileName: profile.taxFolderFileName,
+              uploadDate: profile.taxFolderUploadDate,
+              rut: profile.rut,
+              companyName: profile.companyName,
+              monthsActive: profile.monthsActive,
+              annualSalesCLP: profile.annualSalesCLP,
+              salesBracket: profile.salesBracket,
+              f29Periods: profile.taxFolderF29Periods || 0,
+              siiStatusObservations: profile.taxFolderSummary,
+              admissibilityVerdict: profile.taxFolderUploaded ? 'aprobado' : null,
+              taxFolderUploaded: Boolean(profile.taxFolderUploaded)
+            },
+            roadmapConfirmations: {
+              confirmedInicioActividades,
+              confirmedEstatutoSocial,
+              confirmedGarantia
+            },
+            docStatuses: {
+              f29_sii: Boolean(profile.taxFolderUploaded),
+              estatuto_res: confirmedEstatutoSocial,
+              deuda_tgr: false,
+              previsional_f30: false,
+              carta_interes_loi: signedLoiCount > 0
+            },
+            generatedDocs: [],
+            answersBySection: {},
+            generatedTextsBySection: {},
+            formulation,
+            auditResult: auditResult || null
+          }}
+          fund={selectedFund}
+          onNavigateTab={onNavigateTab}
+          onOpenSiiModal={onOpenSiiModal}
+        />
+      </React.Suspense>
     </div>
   );
 };

@@ -98,6 +98,10 @@ export interface CompanyProfile {
   taxFolderUploadDate?: string;
   taxFolderSummary?: string;
   taxFolderF29Periods?: number;
+  representativeName?: string;
+  representativeRut?: string;
+  representativeEmail?: string;
+  representativePhone?: string;
 }
 
 export interface FundMatchResult {

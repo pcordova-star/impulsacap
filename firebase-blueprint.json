@@ -589,10 +589,6 @@
       "schema": "GeneratedDoc",
       "description": "User generated legal documents and LOIs. Readable and writable only by owner"
     },
-    "/expedientes/{expedienteId}": {
-      "schema": "Expediente",
-      "description": "User single source of truth postulation dossier per fund"
-    },
     "/convocatorias/{convocatoriaId}": {
       "schema": "Convocatoria",
       "description": "Official public grant calls synced from Corfo and public institutions. Public read, server write only"

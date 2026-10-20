@@ -58,7 +58,16 @@ service cloud.firestore {
       return data.ownerId is string && data.ownerId.size() <= 128
         && data.fundId is string && data.fundId.size() <= 80
         && data.fundName is string && data.fundName.size() <= 160
-        && (data.status in ['en_preparacion', 'lista_para_enviar', 'enviada', 'archivada', 'draft', 'in_review', 'ready_to_submit', 'submitted']);
+        && (data.status in ['en_preparacion', 'lista_para_enviar', 'enviada', 'archivada', 'draft', 'in_review', 'ready_to_submit', 'submitted'])
+        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 4000))
+        && (!('assembledDossier' in data) || (data.assembledDossier is string && data.assembledDossier.size() <= 60000))
+        && (!('projectTitle' in data) || (data.projectTitle is string && data.projectTitle.size() <= 200))
+        && (!('problemStatement' in data) || (data.problemStatement is string && data.problemStatement.size() <= 10000))
+        && (!('solutionAndInnovation' in data) || (data.solutionAndInnovation is string && data.solutionAndInnovation.size() <= 10000))
+        && (!('noveltyVsCompetitors' in data) || (data.noveltyVsCompetitors is string && data.noveltyVsCompetitors.size() <= 10000))
+        && (!('businessModel' in data) || (data.businessModel is string && data.businessModel.size() <= 10000))
+        && (!('teamCapabilities' in data) || (data.teamCapabilities is string && data.teamCapabilities.size() <= 10000))
+        && (!('pitchSummary30s' in data) || (data.pitchSummary30s is string && data.pitchSummary30s.size() <= 3000));
     }
 
     // Generated Document Validation
@@ -133,15 +142,6 @@ service cloud.firestore {
       allow create: if isValidId(docId) && isSignedIn() && incoming().ownerId == request.auth.uid && isValidGeneratedDoc(incoming());
       allow update: if isValidId(docId) && isSignedIn() && existing().ownerId == request.auth.uid && incoming().ownerId == existing().ownerId && isValidGeneratedDoc(incoming());
       allow delete: if isValidId(docId) && isSignedIn() && existing().ownerId == request.auth.uid;
-    }
-
-    // 8. Expedientes collection (Single Source of Truth per user and fund)
-    match /expedientes/{expedienteId} {
-      allow get: if isValidId(expedienteId) && isSignedIn() && existing().ownerId == request.auth.uid;
-      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
-      allow create: if isValidId(expedienteId) && isSignedIn() && incoming().ownerId == request.auth.uid;
-      allow update: if isValidId(expedienteId) && isSignedIn() && existing().ownerId == request.auth.uid && incoming().ownerId == existing().ownerId;
-      allow delete: if isValidId(expedienteId) && isSignedIn() && existing().ownerId == request.auth.uid;
     }
 
     // 6. Payments collection (Mercado Pago transactions)

@@ -62,6 +62,26 @@ export const SiiUploaderModal: React.FC<SiiUploaderModalProps> = ({
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Editable confirmation fields (Requirement 4)
+  const [editCompanyName, setEditCompanyName] = useState('');
+  const [editRut, setEditRut] = useState('');
+  const [editStartDate, setEditStartDate] = useState('');
+  const [editMonthsActive, setEditMonthsActive] = useState<string>('');
+  const [editAnnualSales, setEditAnnualSales] = useState<string>('');
+  const [editPeriodsFound, setEditPeriodsFound] = useState<string>('');
+  const [editCompanyType, setEditCompanyType] = useState<string>('spa');
+
+  const populateEditFields = (data: any) => {
+    setParsedData(data);
+    setEditCompanyName(data.companyName || '');
+    setEditRut(data.rut || '');
+    setEditStartDate(data.startDate || '');
+    setEditMonthsActive(data.monthsActive !== null && data.monthsActive !== undefined ? String(data.monthsActive) : '');
+    setEditAnnualSales(data.annualSalesCLP ? String(data.annualSalesCLP) : '0');
+    setEditPeriodsFound(data.periodsFound !== null && data.periodsFound !== undefined ? String(data.periodsFound) : '0');
+    setEditCompanyType(data.companyType || 'spa');
+  };
+
   if (!isOpen) return null;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -133,7 +153,7 @@ export const SiiUploaderModal: React.FC<SiiUploaderModalProps> = ({
             if (!response.ok) {
               throw new Error(data?.error || 'No se pudo procesar la Carpeta Tributaria. Intenta nuevamente en unos minutos.');
             }
-            setParsedData(data);
+            populateEditFields(data);
           } catch (err: any) {
             console.error('PDF parsing error:', err);
             setParsedData(null);
@@ -178,7 +198,7 @@ export const SiiUploaderModal: React.FC<SiiUploaderModalProps> = ({
             if (!response.ok) {
               throw new Error(data?.error || 'No se pudo procesar la Carpeta Tributaria. Intenta nuevamente en unos minutos.');
             }
-            setParsedData(data);
+            populateEditFields(data);
           } catch (err: any) {
             console.error('Text parsing error:', err);
             setParsedData(null);
@@ -219,7 +239,7 @@ export const SiiUploaderModal: React.FC<SiiUploaderModalProps> = ({
         throw new Error(errJson.error || 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.');
       }
       const data = await response.json();
-      setParsedData(data);
+      populateEditFields(data);
     } catch (err: any) {
       console.error('Process text error:', err);
       setParsedData(null);
@@ -229,35 +249,49 @@ export const SiiUploaderModal: React.FC<SiiUploaderModalProps> = ({
     }
   };
 
-  const handleApply = async () => {
-    if (!parsedData) return;
+  // Requirement 4: Nada se guarda en el perfil sin que el usuario presione "Confirmar datos"
+  const handleConfirmSave = async () => {
     const fileName = selectedFile ? selectedFile.name : 'Carpeta_Tributaria_SII.pdf';
     
-    const hasDetectedMonths = typeof parsedData.monthsActive === 'number' && parsedData.monthsActive > 0;
-    const hasDetectedBracket = Boolean(parsedData.salesBracket && parsedData.salesBracket.trim());
+    const salesNum = parseInt(String(editAnnualSales).replace(/\D/g, ''), 10) || 0;
+    const monthsNum = editMonthsActive.trim() !== '' ? parseInt(editMonthsActive, 10) : null;
+    const periodsNum = editPeriodsFound.trim() !== '' ? parseInt(editPeriodsFound, 10) : 0;
+    
+    let salesBracket = '';
+    if (salesNum > 0) {
+      if (salesNum < 60000000) salesBracket = 'menor_60m';
+      else if (salesNum / 39000 < 2400) salesBracket = 'micro_200_a_2400uf';
+      else if (salesNum / 39000 < 25000) salesBracket = 'pequena_2400_a_25000uf';
+      else if (salesNum / 39000 < 100000) salesBracket = 'mediana_25000_a_100000uf';
+      else salesBracket = 'grande_mayor_100000uf';
+    } else if (periodsNum > 0) {
+      salesBracket = 'sin_ventas';
+    }
 
-    // Apply to local state (no default 12 or menor_60m if not detected)
+    const cleanRutVal = editRut.trim();
+    const formattedRut = cleanRutVal && validateRut(cleanRutVal) ? formatRut(cleanRutVal) : cleanRutVal;
+
     onApplyProfile({
-      rut: parsedData.rut ? formatRut(parsedData.rut) : undefined,
-      companyName: parsedData.companyName || undefined,
-      companyType: parsedData.companyType || 'spa',
-      monthsActive: hasDetectedMonths ? parsedData.monthsActive : null,
-      salesBracket: hasDetectedBracket ? (parsedData.salesBracket as any) : '',
-      annualSalesCLP: typeof parsedData.annualSalesCLP === 'number' ? parsedData.annualSalesCLP : null,
+      rut: formattedRut || undefined,
+      companyName: editCompanyName.trim() || undefined,
+      companyType: (editCompanyType as any) || 'spa',
+      monthsActive: monthsNum,
+      salesBracket: (salesBracket as any) || '',
+      annualSalesCLP: salesNum,
       taxFolderUploaded: true,
       taxFolderFileName: fileName,
       taxFolderUploadDate: new Date().toLocaleDateString('es-CL'),
-      taxFolderSummary: parsedData.siiStatusObservations || 'Carpeta Tributaria validada con éxito'
+      taxFolderSummary: `Datos confirmados por la empresa: RUT ${formattedRut || 'S/I'} | ${editCompanyName.trim() || 'Empresa'} | Ventas $${salesNum.toLocaleString('es-CL')} CLP en ${periodsNum} periodos F29.`,
+      taxFolderF29Periods: periodsNum
     });
 
-    // Cloud sync to Firestore
     try {
       await syncTaxFolderToFirestore({
         fileName,
         fileSize: selectedFile?.size || 1024,
-        companyRut: parsedData.rut || '',
-        summary: parsedData.siiStatusObservations || 'Carpeta tributaria validada',
-        f29Periods: hasDetectedMonths ? parsedData.monthsActive : 0
+        companyRut: formattedRut || '',
+        summary: `Datos confirmados: RUT ${formattedRut || 'S/I'} | ${editCompanyName.trim() || 'Empresa'}`,
+        f29Periods: periodsNum
       });
     } catch (err) {
       console.warn('Could not sync tax folder to Firestore in background:', err);
@@ -455,70 +489,143 @@ export const SiiUploaderModal: React.FC<SiiUploaderModalProps> = ({
           </div>
         )}
 
-        {/* Parsed Result Card */}
+        {/* Confirmation Screen with Editable Fields (Requirement 4) */}
         {parsedData && !loading && (
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3 animate-fade-in">
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-4 animate-fade-in">
             <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-              <span className="text-xs font-bold text-emerald-700 flex items-center gap-1.5">
+              <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                <span>Carpeta Tributaria Verificada Exitosamente</span>
-              </span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold">
-                {parsedData.admissibilityVerdict}
+                <span className="text-xs font-bold text-slate-900">
+                  Confirmación de Datos Extraídos
+                </span>
+              </div>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 font-semibold">
+                Revisa y edita si es necesario
               </span>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="p-2.5 rounded-xl bg-white border border-slate-200">
-                <span className="text-[10px] font-bold text-slate-500 uppercase">RUT Empresa:</span>
-                <p className="text-slate-900 font-bold font-mono mt-0.5 flex items-center gap-1">
-                  <span>{parsedData.rut}</span>
-                  {validateRut(parsedData.rut) && (
-                    <span className="text-[9px] text-emerald-600 font-semibold">(Módulo 11 OK)</span>
-                  )}
-                </p>
-              </div>
-
-              <div className="p-2.5 rounded-xl bg-white border border-slate-200">
-                <span className="text-[10px] font-bold text-slate-500 uppercase">Razón Social:</span>
-                <p className="text-slate-900 font-bold mt-0.5 truncate">{parsedData.companyName}</p>
-              </div>
-
-              <div className="p-2.5 rounded-xl bg-white border border-slate-200">
-                <span className="text-[10px] font-bold text-slate-500 uppercase">Facturación 12 Meses:</span>
-                <p className="text-blue-700 font-bold mt-0.5">
-                  ${(parsedData.annualSalesCLP || 0).toLocaleString('es-CL')} CLP
-                </p>
-              </div>
-
-              <div className="p-2.5 rounded-xl bg-white border border-slate-200">
-                <span className="text-[10px] font-bold text-slate-500 uppercase">1ª Categoría SII:</span>
-                <p className="text-emerald-700 font-bold mt-0.5 flex items-center gap-1">
-                  <Check className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>{parsedData.monthsActive ? `Acreditada (${parsedData.monthsActive} meses)` : 'Sin detectar (completar en perfil)'}</span>
-                </p>
-              </div>
-            </div>
-
-            <p className="text-[11px] text-slate-600 italic bg-white p-2.5 rounded-lg border border-slate-200">
-              💡 {parsedData.siiStatusObservations}
+            <p className="text-[11px] text-slate-600">
+              Verifica los datos obtenidos de la Carpeta Tributaria. Nada se guardará en tu perfil hasta que presiones <strong>"Confirmar datos"</strong>.
             </p>
 
-            <div className="pt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              {/* Razón Social */}
+              <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase block">Razón Social:</label>
+                <input
+                  type="text"
+                  value={editCompanyName}
+                  onChange={(e) => setEditCompanyName(e.target.value)}
+                  placeholder="Ej: Innovaciones Tecnológicas SpA"
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-900 text-xs font-semibold focus:outline-hidden focus:border-blue-500"
+                />
+              </div>
+
+              {/* RUT */}
+              <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">RUT Empresa:</label>
+                  {editRut && (
+                    <span className={`text-[9px] font-semibold ${validateRut(editRut) ? 'text-emerald-600' : 'text-amber-600'}`}>
+                      {validateRut(editRut) ? 'Módulo 11 Válido' : 'RUT no válido'}
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  value={editRut}
+                  onChange={(e) => setEditRut(e.target.value)}
+                  placeholder="Ej: 76.123.456-7"
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-900 font-mono text-xs font-semibold focus:outline-hidden focus:border-blue-500"
+                />
+              </div>
+
+              {/* Fecha Inicio Actividades */}
+              <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase block">Inicio de Actividades:</label>
+                <input
+                  type="text"
+                  value={editStartDate}
+                  onChange={(e) => setEditStartDate(e.target.value)}
+                  placeholder="Ej: 14/03/2023"
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-900 text-xs font-semibold focus:outline-hidden focus:border-blue-500"
+                />
+              </div>
+
+              {/* Antigüedad (meses) */}
+              <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase block">Antigüedad (meses activos):</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={editMonthsActive}
+                  onChange={(e) => setEditMonthsActive(e.target.value)}
+                  placeholder="Ej: 14"
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-900 text-xs font-semibold focus:outline-hidden focus:border-blue-500"
+                />
+              </div>
+
+              {/* Ventas 12 Meses */}
+              <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase block">Ventas Últimos 12 Meses (CLP):</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={editAnnualSales}
+                  onChange={(e) => setEditAnnualSales(e.target.value)}
+                  placeholder="Ej: 18500000"
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-blue-700 font-bold text-xs focus:outline-hidden focus:border-blue-500"
+                />
+              </div>
+
+              {/* Periodos F29 Encontrados */}
+              <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase block">Periodos F29 Encontrados:</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="48"
+                  value={editPeriodsFound}
+                  onChange={(e) => setEditPeriodsFound(e.target.value)}
+                  placeholder="Ej: 12"
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-900 text-xs font-semibold focus:outline-hidden focus:border-blue-500"
+                />
+              </div>
+            </div>
+
+            {parsedData.siiStatusObservations && (
+              <p className="text-[11px] text-slate-600 italic bg-white p-2.5 rounded-lg border border-slate-200">
+                💡 {parsedData.siiStatusObservations}
+              </p>
+            )}
+
+            <div className="pt-2 flex flex-col sm:flex-row gap-2">
               <button
-                onClick={handleApply}
+                type="button"
+                onClick={() => {
+                  setParsedData(null);
+                  setSelectedFile(null);
+                  setInputText('');
+                }}
+                className="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-100 font-medium text-xs transition-all cursor-pointer text-center"
+              >
+                Volver a cargar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmSave}
                 disabled={applied}
-                className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-98"
+                className="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all cursor-pointer active:scale-98 disabled:opacity-75"
               >
                 {applied ? (
                   <>
                     <Check className="w-4 h-4" />
-                    <span>¡Carpeta Tributaria Vinculada con Éxito al Expediente!</span>
+                    <span>¡Datos Confirmados y Guardados en tu Perfil!</span>
                   </>
                 ) : (
                   <>
                     <ShieldCheck className="w-4 h-4" />
-                    <span>Guardar y Vincular Carpeta Tributaria al Expediente</span>
+                    <span>Confirmar datos y guardar en perfil</span>
                   </>
                 )}
               </button>

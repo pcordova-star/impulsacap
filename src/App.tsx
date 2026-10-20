@@ -1,26 +1,21 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, Suspense } from 'react';
 import { CompanyProfile, ChileanFund, FormulationOutput, BlindAuditResult, CompanyUser } from './types/funds';
 import { CHILEAN_FUNDS } from './data/chileanFunds';
 import { Navbar } from './components/Navbar';
 import { InstantWowMatcher } from './components/InstantWowMatcher';
-import { SmartDiagnostic } from './components/SmartDiagnostic';
-import { FundCatalog } from './components/FundCatalog';
-import { AiFormulator } from './components/AiFormulator';
-import { BlindAuditor } from './components/BlindAuditor';
-import { DocumentManager } from './components/DocumentManager';
-import { ExpertChat } from './components/ExpertChat';
-import { SiiUploaderModal } from './components/SiiUploaderModal';
-import { MyActiveApplication } from './components/MyActiveApplication';
+import { SearchFundsView } from './components/SearchFundsView';
+import { MyCompanyView } from './components/MyCompanyView';
+import { PostulationWorkspace, PostulationSubTab } from './components/PostulationWorkspace';
 import { MyApplicationsDashboard } from './components/MyApplicationsDashboard';
 import { NewApplicationModal } from './components/NewApplicationModal';
-import { ConvocatoriasView } from './components/ConvocatoriasView';
+import { FloatingAdvisor } from './components/FloatingAdvisor';
+import { SiiUploaderModal } from './components/SiiUploaderModal';
+import { AuthModal } from './components/AuthModal';
+import { AuthGateView } from './components/AuthGateView';
+import { PaymentResult } from './components/PaymentResult';
 import { useApplications } from './hooks/useApplications';
 import { useConvocatorias } from './hooks/useConvocatorias';
 import { ExpedienteData } from './types/expediente';
-import { PaymentResult } from './components/PaymentResult';
-import { AuthModal } from './components/AuthModal';
-import { AuthGateView } from './components/AuthGateView';
-import { validateRut, formatRut } from './utils/rutValidator';
 import { 
   saveActiveProfile, 
   loadActiveProfile, 
@@ -36,22 +31,12 @@ import { initFirebaseService, syncCompanyToFirestore } from './utils/firebaseSyn
 import { auth, db } from './firebase';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import { 
-  Building2, 
-  X, 
-  Check, 
-  TrendingUp, 
-  ShieldCheck, 
-  Coins, 
-  Sparkles,
-  ExternalLink,
-  ArrowLeft,
-  Lock,
-  LogOut,
-  UserCheck,
-  Clock,
-  Upload
-} from 'lucide-react';
+import { Lock, Sparkles, Building2, Upload } from 'lucide-react';
+
+// Lazy-loaded components for optimal performance (Requirement 9)
+const SmartDiagnostic = React.lazy(() => 
+  import('./components/SmartDiagnostic').then(m => ({ default: m.SmartDiagnostic }))
+);
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>(() => {
@@ -60,6 +45,12 @@ export default function App() {
     }
     return getCurrentUser() ? 'my-applications' : 'diagnostic';
   });
+
+  // Active sub-tab inside a postulation workspace (Requirement 2)
+  const [postulationSubTab, setPostulationSubTab] = useState<PostulationSubTab>('roadmap');
+
+  // Floating AI advisor modal state (Requirement 1 & 4)
+  const [showAdvisorModal, setShowAdvisorModal] = useState<boolean>(false);
 
   // URL sync for /pago/resultado
   useEffect(() => {
@@ -86,8 +77,7 @@ export default function App() {
     loadActiveAudit(getCurrentUser()?.id)
   );
 
-  // Profile Modal & SII Uploader Modal
-  const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
+  // SII Uploader Modal
   const [showSiiModal, setShowSiiModal] = useState<boolean>(false);
 
   // Active Chilean Company Profile with local persistence scoped per user
@@ -99,7 +89,7 @@ export default function App() {
   // Track the user ID that owns the currently active in-memory profile
   const activeUserIdRef = useRef<string | undefined>(currentUser?.id);
 
-  // Applications & Multi-Fund Management (Requirement 1, 4, 11)
+  // Applications & Multi-Fund Management
   const {
     applications,
     activeApplications,
@@ -121,7 +111,7 @@ export default function App() {
     saveActiveSectionAnswers
   } = useApplications(profile);
 
-  // Monitor de convocatorias oficiales en vivo desde Firestore (Requirement 1, 2, 5, 7)
+  // Monitor de convocatorias oficiales en vivo desde Firestore
   const {
     convocatorias,
     activeConvocatorias,
@@ -222,7 +212,7 @@ export default function App() {
     }
   }, [auditResult, currentUser]);
 
-  // Active postulation expediente (Single Source of Truth per application, Requirement 1, 2, 4)
+  // Active postulation expediente (Single Source of Truth per application)
   const activeExpediente: ExpedienteData = useMemo(() => {
     const fund = activeFund;
     const app = activeApplication;
@@ -299,14 +289,16 @@ export default function App() {
     const existing = activeApplications.find(a => a.fundId === fund.id);
     if (existing) {
       setActiveApplicationId(existing.id);
-      setActiveTab('my-application');
+      setActiveTab('postulation');
+      setPostulationSubTab('roadmap');
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
     const res = await createApplication(fund.id);
     if (res.ok && res.application) {
       setActiveApplicationId(res.application.id);
-      setActiveTab('my-application');
+      setActiveTab('postulation');
+      setPostulationSubTab('roadmap');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
       setShowNewAppModal(true);
@@ -317,24 +309,55 @@ export default function App() {
     const existing = activeApplications.find(a => a.fundId === fund.id);
     if (existing) {
       setActiveApplicationId(existing.id);
-      setActiveTab('documents');
+      setActiveTab('postulation');
+      setPostulationSubTab('documents');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
       const res = await createApplication(fund.id);
       if (res.ok && res.application) {
         setActiveApplicationId(res.application.id);
-        setActiveTab('documents');
+        setActiveTab('postulation');
+        setPostulationSubTab('documents');
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
-        setActiveTab('documents');
+        setActiveTab('postulation');
+        setPostulationSubTab('documents');
       }
     }
   };
 
-  const handleSendToAudit = (formulation: FormulationOutput, fund: ChileanFund) => {
-    setActiveFormulation(formulation);
-    updateActiveFormulation(formulation);
-    setActiveTab('auditor');
+  const handleSendToAudit = (f: FormulationOutput, fund: ChileanFund) => {
+    setActiveFormulation(f);
+    updateActiveFormulation(f);
+    setPostulationSubTab('auditor');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Generalized tab navigation mapper
+  const handleNavigateTab = (tab: string) => {
+    if (tab === 'catalog') {
+      setActiveTab('search-funds');
+    } else if (tab === 'convocatorias') {
+      setActiveTab('search-funds');
+    } else if (tab === 'my-application') {
+      setActiveTab('postulation');
+      setPostulationSubTab('roadmap');
+    } else if (tab === 'formulator') {
+      setActiveTab('postulation');
+      setPostulationSubTab('formulator');
+    } else if (tab === 'documents') {
+      setActiveTab('postulation');
+      setPostulationSubTab('documents');
+    } else if (tab === 'auditor') {
+      setActiveTab('postulation');
+      setPostulationSubTab('auditor');
+    } else if (tab === 'profile') {
+      setActiveTab('my-company');
+    } else if (tab === 'advisor') {
+      setShowAdvisorModal(true);
+    } else {
+      setActiveTab(tab);
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -344,7 +367,6 @@ export default function App() {
       <div className="bg-slate-900 border-b border-slate-800 px-4 py-2 text-xs">
         <div className="max-w-7xl mx-auto flex items-center justify-between text-slate-300">
           <div className="flex items-center gap-4 text-[11px] overflow-x-auto no-scrollbar">
-            {/* Authenticated User Status in Ticker */}
             {currentUser ? (
               <span className="inline-flex items-center gap-1 text-emerald-400 font-bold whitespace-nowrap">
                 <Lock className="w-3 h-3 text-emerald-400" />
@@ -356,17 +378,13 @@ export default function App() {
                 className="inline-flex items-center gap-1.5 text-emerald-300 hover:text-emerald-200 font-bold whitespace-nowrap cursor-pointer transition-colors"
               >
                 <Lock className="w-3 h-3" />
-                <span>Acceso Empresas: Iniciar Sesión / Registrar</span>
+                <span>Acceso Empresas: Iniciar Sesión / Registrarse</span>
               </button>
             )}
 
             <span className="text-slate-600 hidden sm:inline">•</span>
-            <span className="hidden sm:inline whitespace-nowrap">
-              Bono Género: <strong className="text-emerald-300">+10% Subsidio Estatal</strong>
-            </span>
-            <span className="text-slate-600 hidden sm:inline">•</span>
-            <span className="hidden md:inline whitespace-nowrap">
-              Ley I+D 20.241: <strong className="text-blue-300">35% Crédito Tributario</strong>
+            <span className="hidden sm:inline whitespace-nowrap text-slate-400">
+              Convocatorias Corfo y Sercotec actualizadas
             </span>
           </div>
 
@@ -381,7 +399,7 @@ export default function App() {
                 </button>
                 <span className="text-slate-600">•</span>
                 <button
-                  onClick={() => setShowProfileModal(true)}
+                  onClick={() => setActiveTab('my-company')}
                   className="text-blue-300 hover:text-blue-200 font-semibold font-mono cursor-pointer"
                 >
                   RUT: {profile.rut || currentUser.rut || 'Configurar'}
@@ -399,63 +417,20 @@ export default function App() {
         </div>
       </div>
 
-      {/* Main Navbar */}
+      {/* Main Navbar (Requirements 1, 4, 5) */}
       <Navbar
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={handleNavigateTab}
         companyName={currentUser?.companyName || ''}
         currentUser={currentUser}
-        onOpenProfile={() => setShowProfileModal(true)}
+        onOpenProfile={() => setActiveTab('my-company')}
         onOpenAuthModal={(mode) => { setAuthModalMode(mode || 'login'); setShowAuthModal(true); }}
         onLogout={handleLogout}
+        onToggleAdvisor={() => setShowAdvisorModal(prev => !prev)}
       />
 
       {/* Main Container */}
       <main className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 pt-4 pb-28 sm:py-8">
-        {/* Persistent Return to Active Postulation Button Bar - Visible when logged in and outside of application views */}
-        {currentUser && activeTab !== 'my-application' && activeTab !== 'my-applications' && activeApplication && (
-          <div className="mb-5 flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-white border border-emerald-200/90 shadow-sm animate-fade-in">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0">
-                <Clock className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-bold text-slate-900 truncate max-w-[280px] sm:max-w-md">
-                    Postulación Activa: {activeFund.name}
-                  </span>
-                  <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
-                    Convocatoria 2026
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-500 flex flex-wrap items-center gap-1.5 mt-0.5">
-                  <span>Empresa: <strong className="text-slate-800">{currentUser.companyName}</strong></span>
-                  <span className="text-slate-300">•</span>
-                  {profile.taxFolderUploaded ? (
-                    <span className="text-emerald-600 font-semibold">📄 Carpeta Tributaria Subida ({profile.taxFolderFileName || 'F29.pdf'})</span>
-                  ) : (
-                    <button 
-                      onClick={() => setShowSiiModal(true)} 
-                      className="text-blue-700 hover:text-blue-800 font-semibold underline cursor-pointer inline-flex items-center gap-1"
-                    >
-                      <Upload className="w-3 h-3" />
-                      <span>Subir Carpeta Tributaria F29</span>
-                    </button>
-                  )}
-                </p>
-              </div>
-            </div>
-
-            <button
-              onClick={() => setActiveTab('my-application')}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-bold shadow-sm shadow-emerald-600/20 active:scale-95 transition-all cursor-pointer"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Volver a Mi Hoja de Ruta</span>
-            </button>
-          </div>
-        )}
-
         {/* Tab: Pago Resultado (Mercado Pago) */}
         {activeTab === 'pago-resultado' && (
           <PaymentResult
@@ -466,7 +441,18 @@ export default function App() {
           />
         )}
 
-        {/* Tab: Mis Postulaciones Dashboard (Requirement 5) */}
+        {/* Tab: Inicio (Guest 5-Question Assistant - Requirement 5 & 6) */}
+        {activeTab === 'diagnostic' && (
+          <InstantWowMatcher
+            onSelectFundToFormulate={handleSelectFundToFormulate}
+            onNavigateTab={handleNavigateTab}
+            setProfile={setProfile}
+            currentUser={currentUser}
+            onAuthSuccess={handleAuthSuccess}
+          />
+        )}
+
+        {/* Tab 1: Mis Postulaciones Dashboard (Requirement 1) */}
         {activeTab === 'my-applications' && (
           currentUser ? (
             <MyApplicationsDashboard
@@ -478,209 +464,142 @@ export default function App() {
               currentUser={currentUser}
               onContinueApplication={(appId) => {
                 setActiveApplicationId(appId);
-                setActiveTab('my-application');
+                setActiveTab('postulation');
+                setPostulationSubTab('roadmap');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
               onArchiveApplication={archiveApplication}
               onReactivateApplication={reactivateApplication}
               onOpenNewApplicationModal={() => setShowNewAppModal(true)}
-              onOpenProfile={() => setShowProfileModal(true)}
+              onOpenProfile={() => setActiveTab('my-company')}
               onOpenSiiModal={() => setShowSiiModal(true)}
               onSelectFundToFormulate={handleSelectFundToFormulate}
-              onNavigateTab={setActiveTab}
+              onNavigateTab={handleNavigateTab}
             />
           ) : (
             <AuthGateView
               onOpenAuthModal={(mode) => { setAuthModalMode(mode); setShowAuthModal(true); }}
               onNavigateHome={() => setActiveTab('diagnostic')}
               title="Bóveda de Mis Postulaciones a Fondos Concursables"
-              description="Gestiona hasta 3 postulaciones simultáneas con tu empresa, resguarda tus expedientes oficiales y formula propuestas con IA en tu entorno privado."
+              description="Gestiona tus postulaciones simultáneas con tu empresa, resguarda tus expedientes y formula propuestas con IA en tu entorno privado."
             />
           )
         )}
 
-        {/* Tab: Convocatorias Abiertas Oficiales de CORFO (Requirement 7) */}
-        {activeTab === 'convocatorias' && (
-          <ConvocatoriasView
-            convocatorias={convocatorias}
-            syncMeta={syncMeta}
-            isStale={isConvocatoriasStale}
-            loading={convocatoriasLoading}
-            onRefresh={refreshConvocatorias}
-            onSelectFundToFormulate={handleSelectFundToFormulate}
-            onOpenNewApplicationModal={() => setShowNewAppModal(true)}
-          />
-        )}
-
-        {/* Tab: Quick Diagnostic Matcher */}
-        {activeTab === 'diagnostic' && (
-          <InstantWowMatcher
-            onSelectFundToFormulate={handleSelectFundToFormulate}
-            onNavigateTab={setActiveTab}
-            setProfile={setProfile}
-            currentUser={currentUser}
-            onAuthSuccess={handleAuthSuccess}
-          />
-        )}
-
-        {/* Tab: Advanced Diagnostic */}
-        {activeTab === 'advanced-diagnostic' && (
-          <div className="space-y-6 animate-fade-in">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-              <button
-                onClick={() => setActiveTab('diagnostic')}
-                className="inline-flex items-center gap-2 text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors cursor-pointer"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                <span>Volver al Calce Rápido de Fondos</span>
-              </button>
-              <span className="text-[11px] font-semibold text-slate-500 px-2.5 py-0.5 rounded-full bg-slate-100 border border-slate-200">
-                Página de Diagnóstico Avanzado
-              </span>
-            </div>
-
-            <SmartDiagnostic
-              profile={profile}
-              setProfile={setProfile}
-              onSelectFundToFormulate={handleSelectFundToFormulate}
-              onSelectFundToViewDocs={handleSelectFundToViewDocs}
-            />
-          </div>
-        )}
-
-        {/* Tab: Fund Catalogue */}
-        {activeTab === 'catalog' && (
-          <FundCatalog
-            funds={liveFunds}
-            onSelectFundToFormulate={handleSelectFundToFormulate}
-            onSelectFundToViewDocs={handleSelectFundToViewDocs}
-          />
-        )}
-
-        {/* Tab: AI Formulator */}
-        {activeTab === 'formulator' && (
+        {/* In-Postulation Workspace (Requirements 2, 3, 4) */}
+        {(activeTab === 'postulation' || activeTab === 'my-application') && (
           currentUser ? (
-            <AiFormulator
-              selectedFund={activeFund}
-              setSelectedFund={() => {}}
+            <PostulationWorkspace
+              fund={activeFund}
+              application={activeApplication}
               profile={activeExpediente.profile || profile}
-              initialFormulation={activeExpediente.formulation || activeFormulation}
               expediente={activeExpediente}
+              formulation={activeExpediente.formulation || activeFormulation}
+              auditResult={activeExpediente.auditResult || auditResult}
+              currentUser={currentUser}
+              activeSubTab={postulationSubTab}
+              onChangeSubTab={setPostulationSubTab}
+              onBackToApplications={() => {
+                setActiveTab('my-applications');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              onOpenSiiModal={() => setShowSiiModal(true)}
+              onUpdateRoadmapConfirmations={updateActiveRoadmapConfirmations}
+              onUpdateDocStatuses={updateActiveDocStatuses}
+              onAddGeneratedDoc={addActiveGeneratedDoc}
+              onUpdateGeneratedDocStatus={updateActiveGeneratedDocStatus}
+              onDeleteGeneratedDoc={deleteActiveGeneratedDoc}
               onSaveSectionAnswers={saveActiveSectionAnswers}
               onSaveFormulation={(f) => {
                 setActiveFormulation(f);
                 saveActiveFormulation(f, currentUser?.id);
                 updateActiveFormulation(f);
               }}
-              onSendToAudit={(f, fund) => {
-                handleSendToAudit(f, fund);
-                updateActiveFormulation(f);
-              }}
-              onNavigateTab={setActiveTab}
-            />
-          ) : (
-            <AuthGateView
-              onOpenAuthModal={(mode) => { setAuthModalMode(mode); setShowAuthModal(true); }}
-              onNavigateHome={() => setActiveTab('diagnostic')}
-              title="Formulador Técnico IA para Fondos Concursables"
-              description="La redacción técnica con Inteligencia Artificial, estructura de presupuesto Corfo y definición de objetivos queda guardada en la bóveda privada de tu empresa."
-            />
-          )
-        )}
-
-        {/* Tab: Blind Auditor */}
-        {activeTab === 'auditor' && (
-          currentUser ? (
-            <BlindAuditor
-              initialFund={activeFund}
-              initialFormulation={activeExpediente.formulation || activeFormulation}
+              onSendToAudit={handleSendToAudit}
               onSaveAudit={(res) => {
                 setAuditResult(res);
                 saveActiveAudit(res, currentUser?.id);
                 updateActiveAuditResult(res);
               }}
-              onNavigateTab={setActiveTab}
+              onUpdateProfile={setProfile}
+              onOpenAuthModal={(mode) => { setAuthModalMode(mode || 'login'); setShowAuthModal(true); }}
+              onSelectFund={handleSelectFundToFormulate}
+              onNavigateTab={handleNavigateTab}
             />
           ) : (
             <AuthGateView
               onOpenAuthModal={(mode) => { setAuthModalMode(mode); setShowAuthModal(true); }}
               onNavigateHome={() => setActiveTab('diagnostic')}
-              title="Auditor Ciego y Simulado de Comités Evaluadores"
-              description="Para simular la evaluación oficial y calificar las debilidades críticas de tu postulación antes del cierre, inicia sesión con tu empresa."
+              title="Bóveda Privada de Postulación y Expediente"
+              description="Para acceder a las herramientas de formulación, hoja de ruta y auditoría, debes iniciar sesión con tu empresa."
             />
           )
         )}
 
-        {/* Tab: Roadmap / My Active Application */}
-        {activeTab === 'my-application' && (
-          currentUser ? (
-            <MyActiveApplication
-              profile={activeExpediente.profile || profile}
-              selectedFund={activeFund}
-              formulation={activeExpediente.formulation || activeFormulation}
-              auditResult={activeExpediente.auditResult || auditResult}
-              currentUser={currentUser}
-              expediente={activeExpediente}
-              onUpdateRoadmapConfirmations={updateActiveRoadmapConfirmations}
-              onUpdateDocStatuses={updateActiveDocStatuses}
-              onNavigateTab={setActiveTab}
-              onOpenSiiModal={() => setShowSiiModal(true)}
-              onOpenAuthModal={() => { setAuthModalMode('login'); setShowAuthModal(true); }}
-              onSelectFund={(fund) => handleSelectFundToFormulate(fund)}
-            />
-          ) : (
-            <AuthGateView
-              onOpenAuthModal={(mode) => { setAuthModalMode(mode); setShowAuthModal(true); }}
-              onNavigateHome={() => setActiveTab('diagnostic')}
-              title="Bóveda Privada de Postulación y Hoja de Ruta"
-              description="Para acceder a tu Hoja de Ruta personalizada, revisar las etapas de tu postulación y proteger tus antecedentes tributarios, debes iniciar sesión o registrar tu empresa en ImpulsaCap."
-            />
-          )
-        )}
-
-        {/* Tab: Document Manager */}
-        {activeTab === 'documents' && (
-          currentUser ? (
-            <DocumentManager
-              profile={activeExpediente.profile || profile}
-              activeFund={activeFund}
-              formulation={activeExpediente.formulation || activeFormulation}
-              currentUser={currentUser}
-              expediente={activeExpediente}
-              onUpdateDocStatuses={updateActiveDocStatuses}
-              onAddGeneratedDoc={addActiveGeneratedDoc}
-              onUpdateGeneratedDocStatus={updateActiveGeneratedDocStatus}
-              onDeleteGeneratedDoc={deleteActiveGeneratedDoc}
-              onNavigateTab={setActiveTab}
-              onOpenSiiModal={() => setShowSiiModal(true)}
-              onUpdateValidationCount={(count: number) => {
-                setProfile(prev => {
-                  const updated = { ...prev, customerValidationCount: count };
-                  saveActiveProfile(updated, currentUser?.id);
-                  return updated;
-                });
-              }}
-            />
-          ) : (
-            <AuthGateView
-              onOpenAuthModal={(mode) => { setAuthModalMode(mode); setShowAuthModal(true); }}
-              onNavigateHome={() => setActiveTab('diagnostic')}
-              title="Carpeta de Documentos y SII Privada"
-              description="Los antecedentes del SII, estatutos de sociedad y cartas de cofinanciamiento están resguardados en tu bóveda empresarial privada. Inicia sesión para consultarlos."
-            />
-          )
-        )}
-
-        {/* Tab: AI Advisor */}
-        {activeTab === 'advisor' && (
-          <ExpertChat
-            profile={profile}
-            currentFund={activeFund}
+        {/* Tab 2: Buscar Fondos (Catálogo + Convocatorias - Requirement 1) */}
+        {(activeTab === 'search-funds' || activeTab === 'catalog' || activeTab === 'convocatorias') && (
+          <SearchFundsView
+            funds={liveFunds}
+            convocatorias={convocatorias}
+            syncMeta={syncMeta}
+            isStale={isConvocatoriasStale}
+            loading={convocatoriasLoading}
+            onRefreshConvocatorias={refreshConvocatorias}
+            onSelectFundToFormulate={handleSelectFundToFormulate}
+            onSelectFundToViewDocs={handleSelectFundToViewDocs}
+            onOpenNewApplicationModal={() => setShowNewAppModal(true)}
+            initialTab={activeTab === 'convocatorias' ? 'calls' : 'programs'}
           />
+        )}
+
+        {/* Tab 3: Mi Empresa (Perfil + Carpeta SII + Representante Legal - Requirement 1) */}
+        {activeTab === 'my-company' && (
+          currentUser ? (
+            <MyCompanyView
+              profile={profile}
+              currentUser={currentUser}
+              onUpdateProfile={(updated) => {
+                setProfile(updated);
+                saveActiveProfile(updated, currentUser?.id);
+              }}
+              onOpenSiiModal={() => setShowSiiModal(true)}
+              onLogout={handleLogout}
+            />
+          ) : (
+            <AuthGateView
+              onOpenAuthModal={(mode) => { setAuthModalMode(mode); setShowAuthModal(true); }}
+              onNavigateHome={() => setActiveTab('diagnostic')}
+              title="Bóveda de Mi Empresa"
+              description="Inicia sesión o registra tu empresa para gestionar el perfil, los antecedentes del SII y los datos del representante legal."
+            />
+          )
+        )}
+
+        {/* Legacy / Direct Route Fallback: SmartDiagnostic (Requirement 9: lazy loaded) */}
+        {activeTab === 'advanced-diagnostic' && (
+          <Suspense fallback={<div className="p-12 text-center text-xs text-slate-500">Cargando diagnóstico...</div>}>
+            <SmartDiagnostic
+              profile={profile}
+              setProfile={setProfile}
+              onSelectFundToFormulate={handleSelectFundToFormulate}
+              onSelectFundToViewDocs={handleSelectFundToViewDocs}
+            />
+          </Suspense>
         )}
       </main>
 
-      {/* New Application Modal (Requirement 7, 8, 9, 10, 11) */}
+      {/* Floating AI Advisor Widget (Requirements 1 & 4) */}
+      <FloatingAdvisor
+        isOpen={showAdvisorModal}
+        onToggle={() => setShowAdvisorModal(prev => !prev)}
+        onClose={() => setShowAdvisorModal(false)}
+        profile={profile}
+        currentFund={activeFund}
+        currentUser={currentUser}
+        onOpenAuthModal={(mode) => { setAuthModalMode(mode || 'login'); setShowAuthModal(true); }}
+      />
+
+      {/* New Application Modal */}
       <NewApplicationModal
         isOpen={showNewAppModal}
         onClose={() => setShowNewAppModal(false)}
@@ -690,14 +609,16 @@ export default function App() {
         onCreateApplication={async (fundId) => {
           const res = await createApplication(fundId);
           if (res.ok && res.application) {
-            setActiveTab('my-application');
+            setActiveTab('postulation');
+            setPostulationSubTab('roadmap');
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }
           return res;
         }}
         onOpenExistingApplication={(appId) => {
           setActiveApplicationId(appId);
-          setActiveTab('my-application');
+          setActiveTab('postulation');
+          setPostulationSubTab('roadmap');
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
         onArchiveApplication={archiveApplication}
@@ -710,161 +631,6 @@ export default function App() {
         onAuthSuccess={handleAuthSuccess}
         initialMode={authModalMode}
       />
-
-      {/* Quick Profile Modal - Clean Light SaaS */}
-      {showProfileModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-fade-in">
-          <div className="w-full max-w-lg rounded-3xl bg-white border border-slate-200 p-6 sm:p-8 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-              <div className="flex items-center gap-2.5">
-                <Building2 className="w-5 h-5 text-blue-600" />
-                <h3 className="text-base font-bold text-slate-900">Editar Perfil de la Empresa</h3>
-              </div>
-              <button
-                onClick={() => setShowProfileModal(false)}
-                className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Account Status / Privacy info */}
-            {currentUser ? (
-              <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                    <Lock className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Cuenta de Empresa: {currentUser.email}</span>
-                  </p>
-                  <p className="text-[10px] text-slate-500">Datos protegidos con contraseña privada</p>
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="px-2.5 py-1 rounded-lg bg-white hover:bg-rose-50 border border-slate-200 text-slate-700 hover:text-rose-600 text-xs font-semibold cursor-pointer"
-                >
-                  Cerrar Sesión
-                </button>
-              </div>
-            ) : (
-              <div className="p-3.5 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
-                    <Lock className="w-3.5 h-3.5 text-blue-600" />
-                    <span>Sin Sesión Activa</span>
-                  </p>
-                  <p className="text-[10px] text-slate-500">Inicia sesión con mail y contraseña</p>
-                </div>
-                <button
-                  onClick={() => {
-                    setShowProfileModal(false);
-                    setAuthModalMode('register');
-                    setShowAuthModal(true);
-                  }}
-                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer"
-                >
-                  Registrar
-                </button>
-              </div>
-            )}
-
-            {/* Quick SII Autofill Button */}
-            <div className="p-3.5 rounded-xl bg-gradient-to-r from-blue-50 to-emerald-50 border border-blue-200 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-bold text-slate-900">Autocompletar con Carpeta Tributaria</p>
-                <p className="text-[10px] text-slate-500">Extrae RUT, ventas y fecha de inicio automáticamente</p>
-              </div>
-              <button
-                onClick={() => {
-                  setShowProfileModal(false);
-                  setShowSiiModal(true);
-                }}
-                className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer shadow-xs"
-              >
-                Subir F29 con IA
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="block text-slate-700 font-semibold mb-1">Razón Social</label>
-                <input
-                  type="text"
-                  value={profile.companyName}
-                  onChange={(e) => setProfile({ ...profile, companyName: e.target.value })}
-                  placeholder="Ej: Mi Empresa SpA"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 focus:bg-white focus:border-blue-500 focus:outline-hidden"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-slate-700 font-semibold">RUT Empresa</label>
-                    {profile.rut && (
-                      <span className={`text-[10px] font-bold ${validateRut(profile.rut) ? 'text-emerald-600' : 'text-amber-600'}`}>
-                        {validateRut(profile.rut) ? '✓ Válido Módulo 11' : '⚠ Inválido'}
-                      </span>
-                    )}
-                  </div>
-                  <input
-                    type="text"
-                    value={profile.rut}
-                    onChange={(e) => setProfile({ ...profile, rut: formatRut(e.target.value) })}
-                    placeholder="77.123.456-K"
-                    className={`w-full px-3 py-2 rounded-xl bg-slate-50 border text-slate-900 font-mono focus:bg-white focus:outline-hidden ${
-                      profile.rut && validateRut(profile.rut) ? 'border-emerald-500' : 'border-slate-300 focus:border-blue-500'
-                    }`}
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Tipo de Sociedad</label>
-                  <select
-                    value={profile.companyType}
-                    onChange={(e) => setProfile({ ...profile, companyType: e.target.value as any })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 focus:bg-white focus:border-blue-500 focus:outline-hidden"
-                  >
-                    <option value="spa">SpA</option>
-                    <option value="srl">SRL</option>
-                    <option value="eirl">EIRL</option>
-                    <option value="sa">S.A.</option>
-                    <option value="persona_natural">Persona Natural (1ª Cat)</option>
-                    <option value="sin_iniciar">Sin Inicio de Actividades</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-slate-700 font-semibold mb-1">Sector Económico</label>
-                <input
-                  type="text"
-                  value={profile.sector}
-                  onChange={(e) => setProfile({ ...profile, sector: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 focus:bg-white focus:border-blue-500 focus:outline-hidden"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-700 font-semibold mb-1">Región</label>
-                <input
-                  type="text"
-                  value={profile.region}
-                  onChange={(e) => setProfile({ ...profile, region: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 focus:bg-white focus:border-blue-500 focus:outline-hidden"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
-              <button
-                onClick={() => setShowProfileModal(false)}
-                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer shadow-xs"
-              >
-                Guardar Cambios
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Sii Tax Folder Uploader Modal */}
       <SiiUploaderModal

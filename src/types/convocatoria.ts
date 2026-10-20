@@ -22,6 +22,7 @@ export interface Convocatoria {
   estado_corfo?: string;
   diasRestantes?: number | null;
   callStatus?: 'Abierta' | 'Cerrada' | 'Próxima' | 'Por confirmar';
+  programa?: string | null;
 }
 
 export interface ConvocatoriasSyncMeta {

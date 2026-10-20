@@ -959,11 +959,11 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
             </div>
           )}
 
-          {/* SHORTCUT CARDS (5 situaciones como atajo rápido) */}
-          {!matchResult && !loading && (
+          {/* SHORTCUT CARDS (5 situaciones como atajo rápido) - Requirement 6 */}
+          {!matchResult && !loading && onboardingStep === 1 && !stage && (
             <div className="pt-2 animate-fade-in max-w-3xl mx-auto">
               <p className="text-[11px] uppercase tracking-wider text-slate-500 font-extrabold mb-2.5 text-center">
-                O elige tu situación en 1 clic como atajo:
+                ¿Prefieres un atajo?
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 text-left">
                 {QUICK_QUESTION_OPTIONS.map((opt, idx) => (

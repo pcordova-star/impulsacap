@@ -162,7 +162,11 @@ export const ConvocatoriasView: React.FC<ConvocatoriasViewProps> = ({
               </span>
               <span className="inline-flex items-center gap-1.5 text-xs text-slate-500 font-medium">
                 <Clock className="w-3.5 h-3.5 text-slate-400" />
-                <span>Actualizado el <strong>{formatSyncDate(syncMeta?.lastSyncAt)}</strong></span>
+                {syncMeta?.lastSyncAt ? (
+                  <span>Actualizado el <strong>{formatSyncDate(syncMeta.lastSyncAt)}</strong></span>
+                ) : (
+                  <span>Aún no hay datos sincronizados</span>
+                )}
               </span>
             </div>
 
@@ -187,8 +191,8 @@ export const ConvocatoriasView: React.FC<ConvocatoriasViewProps> = ({
         </div>
       </div>
 
-      {/* 2. Warning if stale (> 48 hours) - Requirement 7 */}
-      {isStale && (
+      {/* 2. Warning if stale (> 48 hours) - Requirement 8: Only if syncMeta exists */}
+      {Boolean(syncMeta?.lastSyncAt && isStale) && (
         <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-between gap-3 text-amber-900 text-xs animate-fade-in">
           <div className="flex items-center gap-2.5">
             <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
@@ -336,11 +340,15 @@ export const ConvocatoriasView: React.FC<ConvocatoriasViewProps> = ({
                         </span>
                       )}
 
-                      {hasMatchedFund && (
-                        <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[10px] font-semibold border border-indigo-200">
-                          ✓ Compatible con Formulador IA
+                      {matchedFund ? (
+                        <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-800 text-[10px] font-bold border border-blue-200">
+                          📌 Programa: {matchedFund.name}
                         </span>
-                      )}
+                      ) : conv.programa ? (
+                        <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-semibold border border-slate-200">
+                          📌 Programa: {conv.programa}
+                        </span>
+                      ) : null}
                     </div>
 
                     <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-snug">

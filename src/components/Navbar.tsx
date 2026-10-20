@@ -2,18 +2,18 @@ import React from 'react';
 import { 
   Award, 
   FileText, 
-  ShieldAlert,
   ShieldCheck, 
-  MessageSquareCode, 
   Sparkles, 
   Building2,
-  Zap,
   Lock,
   LogOut,
-  UserCheck,
   Clock,
   ArrowLeft,
-  UserPlus
+  UserPlus,
+  Compass,
+  Layers,
+  Search,
+  MessageSquareCode
 } from 'lucide-react';
 
 import { ImpulsaCapLogo } from './ImpulsaCapLogo';
@@ -27,6 +27,7 @@ interface NavbarProps {
   onOpenProfile: () => void;
   onOpenAuthModal: (mode?: 'login' | 'register') => void;
   onLogout: () => void;
+  onToggleAdvisor?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -36,20 +37,22 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentUser,
   onOpenProfile,
   onOpenAuthModal,
-  onLogout
+  onLogout,
+  onToggleAdvisor
 }) => {
-  // Mobile bottom tabs
+  // Mobile bottom tabs - Requirements 1 & 4
   const mobileNavTabs = currentUser ? [
-    { id: 'my-application', label: 'Mi Postulación', icon: Clock },
-    { id: 'catalog', label: 'Catálogo', icon: Award },
-    { id: 'formulator', label: 'Formulador', icon: Sparkles },
-    { id: 'documents', label: 'Carpeta SII', icon: FileText },
-    { id: 'auditor', label: 'Auditor', icon: ShieldCheck },
+    { id: 'my-applications', label: 'Mis postulaciones', icon: Layers },
+    { id: 'search-funds', label: 'Buscar fondos', icon: Search },
+    { id: 'my-company', label: 'Mi empresa', icon: Building2 },
+    { id: 'advisor-button', label: 'Asesor', icon: Sparkles, action: onToggleAdvisor },
   ] : [
-    { id: 'diagnostic', label: 'Diagnóstico', icon: Zap },
-    { id: 'catalog', label: 'Catálogo', icon: Award },
-    { id: 'advisor', label: 'Asesor', icon: MessageSquareCode },
+    { id: 'diagnostic', label: 'Inicio', icon: Sparkles },
+    { id: 'search-funds', label: 'Buscar fondos', icon: Search },
+    { id: 'login', label: 'Iniciar sesión', icon: Lock, action: () => onOpenAuthModal('login') },
   ];
+
+  const isApplicationsTabActive = activeTab === 'my-applications' || activeTab === 'postulation' || activeTab === 'my-application';
 
   return (
     <>
@@ -61,96 +64,77 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Brand Logo ImpulsaCap */}
             <div 
               className="flex items-center gap-2 cursor-pointer active:scale-95 transition-transform" 
-              onClick={() => setActiveTab('diagnostic')}
+              onClick={() => setActiveTab(currentUser ? 'my-applications' : 'diagnostic')}
             >
               <ImpulsaCapLogo size={34} withText withTagline={false} />
             </div>
 
             {/* Desktop Navigation Links */}
-            <nav className="hidden lg:flex items-center gap-1.5 text-xs font-semibold">
-              <button
-                onClick={() => setActiveTab('diagnostic')}
-                className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
-                  activeTab === 'diagnostic'
-                    ? 'bg-blue-50 text-blue-700 font-bold border border-blue-200 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                }`}
-              >
-                Calculadora & Matcher
-              </button>
-              <button
-                onClick={() => setActiveTab('catalog')}
-                className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
-                  activeTab === 'catalog'
-                    ? 'bg-blue-50 text-blue-700 font-bold border border-blue-200 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                }`}
-              >
-                Catálogo de Fondos
-              </button>
-              <button
-                onClick={() => setActiveTab('convocatorias')}
-                className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
-                  activeTab === 'convocatorias'
-                    ? 'bg-blue-50 text-blue-700 font-bold border border-blue-200 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                }`}
-              >
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span>Convocatorias Abiertas</span>
-              </button>
-
-              {currentUser && (
+            <nav className="hidden md:flex items-center gap-2 text-xs font-semibold">
+              {currentUser ? (
+                /* Authenticated Menu: Exactly 3 options (Requirement 1) */
                 <>
                   <button
                     onClick={() => setActiveTab('my-applications')}
-                    className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
-                      activeTab === 'my-applications'
-                        ? 'bg-blue-50 text-blue-700 font-bold border border-blue-200 shadow-xs'
+                    className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                      isApplicationsTabActive
+                        ? 'bg-blue-50 text-blue-700 font-bold border border-blue-200 shadow-2xs'
                         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                     }`}
                   >
-                    Mis Postulaciones
+                    <Layers className="w-4 h-4 text-blue-600" />
+                    <span>Mis postulaciones</span>
                   </button>
+
                   <button
-                    onClick={() => setActiveTab('my-application')}
-                    className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
-                      activeTab === 'my-application'
-                        ? 'bg-emerald-50 text-emerald-800 font-bold border border-emerald-200 shadow-xs'
+                    onClick={() => setActiveTab('search-funds')}
+                    className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                      activeTab === 'search-funds' || activeTab === 'catalog' || activeTab === 'convocatorias'
+                        ? 'bg-blue-50 text-blue-700 font-bold border border-blue-200 shadow-2xs'
                         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                     }`}
                   >
-                    Hoja de Ruta
+                    <Search className="w-4 h-4 text-emerald-600" />
+                    <span>Buscar fondos</span>
                   </button>
+
                   <button
-                    onClick={() => setActiveTab('formulator')}
-                    className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
-                      activeTab === 'formulator'
-                        ? 'bg-blue-50 text-blue-700 font-bold border border-blue-200 shadow-xs'
+                    onClick={() => setActiveTab('my-company')}
+                    className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                      activeTab === 'my-company'
+                        ? 'bg-blue-50 text-blue-700 font-bold border border-blue-200 shadow-2xs'
                         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                     }`}
                   >
-                    Formulador IA
+                    <Building2 className="w-4 h-4 text-indigo-600" />
+                    <span>Mi empresa</span>
                   </button>
+                </>
+              ) : (
+                /* Unauthenticated Menu: Inicio, Buscar fondos (Requirement 5) */
+                <>
                   <button
-                    onClick={() => setActiveTab('documents')}
-                    className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
-                      activeTab === 'documents'
-                        ? 'bg-blue-50 text-blue-700 font-bold border border-blue-200 shadow-xs'
+                    onClick={() => setActiveTab('diagnostic')}
+                    className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                      activeTab === 'diagnostic'
+                        ? 'bg-blue-50 text-blue-700 font-bold border border-blue-200 shadow-2xs'
                         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                     }`}
                   >
-                    Carpeta SII
+                    <Sparkles className="w-4 h-4 text-blue-600" />
+                    <span>Inicio</span>
                   </button>
+
                   <button
-                    onClick={() => setActiveTab('auditor')}
-                    className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
-                      activeTab === 'auditor'
-                        ? 'bg-blue-50 text-blue-700 font-bold border border-blue-200 shadow-xs'
+                    onClick={() => setActiveTab('search-funds')}
+                    className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                      activeTab === 'search-funds' || activeTab === 'catalog' || activeTab === 'convocatorias'
+                        ? 'bg-blue-50 text-blue-700 font-bold border border-blue-200 shadow-2xs'
                         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                     }`}
                   >
-                    Auditor Ciego
+                    <Search className="w-4 h-4 text-emerald-600" />
+                    <span>Buscar fondos</span>
                   </button>
                 </>
               )}
@@ -158,14 +142,12 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Right side actions */}
             <div className="flex items-center gap-2 sm:gap-2.5">
-              
-              {/* Authenticated Company Badge or Login Button */}
               {currentUser ? (
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={onOpenProfile}
-                    title="Editar perfil y datos tributarios"
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-emerald-300 hover:bg-emerald-50/50 text-xs text-slate-700 transition-all cursor-pointer group shadow-xs"
+                    onClick={() => setActiveTab('my-company')}
+                    title="Ver perfil de la empresa y carpeta tributaria"
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-emerald-300 hover:bg-emerald-50/50 text-xs text-slate-700 transition-all cursor-pointer group shadow-2xs"
                   >
                     <div className="w-5 h-5 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-[10px]">
                       {currentUser.companyName.charAt(0).toUpperCase()}
@@ -183,41 +165,24 @@ export const Navbar: React.FC<NavbarProps> = ({
                   >
                     <LogOut className="w-3.5 h-3.5" />
                   </button>
-
-                  {/* Return to Mis Postulaciones Button */}
-                  {activeTab !== 'my-applications' ? (
-                    <button
-                      onClick={() => setActiveTab('my-applications')}
-                      className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs shadow-sm shadow-blue-600/20 active:scale-95 transition-all cursor-pointer"
-                      title="Volver a Mis Postulaciones"
-                    >
-                      <ArrowLeft className="w-3.5 h-3.5" />
-                      <span>Mis Postulaciones</span>
-                    </button>
-                  ) : (
-                    <div className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 text-blue-800 border border-blue-200 text-xs font-bold">
-                      <Clock className="w-3.5 h-3.5 text-blue-600" />
-                      <span>Panel Principal</span>
-                    </div>
-                  )}
                 </div>
               ) : (
-                /* Unauthenticated Guest Actions: NO "Volver al Dashboard" button! */
+                /* Unauthenticated Actions (Requirement 5: Iniciar sesión y Registrarse) */
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => onOpenAuthModal('login')}
-                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-xs font-bold text-white shadow-xs shadow-blue-600/20 active:scale-95 transition-all cursor-pointer"
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
                   >
                     <Lock className="w-3.5 h-3.5" />
-                    <span>Iniciar Sesión</span>
+                    <span>Iniciar sesión</span>
                   </button>
 
                   <button
                     onClick={() => onOpenAuthModal('register')}
-                    className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold active:scale-95 transition-all cursor-pointer"
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs shadow-blue-600/20 active:scale-95 transition-all cursor-pointer"
                   >
-                    <UserPlus className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Registrar Empresa</span>
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span>Registrarse</span>
                   </button>
                 </div>
               )}
@@ -227,24 +192,30 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </header>
 
-      {/* FIXED MOBILE BOTTOM APP BAR - Clean Light Style */}
+      {/* FIXED MOBILE BOTTOM APP BAR (Requirement 4) */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-xl border-t border-slate-200 shadow-2xl pb-[env(safe-area-inset-bottom)]">
         <div className={`grid grid-cols-${mobileNavTabs.length} h-16 max-w-md mx-auto px-1`}>
           {mobileNavTabs.map((tab) => {
             const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
+            const isActive = tab.id === 'my-applications' 
+              ? isApplicationsTabActive 
+              : activeTab === tab.id;
+
             return (
               <button
                 key={tab.id}
                 onClick={() => {
-                  setActiveTab(tab.id);
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                  if (tab.action) {
+                    tab.action();
+                  } else {
+                    setActiveTab(tab.id);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }
                 }}
                 className={`relative flex flex-col items-center justify-center gap-1 w-full h-full transition-all active:scale-90 ${
                   isActive ? 'text-blue-600 font-bold' : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                {/* Active Indicator Top Line */}
                 {isActive && (
                   <span className="absolute top-0 w-8 h-1 rounded-full bg-blue-600 shadow-xs" />
                 )}
