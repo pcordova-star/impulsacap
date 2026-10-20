@@ -253,7 +253,7 @@ export const PrivacyPage: React.FC<LegalPageProps> = ({ onBack, onOpenOther }) =
         ['Carpeta tributaria', 'Inicio de actividades, ventas declaradas, periodos F29 y observaciones del SII', 'El archivo que subes; lo procesamos para extraer estos datos'],
         ['Postulaciones', 'Respuestas sobre tu proyecto, textos generados, cartas, presupuesto, resultados de auditoría', 'Tú y las herramientas de IA'],
         ['Pagos', 'Monto, fecha, estado e identificador del pago', <>Mercado Pago. <strong>No recibimos ni guardamos números de tarjeta</strong></>],
-        ['Uso técnico', 'Dirección IP, navegador, registros de errores y de solicitudes', 'Automático, al usar el sitio']
+        ['Uso técnico', 'Dirección IP, navegador, registros de errores y de solicitudes, y un conteo de visitas por día y por sección del sitio, sin identificarte', 'Automático, al usar el sitio']
       ]}
     />
     <P>
@@ -336,7 +336,7 @@ export const PrivacyPage: React.FC<LegalPageProps> = ({ onBack, onOpenOther }) =
 
     <H2>9. Cookies y almacenamiento en tu navegador</H2>
     <P>
-      ImpulsaCap usa solo almacenamiento técnico necesario para funcionar: mantener tu sesión iniciada (Firebase) y guardar en tu navegador una copia temporal de tu avance para que la app cargue más rápido. No usamos cookies de publicidad ni de seguimiento de terceros.
+      ImpulsaCap usa solo almacenamiento técnico: mantener tu sesión iniciada (Firebase), guardar en tu navegador una copia temporal de tu avance para que la app cargue más rápido y recordar la fecha de tu última visita, para contar cuántas personas visitan el sitio cada día. Ese conteo es propio, no usa cookies, no guarda tu IP ni ningún identificador y no se comparte con terceros. No usamos cookies de publicidad ni de seguimiento de terceros.
     </P>
     <P>Si en el futuro agregamos herramientas de analítica o publicidad, actualizaremos esta política y te pediremos consentimiento cuando corresponda.</P>
 

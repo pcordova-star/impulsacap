@@ -1,0 +1,410 @@
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { RefreshCw, ShieldAlert, CheckCircle2, AlertTriangle, LogIn } from 'lucide-react';
+import { apiFetch } from '../utils/apiFetch';
+import { auth } from '../firebase';
+import { requestLogin } from '../utils/authEvents';
+
+/* Tipos del resumen que entrega GET /api/admin/resumen (server/adminStats.ts) */
+interface SeriesPoint { date: string; views: number; visitors: number; signups: number; purchases: number; revenue: number; applications: number }
+interface Summary {
+  generatedAt: string;
+  kpis: {
+    revenueTotal: number; revenueThisMonth: number; approvedPayments: number;
+    activePlans: number; expiringIn7d: number;
+    totalUsers: number; newUsers7d: number; newUsers30d: number;
+    totalApplications: number; views7d: number; visitors7d: number;
+  };
+  funnel30d: { visitors: number; signups: number; purchases: number };
+  series30d: SeriesPoint[];
+  topPages30d: { page: string; label: string; views: number }[];
+  payments: { id: string; email: string; companyName: string; amount: number; status: string; kind: string; date: string | null; serviceStarted: boolean }[];
+  activePlans: { uid: string; email: string; companyName: string; expiresAt: string; daysLeft: number; serviceStarted: boolean }[];
+  users: { uid: string; email: string; companyName: string; displayName: string; createdAt: string | null; lastSignInAt: string | null; provider: string; hasActivePlan: boolean; applications: number }[];
+  fundsTop: { fundName: string; count: number }[];
+  system: { lastConvocatoriasSyncAt: string | null; convocatoriasVigentes: number | null; emailConfigured: boolean; mercadoPagoConfigured: boolean };
+}
+
+const clp = (n: number) => `$${Math.round(n).toLocaleString('es-CL')}`;
+const num = (n: number) => n.toLocaleString('es-CL');
+const fmtDate = (iso: string | null, withTime = false) => {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleString('es-CL', withTime
+    ? { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'America/Santiago' }
+    : { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'America/Santiago' });
+};
+const dayLabel = (key: string) => {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' });
+};
+const pct = (a: number, b: number) => (b > 0 ? `${Math.round((a / b) * 1000) / 10}%` : '—');
+
+/* -------------------------------------------------------------------------- */
+
+const Card: React.FC<{ title?: string; subtitle?: string; right?: React.ReactNode; children: React.ReactNode; className?: string }> = ({ title, subtitle, right, children, className = '' }) => (
+  <section className={`rounded-2xl bg-white border border-slate-200 p-5 sm:p-6 min-w-0 ${className}`}>
+    {(title || right) && (
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+        <div>
+          {title && <h2 className="text-base font-bold text-slate-900">{title}</h2>}
+          {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
+        </div>
+        {right}
+      </div>
+    )}
+    {children}
+  </section>
+);
+
+const Kpi: React.FC<{ label: string; value: string; detail: string }> = ({ label, value, detail }) => (
+  <div className="rounded-2xl bg-white border border-slate-200 p-4 sm:p-5 min-w-0">
+    <p className="text-sm text-slate-600">{label}</p>
+    <p className="text-2xl sm:text-3xl font-black text-slate-900 mt-1 tabular-nums">{value}</p>
+    <p className="text-xs text-slate-500 mt-1">{detail}</p>
+  </div>
+);
+
+type Metric = 'views' | 'visitors' | 'signups' | 'purchases' | 'revenue';
+const METRICS: { key: Metric; label: string; format: (n: number) => string }[] = [
+  { key: 'views', label: 'Visitas', format: num },
+  { key: 'visitors', label: 'Visitantes', format: num },
+  { key: 'signups', label: 'Registros', format: num },
+  { key: 'purchases', label: 'Compras', format: num },
+  { key: 'revenue', label: 'Ingresos', format: clp }
+];
+
+/** Barras de una sola serie para los últimos 30 días, con tooltip al pasar o enfocar. */
+const DailyBars: React.FC<{ data: SeriesPoint[]; metric: Metric }> = ({ data, metric }) => {
+  const [hover, setHover] = useState<number | null>(null);
+  const meta = METRICS.find(m => m.key === metric)!;
+  const values = data.map(d => Number(d[metric]) || 0);
+  const max = Math.max(1, ...values);
+  const total = values.reduce((a, b) => a + b, 0);
+  const h = hover !== null ? data[hover] : null;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-sm min-h-[1.5rem]">
+        <p className="text-slate-600">
+          Total 30 días: <strong className="text-slate-900 tabular-nums">{meta.format(total)}</strong>
+        </p>
+        <p className="text-slate-600" aria-live="polite">
+          {h ? (
+            <>{dayLabel(h.date)}: <strong className="text-slate-900 tabular-nums">{meta.format(Number(h[metric]) || 0)}</strong></>
+          ) : (
+            <>Máximo diario: <span className="tabular-nums">{meta.format(Math.max(...values, 0))}</span></>
+          )}
+        </p>
+      </div>
+      <div className="relative">
+        <div className="absolute inset-x-0 top-0 border-t border-dashed border-slate-200" aria-hidden="true" />
+        <div className="flex items-end gap-[2px] h-44 border-b border-slate-300" onMouseLeave={() => setHover(null)}>
+          {data.map((d, i) => {
+            const v = values[i];
+            return (
+              <button
+                key={d.date}
+                type="button"
+                aria-label={`${dayLabel(d.date)}: ${meta.format(v)}`}
+                onMouseEnter={() => setHover(i)}
+                onFocus={() => setHover(i)}
+                onBlur={() => setHover(null)}
+                onClick={() => setHover(i)}
+                className="flex-1 h-full flex items-end cursor-default focus-visible:outline-none group"
+              >
+                <span
+                  className={`w-full rounded-t-[4px] transition-colors ${hover === i ? 'bg-blue-800' : 'bg-blue-600'} group-focus-visible:ring-2 group-focus-visible:ring-blue-400`}
+                  style={{ height: v > 0 ? `${Math.max(3, (v / max) * 100)}%` : '0%' }}
+                />
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div className="flex justify-between text-[11px] text-slate-500">
+        <span>{dayLabel(data[0]?.date || '')}</span>
+        <span>{dayLabel(data[Math.floor(data.length / 2)]?.date || '')}</span>
+        <span>Hoy</span>
+      </div>
+      {/* Versión en tabla para lectores de pantalla */}
+      <table className="sr-only">
+        <caption>{meta.label} por día, últimos 30 días</caption>
+        <tbody>{data.map((d, i) => <tr key={d.date}><td>{d.date}</td><td>{values[i]}</td></tr>)}</tbody>
+      </table>
+    </div>
+  );
+};
+
+/** Barras horizontales de una sola serie (embudo, páginas, fondos). */
+const HBars: React.FC<{ rows: { label: string; value: number; note?: string }[]; format?: (n: number) => string }> = ({ rows, format = num }) => {
+  const max = Math.max(1, ...rows.map(r => r.value));
+  if (rows.length === 0) return <p className="text-sm text-slate-500">Aún no hay datos.</p>;
+  return (
+    <ul className="space-y-3">
+      {rows.map(r => (
+        <li key={r.label} className="space-y-1">
+          <div className="flex items-baseline justify-between gap-3 text-sm">
+            <span className="text-slate-700 truncate">{r.label}</span>
+            <span className="text-slate-900 font-semibold tabular-nums shrink-0">
+              {format(r.value)}{r.note && <span className="text-slate-500 font-normal"> · {r.note}</span>}
+            </span>
+          </div>
+          <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+            <div className="h-full rounded-full bg-blue-600" style={{ width: `${(r.value / max) * 100}%` }} />
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+};
+
+const Table: React.FC<{ headers: string[]; children: React.ReactNode; empty?: boolean }> = ({ headers, children, empty }) => (
+  <div className="overflow-x-auto -mx-5 sm:-mx-6 px-5 sm:px-6">
+    {empty ? (
+      <p className="text-sm text-slate-500">Aún no hay datos.</p>
+    ) : (
+      <table className="w-full text-sm min-w-[640px]">
+        <thead>
+          <tr className="text-left text-xs text-slate-500 border-b border-slate-200">
+            {headers.map(h => <th key={h} className="py-2 pr-4 font-semibold whitespace-nowrap">{h}</th>)}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">{children}</tbody>
+      </table>
+    )}
+  </div>
+);
+
+const Status: React.FC<{ ok: boolean; okText: string; badText: string }> = ({ ok, okText, badText }) => (
+  <span className={`inline-flex items-center gap-1.5 ${ok ? 'text-emerald-700' : 'text-amber-700'}`}>
+    {ok ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+    {ok ? okText : badText}
+  </span>
+);
+
+/* -------------------------------------------------------------------------- */
+
+export const AdminDashboard: React.FC = () => {
+  const [data, setData] = useState<Summary | null>(null);
+  const [showAllUsers, setShowAllUsers] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<{ kind: 'login' | 'forbidden' | 'other'; message: string; email?: string | null } | null>(null);
+  const [metric, setMetric] = useState<Metric>('views');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      if (auth.authStateReady) await auth.authStateReady();
+      if (!auth.currentUser) {
+        setError({ kind: 'login', message: 'Inicia sesión con tu cuenta de administrador.' });
+        return;
+      }
+      const res = await apiFetch('/api/admin/resumen');
+      const body = await res.json().catch(() => ({}));
+      if (res.status === 403) {
+        setError({ kind: 'forbidden', message: body.error || 'Sin acceso.', email: body.email });
+      } else if (!res.ok) {
+        setError({ kind: 'other', message: body.error || 'No se pudo cargar el panel.' });
+      } else {
+        setData(body as Summary);
+      }
+    } catch (err: any) {
+      setError({ kind: 'other', message: err?.message || 'No se pudo cargar el panel.' });
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const funnelRows = useMemo(() => {
+    if (!data) return [];
+    const f = data.funnel30d;
+    return [
+      { label: 'Visitantes', value: f.visitors },
+      { label: 'Se registraron', value: f.signups, note: pct(f.signups, f.visitors) },
+      { label: 'Compraron el plan', value: f.purchases, note: pct(f.purchases, f.signups) }
+    ];
+  }, [data]);
+
+  if (error) {
+    return (
+      <div className="max-w-xl mx-auto py-16 text-center space-y-4">
+        <ShieldAlert className="w-10 h-10 text-slate-400 mx-auto" />
+        <h1 className="text-2xl font-black text-slate-900">Panel de administración</h1>
+        <p className="text-slate-600">{error.message}</p>
+        {error.kind === 'forbidden' && (
+          <p className="text-sm text-slate-500">
+            {error.email ? <>Entraste como <strong>{error.email}</strong>. </> : null}
+            Para habilitarla, agrega ese correo al secreto <code className="px-1 rounded bg-slate-100">ADMIN_DASHBOARD_EMAILS</code> en AI Studio y vuelve a publicar.
+          </p>
+        )}
+        {error.kind === 'login' ? (
+          <button
+            type="button"
+            onClick={() => requestLogin({ mode: 'login', message: 'Inicia sesión con tu cuenta de administrador.', onSuccess: load })}
+            className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-slate-900 text-white font-bold text-sm cursor-pointer"
+          >
+            <LogIn className="w-4 h-4" /> Iniciar sesión
+          </button>
+        ) : (
+          <button type="button" onClick={load} className="inline-flex items-center gap-2 px-5 py-3 rounded-xl border border-slate-300 font-bold text-sm cursor-pointer">
+            <RefreshCw className="w-4 h-4" /> Reintentar
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  if (loading && !data) {
+    return (
+      <div className="py-6 space-y-4 animate-pulse">
+        <div className="h-8 w-64 bg-slate-200 rounded" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{[0, 1, 2, 3].map(i => <div key={i} className="h-28 bg-slate-200 rounded-2xl" />)}</div>
+        <div className="h-64 bg-slate-200 rounded-2xl" />
+      </div>
+    );
+  }
+  if (!data) return null;
+  const k = data.kpis;
+
+  return (
+    <div className="py-4 sm:py-6 space-y-5 min-w-0">
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Panel de administración</h1>
+          <p className="text-sm text-slate-500">Actualizado {fmtDate(data.generatedAt, true)}</p>
+        </div>
+        <button
+          type="button"
+          onClick={load}
+          disabled={loading}
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-sm font-bold text-slate-700 hover:bg-slate-50 cursor-pointer disabled:opacity-60"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Actualizar
+        </button>
+      </header>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Kpi label="Ingresos totales" value={clp(k.revenueTotal)} detail={`${clp(k.revenueThisMonth)} este mes · ${num(k.approvedPayments)} pagos`} />
+        <Kpi label="Planes activos" value={num(k.activePlans)} detail={k.expiringIn7d > 0 ? `${k.expiringIn7d} vencen en 7 días` : 'Ninguno vence esta semana'} />
+        <Kpi label="Usuarios registrados" value={num(k.totalUsers)} detail={`+${num(k.newUsers7d)} en 7 días · +${num(k.newUsers30d)} en 30`} />
+        <Kpi label="Visitas, 7 días" value={num(k.views7d)} detail={`${num(k.visitors7d)} visitantes (únicos por día)`} />
+      </div>
+
+      <Card
+        title="Últimos 30 días"
+        right={
+          <div role="tablist" aria-label="Métrica" className="flex flex-wrap gap-1 rounded-xl bg-slate-100 p-1">
+            {METRICS.map(m => (
+              <button
+                key={m.key}
+                role="tab"
+                aria-selected={metric === m.key}
+                type="button"
+                onClick={() => setMetric(m.key)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer ${metric === m.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+        }
+      >
+        <DailyBars data={data.series30d} metric={metric} />
+      </Card>
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <Card title="Embudo de conversión" subtitle="Últimos 30 días. El porcentaje es respecto del paso anterior.">
+          <HBars rows={funnelRows} />
+        </Card>
+        <Card title="Secciones más vistas" subtitle="Últimos 30 días">
+          <HBars rows={data.topPages30d.map(p => ({ label: p.label, value: p.views }))} />
+        </Card>
+      </div>
+
+      <Card title="Pagos recientes" subtitle="Últimos 50, aprobados y rechazados">
+        <Table headers={['Fecha', 'Cliente', 'Monto', 'Tipo', 'Estado', 'Uso iniciado', 'ID Mercado Pago']} empty={data.payments.length === 0}>
+          {data.payments.map(p => (
+            <tr key={p.id} className="align-top">
+              <td className="py-2.5 pr-4 whitespace-nowrap text-slate-600">{fmtDate(p.date, true)}</td>
+              <td className="py-2.5 pr-4"><div className="text-slate-900">{p.companyName || '—'}</div><div className="text-xs text-slate-500">{p.email}</div></td>
+              <td className="py-2.5 pr-4 tabular-nums font-semibold">{clp(p.amount)}</td>
+              <td className="py-2.5 pr-4 whitespace-nowrap">{p.kind}</td>
+              <td className="py-2.5 pr-4 whitespace-nowrap">
+                {p.status === 'approved' ? <Status ok okText="Aprobado" badText="" /> : <Status ok={false} okText="" badText={p.status === 'rechazado_validacion' ? 'Rechazado (validación)' : p.status} />}
+              </td>
+              <td className="py-2.5 pr-4 whitespace-nowrap text-slate-600">{p.status === 'approved' ? (p.serviceStarted ? 'Sí' : 'No, puede retractarse') : '—'}</td>
+              <td className="py-2.5 pr-4 font-mono text-xs text-slate-500">{p.id}</td>
+            </tr>
+          ))}
+        </Table>
+      </Card>
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <Card title="Planes activos" subtitle="Ordenados por vencimiento">
+          <Table headers={['Cliente', 'Vence', 'Días', 'Uso iniciado']} empty={data.activePlans.length === 0}>
+            {data.activePlans.map(p => (
+              <tr key={p.uid}>
+                <td className="py-2.5 pr-4"><div className="text-slate-900">{p.companyName || '—'}</div><div className="text-xs text-slate-500">{p.email}</div></td>
+                <td className="py-2.5 pr-4 whitespace-nowrap">{fmtDate(p.expiresAt)}</td>
+                <td className={`py-2.5 pr-4 tabular-nums ${p.daysLeft <= 7 ? 'text-amber-700 font-semibold' : ''}`}>{p.daysLeft}</td>
+                <td className="py-2.5 pr-4">{p.serviceStarted ? 'Sí' : 'No'}</td>
+              </tr>
+            ))}
+          </Table>
+        </Card>
+        <Card title="Postulaciones por fondo" subtitle={`${num(k.totalApplications)} postulaciones creadas en total`}>
+          <HBars rows={data.fundsTop.map(f => ({ label: f.fundName, value: f.count }))} />
+        </Card>
+      </div>
+
+      <Card title="Usuarios recientes" subtitle="Últimos 100 registros">
+        <Table headers={['Registro', 'Usuario', 'Ingreso', 'Último acceso', 'Plan', 'Postulaciones']} empty={data.users.length === 0}>
+          {(showAllUsers ? data.users : data.users.slice(0, 15)).map(u => (
+            <tr key={u.uid}>
+              <td className="py-2.5 pr-4 whitespace-nowrap text-slate-600">{fmtDate(u.createdAt)}</td>
+              <td className="py-2.5 pr-4"><div className="text-slate-900">{u.companyName || u.displayName || '—'}</div><div className="text-xs text-slate-500">{u.email}</div></td>
+              <td className="py-2.5 pr-4">{u.provider}</td>
+              <td className="py-2.5 pr-4 whitespace-nowrap text-slate-600">{fmtDate(u.lastSignInAt)}</td>
+              <td className="py-2.5 pr-4">{u.hasActivePlan ? <span className="text-emerald-700 font-semibold">Activo</span> : <span className="text-slate-500">Gratis</span>}</td>
+              <td className="py-2.5 pr-4 tabular-nums">{u.applications}</td>
+            </tr>
+          ))}
+        </Table>
+        {data.users.length > 15 && (
+          <button type="button" onClick={() => setShowAllUsers(v => !v)} className="mt-3 text-sm font-semibold text-blue-700 hover:underline cursor-pointer">
+            {showAllUsers ? 'Ver menos' : `Ver los ${data.users.length} usuarios`}
+          </button>
+        )}
+      </Card>
+
+      <Card title="Estado del sistema">
+        <ul className="grid gap-3 sm:grid-cols-2 text-sm">
+          <li className="space-y-0.5">
+            <p className="text-slate-500">Monitor de convocatorias</p>
+            <Status
+              ok={Boolean(data.system.lastConvocatoriasSyncAt && Date.now() - new Date(data.system.lastConvocatoriasSyncAt).getTime() < 36 * 36e5)}
+              okText={`Sincronizado ${fmtDate(data.system.lastConvocatoriasSyncAt, true)} · ${data.system.convocatoriasVigentes ?? '—'} vigentes`}
+              badText={data.system.lastConvocatoriasSyncAt ? `Última sincronización ${fmtDate(data.system.lastConvocatoriasSyncAt, true)}` : 'Sin sincronizaciones registradas'}
+            />
+          </li>
+          <li className="space-y-0.5">
+            <p className="text-slate-500">Correos (Resend)</p>
+            <Status ok={data.system.emailConfigured} okText="Configurado" badText="Falta RESEND_API_KEY" />
+          </li>
+          <li className="space-y-0.5">
+            <p className="text-slate-500">Mercado Pago</p>
+            <Status ok={data.system.mercadoPagoConfigured} okText="Configurado" badText="Falta MP_ACCESS_TOKEN" />
+          </li>
+          <li className="space-y-0.5">
+            <p className="text-slate-500">Base de datos</p>
+            <Status ok okText="Conectada" badText="" />
+          </li>
+        </ul>
+      </Card>
+    </div>
+  );
+};

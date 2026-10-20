@@ -15,6 +15,8 @@ import { SiiUploaderModal } from './components/SiiUploaderModal';
 import { AuthModal } from './components/AuthModal';
 import { TermsPage, PrivacyPage } from './components/LegalPages';
 import { ServiceStartModal } from './components/ServiceStartModal';
+import { AdminDashboard } from './components/AdminDashboard';
+import { trackPageview } from './utils/pageviews';
 import { AuthGateView } from './components/AuthGateView';
 import { PaymentResult } from './components/PaymentResult';
 import { useApplications } from './hooks/useApplications';
@@ -49,10 +51,12 @@ const SmartDiagnostic = React.lazy(() =>
   import('./components/SmartDiagnostic').then(m => ({ default: m.SmartDiagnostic }))
 );
 
-// Páginas legales públicas (/terminos y /privacidad)
-function legalTabForPath(pathname: string): 'terminos' | 'privacidad' | null {
+// Páginas con URL propia: legales públicas (/terminos, /privacidad) y panel de administración (/admin)
+const ROUTED_TABS = ['terminos', 'privacidad', 'admin'] as const;
+function legalTabForPath(pathname: string): 'terminos' | 'privacidad' | 'admin' | null {
   if (pathname.startsWith('/terminos')) return 'terminos';
   if (pathname.startsWith('/privacidad')) return 'privacidad';
+  if (pathname.startsWith('/admin')) return 'admin';
   return null;
 }
 
@@ -84,7 +88,7 @@ export default function App() {
       if (legal) {
         setActiveTab(legal);
       } else {
-        setActiveTab(prev => (prev === 'terminos' || prev === 'privacidad' ? 'diagnostic' : prev));
+        setActiveTab(prev => ((ROUTED_TABS as readonly string[]).includes(prev) ? 'diagnostic' : prev));
       }
     };
     handleUrlRoute();
@@ -94,9 +98,11 @@ export default function App() {
 
   // Al salir de una página legal por la navegación de la app, la URL vuelve a "/"
   useEffect(() => {
-    if (activeTab !== 'terminos' && activeTab !== 'privacidad' && legalTabForPath(window.location.pathname)) {
+    if (!(ROUTED_TABS as readonly string[]).includes(activeTab) && legalTabForPath(window.location.pathname)) {
       window.history.replaceState({}, '', '/');
     }
+    // Conteo de visitas por sección (sin cookies)
+    trackPageview(activeTab);
   }, [activeTab]);
 
   const openLegalPage = (tab: 'terminos' | 'privacidad') => {
@@ -589,6 +595,9 @@ export default function App() {
             }}
           />
         )}
+
+        {/* Panel de administración (solo correos autorizados en el servidor) */}
+        {activeTab === 'admin' && <AdminDashboard />}
 
         {/* Páginas legales */}
         {activeTab === 'terminos' && (

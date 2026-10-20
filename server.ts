@@ -1,7 +1,7 @@
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
 import { initializeApp as initAdminApp, getApps as getAdminApps } from 'firebase-admin/app';
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
-import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
+import { getFirestore as getAdminFirestore, FieldValue } from 'firebase-admin/firestore';
 import fs from 'fs';
 import { PDFParse } from 'pdf-parse';
 import express from 'express';
@@ -14,7 +14,7 @@ import { CHILEAN_FUNDS } from './src/data/chileanFunds';
 import { evaluateChileanGrantMatch, isNonActivityQuery, normalizeText } from './src/utils/grantMatcher';
 import { calculateDaysRemaining } from './src/utils/convocatorias';
 import { validateRut, formatRut } from './src/utils/rutValidator';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { 
   extractTaxFolderData, 
   isValidTaxRut, 
@@ -22,6 +22,7 @@ import {
   isValidTaxSales, 
   parseNumberCLP 
 } from './server/taxFolderExtractor';
+import { buildAdminSummary, chileDayKey, TRACKED_PAGES } from './server/adminStats';
 import {
   sendEmail,
   getAdminEmail,
@@ -52,6 +53,10 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 // Límite de express.json: 15mb para subida de Carpeta Tributaria / F29 y 2mb en general (Requirement 7)
 app.use('/api/gemini/parse-tax-folder', express.json({ limit: '15mb' }));
+// Cloud Run pasa la IP real del visitante en X-Forwarded-For: sin esto, todos los visitantes
+// comparten un mismo límite de solicitudes (req.ip sería la del balanceador).
+app.set('trust proxy', 1);
+
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ limit: '2mb', extended: true }));
 
@@ -72,7 +77,7 @@ const generalGeminiLimiter = rateLimit({
   legacyHeaders: false,
   statusCode: 429,
   keyGenerator: (req: any) => {
-    return req.user?.uid || req.ip || 'anonymous';
+    return req.user?.uid || (req.ip ? ipKeyGenerator(req.ip) : 'anonymous');
   },
   message: { error: 'Has alcanzado el límite de 30 consultas de IA por minuto. Por favor, espera un momento antes de continuar.' }
 });
@@ -147,6 +152,7 @@ export interface AuthenticatedRequest extends express.Request {
   user?: {
     uid: string;
     email?: string;
+    emailVerified?: boolean;
   };
 }
 
@@ -161,7 +167,8 @@ const requireAuth = async (req: express.Request, res: express.Response, next: ex
     const decoded = await adminAuth.verifyIdToken(token);
     (req as AuthenticatedRequest).user = {
       uid: decoded.uid,
-      email: decoded.email
+      email: decoded.email,
+      emailVerified: decoded.email_verified === true
     };
     return next();
   } catch (err: any) {
@@ -2138,6 +2145,80 @@ app.post('/api/plan/iniciar-servicio', requireAuth, async (req, res) => {
   } catch (err: any) {
     console.error('Error in /api/plan/iniciar-servicio:', err?.message);
     return res.status(500).json({ error: 'No pudimos registrar la confirmación. Intenta nuevamente.' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Estadísticas de visitas (sin cookies ni identificadores): conteo diario por página
+// ---------------------------------------------------------------------------
+const pageviewLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  statusCode: 429,
+  message: { error: 'Demasiadas solicitudes.' }
+});
+const BOT_UA = /bot|crawl|spider|slurp|headless|lighthouse|preview|facebookexternalhit|whatsapp|telegram|pingdom|uptime|monitor|curl|wget|python|go-http/i;
+
+app.post('/api/metrics/pageview', pageviewLimiter, async (req, res) => {
+  res.status(204).end();
+  try {
+    if (!isFirestoreAdminAuthorized) return;
+    const ua = req.get('user-agent') || '';
+    if (!ua || BOT_UA.test(ua)) return;
+    const rawPage = String(req.body?.page || '');
+    const page = (TRACKED_PAGES as readonly string[]).includes(rawPage) ? rawPage : 'otra';
+    const day = chileDayKey(new Date());
+    await adminDb.collection('stats_daily').doc(day).set({
+      date: day,
+      views: FieldValue.increment(1),
+      visitors: FieldValue.increment(req.body?.newVisitorToday === true ? 1 : 0),
+      pages: { [page]: FieldValue.increment(1) }
+    }, { merge: true });
+  } catch (err: any) {
+    console.warn('[metrics] No se pudo registrar la visita:', err?.message);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Panel de administración: solo correos verificados listados en ADMIN_DASHBOARD_EMAILS
+// (separados por coma). Si no está definida, se usa ADMIN_EMAIL.
+// ---------------------------------------------------------------------------
+function getAdminDashboardEmails(): string[] {
+  return (process.env.ADMIN_DASHBOARD_EMAILS || process.env.ADMIN_EMAIL || '')
+    .split(',')
+    .map(e => e.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+const requireAdminUser = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const user = (req as AuthenticatedRequest).user;
+  const email = (user?.email || '').toLowerCase();
+  if (!email || !user?.emailVerified || !getAdminDashboardEmails().includes(email)) {
+    return res.status(403).json({
+      error: 'Tu cuenta no tiene acceso al panel de administración.',
+      email: user?.email || null,
+      emailVerified: Boolean(user?.emailVerified)
+    });
+  }
+  return next();
+};
+
+app.get('/api/admin/resumen', requireAuth, requireAdminUser, async (req, res) => {
+  try {
+    if (!isFirestoreAdminAuthorized) {
+      return res.status(503).json({ error: 'Firestore Admin no está autorizado en el servidor.' });
+    }
+    const summary = await buildAdminSummary(adminDb, adminAuth, {
+      emailConfigured: isEmailConfigured(),
+      mercadoPagoConfigured: Boolean(mpAccessToken)
+    });
+    res.set('Cache-Control', 'no-store');
+    return res.json(summary);
+  } catch (err: any) {
+    console.error('Error in /api/admin/resumen:', err?.message);
+    return res.status(500).json({ error: 'No se pudo generar el resumen: ' + (err?.message || 'error desconocido') });
   }
 });
 
