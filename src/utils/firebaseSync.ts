@@ -71,6 +71,18 @@ export async function syncCompanyToFirestore(profile: CompanyProfile, customOwne
     if (typeof profile.annualSalesCLP === 'number') {
       compPayload.annualSalesCLP = profile.annualSalesCLP;
     }
+    if (profile.projectProfile && typeof profile.projectProfile === 'object') {
+      compPayload.projectProfile = {
+        whatItDoes: (profile.projectProfile.whatItDoes || '').slice(0, 3000),
+        problemAndTarget: (profile.projectProfile.problemAndTarget || '').slice(0, 3000),
+        currentSolutionAndDiff: (profile.projectProfile.currentSolutionAndDiff || '').slice(0, 3000),
+        currentProgress: (profile.projectProfile.currentProgress || '').slice(0, 3000),
+        teamDetails: (profile.projectProfile.teamDetails || '').slice(0, 3000),
+        businessModel: (profile.projectProfile.businessModel || '').slice(0, 3000),
+        fundingPurpose: (profile.projectProfile.fundingPurpose || '').slice(0, 3000),
+        websiteOrSocial: (profile.projectProfile.websiteOrSocial || '').slice(0, 500)
+      };
+    }
     await setDoc(doc(db, 'companies', companyDocId), compPayload, { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);

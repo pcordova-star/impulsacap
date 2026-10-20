@@ -35,7 +35,17 @@ export const getCleanDefaultProfile = (user?: CompanyUser | null): CompanyProfil
       projectSummary: '',
       coreTech: '',
       customerValidationCount: 0,
-      taxFolderUploaded: false
+      taxFolderUploaded: false,
+      projectProfile: {
+        whatItDoes: '',
+        problemAndTarget: '',
+        currentSolutionAndDiff: '',
+        currentProgress: '',
+        teamDetails: '',
+        businessModel: '',
+        fundingPurpose: '',
+        websiteOrSocial: ''
+      }
     };
   }
 
@@ -57,7 +67,17 @@ export const getCleanDefaultProfile = (user?: CompanyUser | null): CompanyProfil
     projectSummary: '',
     coreTech: '',
     customerValidationCount: 0,
-    taxFolderUploaded: false
+    taxFolderUploaded: false,
+    projectProfile: {
+      whatItDoes: '',
+      problemAndTarget: '',
+      currentSolutionAndDiff: '',
+      currentProgress: '',
+      teamDetails: '',
+      businessModel: '',
+      fundingPurpose: '',
+      websiteOrSocial: ''
+    }
   };
 };
 

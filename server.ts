@@ -892,6 +892,9 @@ DATOS DE LA EMPRESA:
 - Liderazgo Femenino: ${profile.isFemaleLed ? `Sí (${profile.femaleEquityPct}%)` : 'No'}
 - Instrucciones específicas del usuario: ${specificInstructions || 'Ninguna'}
 
+REGLA CRÍTICA OBLIGATORIA:
+Usa SOLO la información entregada por el usuario. PROHIBIDO inventar hechos, clientes, socios, tecnologías, integrantes del equipo, logros, cifras, porcentajes o montos. Si falta información para un punto, escribe [COMPLETAR: qué dato falta] en ese lugar. Es preferible un texto más breve y verdadero que uno extenso con información inventada. La extensión debe depender de la información disponible.
+
 REQUISITOS DEL FONDO ${fund.name}:
 - Subsidio Máximo: ${fund.subsidyFormatted}
 - Co-financiamiento: ${fund.maxCoFinancePct}%
@@ -903,7 +906,7 @@ Responde ÚNICAMENTE en formato JSON con la siguiente estructura completa:
   "fundId": "${fund.id}",
   "fundName": "${fund.name}",
   "projectTitle": "Título potente y técnico del proyecto (máx 15 palabras)",
-  "pitchSummary30s": "Elevator pitch de alto impacto para el jurado (1 párrafo contundente)",
+  "pitchSummary30s": "Elevator pitch para el jurado basado estrictamente en la información disponible",
   "problemStatement": "Descripción del problema u oportunidad en Chile, cuantificando el dolor económico y la pérdida de productividad.",
   "solutionAndInnovation": "Descripción detallada de la solución, explicando por qué es innovadora y qué componentes tecnológicos la componen.",
   "noveltyVsCompetitors": "Grado de novedad y barreras de entrada frente a alternativas existentes en Chile y el mundo.",
@@ -1000,52 +1003,71 @@ app.post('/api/gemini/formulate-section', requireAuth, requireActivePlan, async 
       }
     }
 
-    const { profile, fund, sectionKey, sectionTitle, questionsAndAnswers, projectSummary } = req.body;
+    const { profile, projectProfile: directProj, taxFolderData, fund, sectionKey, sectionTitle, questionsAndAnswers, projectSummary } = req.body;
     if (!profile || !fund || !sectionKey) {
       return res.status(400).json({ error: 'Faltan parámetros requeridos para formular la sección.' });
     }
 
+    const project = directProj || profile?.projectProfile || {};
+    const tax = taxFolderData || {
+      sector: profile?.sector,
+      region: profile?.region,
+      monthsActive: profile?.monthsActive,
+      annualSalesCLP: profile?.annualSalesCLP,
+      salesBracket: profile?.salesBracket
+    };
+
     const qaText = questionsAndAnswers && typeof questionsAndAnswers === 'object'
       ? Object.entries(questionsAndAnswers)
-          .map(([q, a]) => `- Pregunta: ${q}\n  Respuesta del usuario: ${a || 'No especificado por el usuario'}`)
+          .map(([q, a]) => `- Pregunta: ${q}\n  Respuesta entregada por el usuario: ${a ? String(a).trim() : 'No especificado por el usuario'}`)
           .join('\n')
       : 'No se ingresaron respuestas adicionales.';
 
     const prompt = `Eres el redactor y formulador de proyectos número 1 de Chile, especialista en adjudicaciones en ${fund.agency} (CORFO, SERCOTEC, Start-Up Chile).
 
-Tu misión es redactar con excelencia técnica la sección "${sectionTitle || sectionKey}" para postular al fondo "${fund.name}".
+Tu misión es redactar la sección "${sectionTitle || sectionKey}" para postular al fondo "${fund.name}".
 
-DATOS DE LA EMPRESA Y POSTULANTE:
+PERFIL DETALLADO DEL PROYECTO (INFORMACIÓN OFICIAL ENTREGADA POR EL USUARIO):
+- ¿Qué hace tu empresa o proyecto?: ${project.whatItDoes || profile.projectSummary || projectSummary || 'No informado'}
+- ¿Qué problema resuelve y a quién (cliente objetivo)?: ${project.problemAndTarget || 'No informado'}
+- ¿Cómo lo resuelven hoy y qué te diferencia?: ${project.currentSolutionAndDiff || 'No informado'}
+- Avance actual (prototipos, clientes, ventas, pilotos, cartas de interés): ${project.currentProgress || 'No informado'}
+- Equipo clave (nombre, rol y experiencia): ${project.teamDetails || 'No informado'}
+- Modelo de negocio (cómo cobras y cuánto): ${project.businessModel || 'No informado'}
+- ¿Para qué necesitas el financiamiento y en qué lo usarías?: ${project.fundingPurpose || 'No informado'}
+- Sitio web o redes: ${project.websiteOrSocial || 'No informado'}
+
+DATOS CONFIRMADOS DE CARPETA TRIBUTARIA Y EMPRESA:
 - Empresa: ${profile.companyName || 'Empresa postulante'}
-- Tipo Societario: ${profile.companyType}
-- Ventas 12 meses: ${profile.salesBracket}
-- Etapa del Proyecto / TRL: ${profile.trlStage}
+- RUT: ${profile.rut || 'No informado'}
+- Sector: ${tax.sector || profile.sector || 'No informado'}
+- Región: ${tax.region || profile.region || 'No informada'}
+- Antigüedad: ${tax.monthsActive !== null && tax.monthsActive !== undefined ? `${tax.monthsActive} meses` : 'No informada'}
+- Ventas 12 meses: ${tax.annualSalesCLP ? '$' + Number(tax.annualSalesCLP).toLocaleString('es-CL') + ' CLP' : profile.salesBracket || 'Sin ventas registradas'}
+- Tipo Societario: ${profile.companyType || 'SpA'}
 - Liderazgo Femenino: ${profile.isFemaleLed ? 'Sí (califica a bonificación)' : 'No'}
-- Resumen Base del Proyecto: ${profile.projectSummary || projectSummary || ''}
 
-RESPUESTAS CLAVE INGRESADAS POR EL USUARIO PARA ESTA SECCIÓN:
+RESPUESTAS INGRESADAS POR EL USUARIO PARA ESTA SECCIÓN:
 ${qaText}
 
-REQUISITOS Y BASES DEL FONDO ${fund.name} (${fund.agency}):
-- Subsidio: ${fund.subsidyFormatted}
-- Co-financiamiento: ${fund.maxCoFinancePct}%
+BASES Y REQUISITOS DEL FONDO ${fund.name} (${fund.agency}):
+- Subsidio máximo: ${fund.subsidyFormatted}
+- Co-financiamiento máximo: ${fund.maxCoFinancePct}%
 
-REGLA CRÍTICA OBLIGATORIA:
-PROHIBIDO INVENTAR CIFRAS, MONTOS O MÉTRICAS FICTICIAS: Si falta algún dato específico o métrica numérica que el usuario no haya proporcionado en sus respuestas o perfil, escribe exactamente [COMPLETAR: descripción del dato faltante] en vez de inventar números, porcentajes o cifras que el evaluador pueda impugnar.
-
-Redacta el texto técnico con vocabulario formal de postulación pública chilena (rigor técnico, impacto económico, viabilidad y pertinencia).
+REGLA CRÍTICA OBLIGATORIA CONTRA ALUCINACIONES:
+Usa SOLO la información entregada por el usuario. PROHIBIDO inventar hechos, clientes, socios, tecnologías, integrantes del equipo, logros, cifras, porcentajes o montos. Si falta información para un punto, escribe [COMPLETAR: qué dato falta] en ese lugar. Es preferible un texto más breve y verdadero que uno extenso con información inventada. La extensión debe depender estrictamente de la información disponible.
 
 Responde ÚNICAMENTE en formato JSON con la siguiente estructura:
 {
   "sectionKey": "${sectionKey}",
   "sectionTitle": "${sectionTitle || sectionKey}",
-  "generatedText": "Texto formal y técnico completo de la sección redactado en 2 o 3 párrafos sólidos...",
+  "generatedText": "Texto formal y técnico redactado basado exclusivamente en la información disponible, utilizando [COMPLETAR: dato faltante] en cualquier punto donde falten datos...",
   "keyHighlights": [
-    "Punto fuerte 1 para el comité evaluador",
+    "Punto fuerte 1",
     "Punto fuerte 2"
   ],
   "missingData": [
-    "Detalle de campos marcados como [COMPLETAR: ...] si corresponde"
+    "Lista de datos que faltan para completar este punto"
   ]
 }`;
 
@@ -1054,13 +1076,23 @@ Responde ÚNICAMENTE en formato JSON con la siguiente estructura:
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
-        temperature: 0.3,
+        temperature: 0.2,
       },
     });
 
     const respText = response.text || '';
     if (!respText) throw new Error('Respuesta vacía de Gemini');
     const parsed = JSON.parse(respText);
+
+    // Extract all [COMPLETAR: ...] tags directly from generatedText to guarantee complete list
+    const regexMatches = (parsed.generatedText || '').match(/\[COMPLETAR:[^\]]+\]/g) || [];
+    const extractedMissing = regexMatches.map((m: string) => m.replace(/^\[COMPLETAR:\s*/i, '').replace(/\]$/, '').trim());
+    const combinedMissing = Array.from(new Set([
+      ...(Array.isArray(parsed.missingData) ? parsed.missingData : []),
+      ...extractedMissing
+    ]));
+    parsed.missingData = combinedMissing;
+
     return res.json(parsed);
   } catch (error: any) {
     console.error('Error in /api/gemini/formulate-section:', error?.message);
@@ -1070,10 +1102,36 @@ Responde ÚNICAMENTE en formato JSON con la siguiente estructura:
 
 app.post('/api/gemini/audit', requireAuth, requireActivePlan, async (req, res) => {
   try {
-    const { fund, formulationText, projectSummary } = req.body;
+    const { fund, formulationText, projectSummary, profile, projectProfile: directProj, taxFolderData } = req.body;
+    const project = directProj || profile?.projectProfile || {};
+    const tax = taxFolderData || {
+      sector: profile?.sector,
+      region: profile?.region,
+      monthsActive: profile?.monthsActive,
+      annualSalesCLP: profile?.annualSalesCLP
+    };
 
     const prompt = `Actúa como un Evaluador Experto del Comité de Asignación de Fondos de ${fund.agency} (CORFO / SERCOTEC).
 Tu misión es realizar una auditoría ciega estricta y sin condescendencia sobre la siguiente postulación para el fondo "${fund.name}".
+
+REGLA CRÍTICA OBLIGATORIA:
+Usa SOLO la información entregada por el usuario. PROHIBIDO inventar hechos, clientes, socios, tecnologías, integrantes del equipo, logros, cifras, porcentajes o montos. Si falta información para un punto, escribe [COMPLETAR: qué dato falta] en ese lugar. Es preferible un texto más breve y verdadero que uno extenso con información inventada. La extensión debe depender de la información disponible. Si la postulación contiene marcas [COMPLETAR: ...], identifícalas como debilidades críticas o Red Flags que el postulante debe corregir antes del cierre.
+
+DATOS OFICIALES DE LA EMPRESA Y PROYECTO:
+- Empresa: ${profile?.companyName || 'Empresa postulante'}
+- RUT: ${profile?.rut || 'No informado'}
+- Sector: ${tax?.sector || profile?.sector || 'No informado'}
+- Región: ${tax?.region || profile?.region || 'No informada'}
+- Antigüedad: ${tax?.monthsActive !== null && tax?.monthsActive !== undefined ? `${tax.monthsActive} meses` : 'No informada'}
+- Ventas 12 meses: ${tax?.annualSalesCLP ? '$' + Number(tax.annualSalesCLP).toLocaleString('es-CL') + ' CLP' : profile?.salesBracket || 'Sin ventas registradas'}
+- ¿Qué hace la empresa?: ${project?.whatItDoes || profile?.projectSummary || 'No informado'}
+- Problema y cliente objetivo: ${project?.problemAndTarget || 'No informado'}
+- Solución y qué la diferencia: ${project?.currentSolutionAndDiff || 'No informado'}
+- Avance actual informado: ${project?.currentProgress || 'No informado'}
+- Equipo informado: ${project?.teamDetails || 'No informado'}
+- Modelo de negocio informado: ${project?.businessModel || 'No informado'}
+- Uso del financiamiento: ${project?.fundingPurpose || 'No informado'}
+- Sitio web o redes: ${project?.websiteOrSocial || 'No informado'}
 
 TEXTO Y CONTENIDO DE LA POSTULACIÓN:
 """
@@ -1085,8 +1143,8 @@ ${JSON.stringify(fund.evaluationCriteria, null, 2)}
 
 INSTRUCCIONES DE AUDITORÍA:
 1. Evalúa de 1.0 a 5.0 (escala estándar CORFO). Recuerda que la nota de corte suele estar sobre 3.8.
-2. Identifica "Red Flags" (alertas rojas que causarían rechazo o admisibilidad fallida).
-3. Entrega consejos quirúrgicos prioritarios para subir la nota antes de postular.
+2. Identifica "Red Flags" (alertas rojas que causarían rechazo o admisibilidad fallida, incluyendo cualquier dato pendiente marcado como [COMPLETAR: ...]).
+3. Entrega consejos quirúrgicos prioritarios para subir la nota antes de postular, basándote únicamente en hechos reales.
 
 Responde ÚNICAMENTE en formato JSON con la siguiente estructura:
 {
@@ -1149,29 +1207,49 @@ app.post('/api/gemini/generate-doc', requireAuth, requireActivePlan, async (req,
       city,
       details,
       formulation,
-      taxFolderSummary
+      taxFolderSummary,
+      profile,
+      projectProfile: directProj,
+      taxFolderData
     } = req.body;
+
+    const project = directProj || profile?.projectProfile || {};
+    const tax = taxFolderData || {
+      sector: profile?.sector || details?.sector,
+      region: profile?.region || details?.region,
+      monthsActive: profile?.monthsActive,
+      annualSalesCLP: profile?.annualSalesCLP
+    };
 
     const prompt = `Eres un abogado y consultor corporativo experto en tramitación de subsidios públicos en Chile (CORFO, SERCOTEC, ANID, Start-Up Chile).
 Genera un documento formal, listo para firmar o presentar, de tipo: "${documentType || 'Carta de Manifestación de Interés Comercial (LOI)'}".
 
 INSTRUCCIONES Y REGLAS ESTRICTAS:
-1. Usa ÚNICAMENTE los datos entregados en este prompt. No inventes antecedentes de clientes ficticios, cifras no sustentadas ni datos no provistos.
-2. Donde falte un dato específico que deba completar el usuario o la contraparte, escribe explícitamente [COMPLETAR: descripción del dato faltante] (por ejemplo: [COMPLETAR: RUT de la contraparte], [COMPLETAR: Cargo del firmante], [COMPLETAR: Fecha de firma]).
-3. Diseña el documento conforme a las Bases Administrativas y Técnicas del concurso: ${fundName || 'CORFO / SERCOTEC'}.
+Usa SOLO la información entregada por el usuario. PROHIBIDO inventar hechos, clientes, socios, tecnologías, integrantes del equipo, logros, cifras, porcentajes o montos. Si falta información para un punto, escribe [COMPLETAR: qué dato falta] en ese lugar. Es preferible un texto más breve y verdadero que uno extenso con información inventada. La extensión debe depender de la información disponible.
+Donde falte un dato específico que deba completar el usuario o la contraparte, escribe explícitamente [COMPLETAR: descripción del dato faltante] (por ejemplo: [COMPLETAR: RUT de la contraparte], [COMPLETAR: Cargo del firmante], [COMPLETAR: Fecha de firma]).
+Diseña el documento conforme a las Bases Administrativas y Técnicas del concurso: ${fundName || 'CORFO / SERCOTEC'}.
 
-DATOS ENTREGADOS DE LA POSTULACIÓN:
-- Empresa Postulante: ${companyName || '[COMPLETAR: Razón Social de la Empresa]'}
-- RUT Empresa: ${details?.rut || '[COMPLETAR: RUT Empresa]'}
-- Representante Legal Empresa: ${legalRepName || '[COMPLETAR: Nombre del Representante Legal]'}
-- RUT Representante Legal: ${legalRepRut || '[COMPLETAR: RUT del Representante Legal]'}
+DATOS CONFIRMADOS DE LA EMPRESA Y PROYECTO:
+- Empresa Postulante: ${companyName || profile?.companyName || '[COMPLETAR: Razón Social de la Empresa]'}
+- RUT Empresa: ${details?.rut || profile?.rut || '[COMPLETAR: RUT Empresa]'}
+- Representante Legal Empresa: ${legalRepName || profile?.representativeName || '[COMPLETAR: Nombre del Representante Legal]'}
+- RUT Representante Legal: ${legalRepRut || profile?.representativeRut || '[COMPLETAR: RUT del Representante Legal]'}
 - Ciudad: ${city || details?.city || '[COMPLETAR: Ciudad]'}
-- Región: ${details?.region || '[COMPLETAR: Región]'}
+- Región: ${details?.region || tax.region || '[COMPLETAR: Región]'}
+- Sector: ${details?.sector || tax.sector || 'No especificado'}
+- Antigüedad: ${tax.monthsActive !== null && tax.monthsActive !== undefined ? `${tax.monthsActive} meses` : 'No informada'}
+- Ventas 12 meses: ${tax.annualSalesCLP ? '$' + Number(tax.annualSalesCLP).toLocaleString('es-CL') + ' CLP' : 'Sin ventas registradas'}
+- ¿Qué hace la empresa?: ${project.whatItDoes || profile?.projectSummary || 'No informado'}
+- Problema y cliente objetivo: ${project.problemAndTarget || 'No informado'}
+- Solución y diferenciación: ${project.currentSolutionAndDiff || 'No informado'}
+- Avance actual (pilotos, cartas, ventas): ${project.currentProgress || 'No informado'}
+- Equipo clave: ${project.teamDetails || 'No informado'}
+- Modelo de negocio: ${project.businessModel || 'No informado'}
 - Contraparte / Cliente Piloto o Aliado: ${clientOrPartnerName || '[COMPLETAR: Razón Social o Nombre del Cliente / Aliado]'}
 - Nombre y Cargo del Contacto Contraparte: ${details?.clientContact || '[COMPLETAR: Nombre y Cargo del Representante de la Contraparte]'}
 - Nombre del Proyecto: ${projectName || '[COMPLETAR: Nombre del Proyecto]'}
 - Fondo Concursable al que se postula: ${fundName || '[COMPLETAR: Nombre del Fondo Concursable]'}
-- Sector Económico: ${details?.sector || 'No especificado'}
+
 ${formulation ? `
 ANTECEDENTES DE LA FORMULACIÓN TÉCNICA:
 - Título Oficial: ${formulation.projectTitle || projectName || ''}
@@ -1210,7 +1288,15 @@ Genera el texto completo del documento en formato Markdown:`;
 // 5. Asistente Conversacional Experto en Fondos Chilenos
 app.post('/api/gemini/chat', requireAuth, requireActivePlan, async (req, res) => {
   try {
-    const { messages, companyProfile, currentFund } = req.body;
+    const { messages, companyProfile, profile, projectProfile: directProj, taxFolderData, currentFund } = req.body;
+    const compProfile = companyProfile || profile || {};
+    const project = directProj || compProfile?.projectProfile || {};
+    const tax = taxFolderData || {
+      sector: compProfile?.sector,
+      region: compProfile?.region,
+      monthsActive: compProfile?.monthsActive,
+      annualSalesCLP: compProfile?.annualSalesCLP
+    };
 
     const systemInstruction = `Eres "ImpulsaCap AI", el consultor de fondos concursables más experimentado de Chile.
 Conoces en profundidad:
@@ -1220,8 +1306,28 @@ Conoces en profundidad:
 - Criterios de admisibilidad legal: F29 del SII, Carpeta Tributaria Electrónica, estatuto en Tu Empresa en un Día, certificados de TGR y Dirección del Trabajo F30.
 - Rendición de cuentas financieras: Cuentas de Recursos Humanos, Gastos de Operación, Inversión y Administración, garantías o pagarés ante CORFO, anticipos y pólizas de seguro de fianza.
 
-Contexto actual de la empresa:
-${JSON.stringify(companyProfile || {}, null, 2)}
+REGLA CRÍTICA OBLIGATORIA:
+Usa SOLO la información entregada por el usuario. PROHIBIDO inventar hechos, clientes, socios, tecnologías, integrantes del equipo, logros, cifras, porcentajes o montos. Si falta información para un punto, escribe [COMPLETAR: qué dato falta] en ese lugar. Es preferible un texto más breve y verdadero que uno extenso con información inventada. La extensión debe depender de la información disponible.
+
+PERFIL DETALLADO DEL PROYECTO (INFORMACIÓN OFICIAL ENTREGADA POR EL USUARIO):
+- ¿Qué hace tu empresa o proyecto?: ${project.whatItDoes || compProfile.projectSummary || 'No informado'}
+- ¿Qué problema resuelve y a quién (cliente objetivo)?: ${project.problemAndTarget || 'No informado'}
+- ¿Cómo lo resuelven hoy y qué te diferencia?: ${project.currentSolutionAndDiff || 'No informado'}
+- Avance actual (prototipos, clientes, ventas, pilotos, cartas de interés): ${project.currentProgress || 'No informado'}
+- Equipo clave (nombre, rol y experiencia): ${project.teamDetails || 'No informado'}
+- Modelo de negocio (cómo cobras y cuánto): ${project.businessModel || 'No informado'}
+- ¿Para qué necesitas el financiamiento y en qué lo usarías?: ${project.fundingPurpose || 'No informado'}
+- Sitio web o redes: ${project.websiteOrSocial || 'No informado'}
+
+DATOS CONFIRMADOS DE CARPETA TRIBUTARIA Y EMPRESA:
+- Empresa: ${compProfile.companyName || 'Empresa postulante'}
+- RUT: ${compProfile.rut || 'No informado'}
+- Sector: ${tax.sector || compProfile.sector || 'No informado'}
+- Región: ${tax.region || compProfile.region || 'No informada'}
+- Antigüedad: ${tax.monthsActive !== null && tax.monthsActive !== undefined ? `${tax.monthsActive} meses` : 'No informada'}
+- Ventas 12 meses: ${tax.annualSalesCLP ? '$' + Number(tax.annualSalesCLP).toLocaleString('es-CL') + ' CLP' : compProfile.salesBracket || 'Sin ventas registradas'}
+- Tipo Societario: ${compProfile.companyType || 'SpA'}
+- Liderazgo Femenino: ${compProfile.isFemaleLed ? 'Sí (califica a bonificación)' : 'No'}
 
 Fondo en consulta:
 ${JSON.stringify(currentFund || {}, null, 2)}
@@ -1357,6 +1463,45 @@ app.get('/api/pagos/estado', requireAuth, async (req, res) => {
     return res.json({ isFirstPurchase, price });
   } catch {
     return res.json({ isFirstPurchase: true, price: 19990 });
+  }
+});
+
+// Historial de pagos del usuario (Requirement C.9)
+app.get('/api/pagos/historial', requireAuth, async (req, res) => {
+  try {
+    const user = (req as AuthenticatedRequest).user!;
+    if (!isFirestoreAdminAuthorized) {
+      return res.json({ payments: [] });
+    }
+    const snap = await adminDb.collection('payments')
+      .where('uid', '==', user.uid)
+      .get();
+
+    const payments = snap.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        paymentId: doc.id,
+        amount: data.amount || 0,
+        currencyId: data.currencyId || 'CLP',
+        status: data.status || 'unknown',
+        approvedAt: data.approvedAt || data.createdAt || data.rejectedAt || null,
+        paymentMethodId: data.paymentMethodId || 'mercadopago',
+        externalReference: data.externalReference || ''
+      };
+    });
+
+    // Ordenar descendente por fecha
+    payments.sort((a, b) => {
+      const dateA = a.approvedAt ? new Date(a.approvedAt).getTime() : 0;
+      const dateB = b.approvedAt ? new Date(b.approvedAt).getTime() : 0;
+      return dateB - dateA;
+    });
+
+    return res.json({ payments });
+  } catch (error: any) {
+    console.error('Error in /api/pagos/historial:', error?.message);
+    return res.status(500).json({ error: 'No se pudo obtener el historial de pagos.' });
   }
 });
 

@@ -1,6 +1,17 @@
-import React, { useState } from 'react';
-import { CompanyProfile, CompanyUser, CompanyType, SalesBracket } from '../types/funds';
+import React, { useState, useEffect, useMemo } from 'react';
+import { 
+  CompanyProfile, 
+  CompanyUser, 
+  CompanyType, 
+  SalesBracket, 
+  ProjectProfile, 
+  calculateProjectProfileCompletion 
+} from '../types/funds';
 import { validateRut, formatRut } from '../utils/rutValidator';
+import { usePlan } from '../hooks/usePlan';
+import { apiFetch } from '../utils/apiFetch';
+import { auth } from '../firebase';
+import { requestLogin } from '../utils/authEvents';
 import { 
   Building2, 
   FileText, 
@@ -9,15 +20,22 @@ import {
   Mail, 
   ShieldCheck, 
   Upload, 
-  Check, 
   CheckCircle2, 
   AlertCircle, 
   Save, 
-  Sparkles,
-  Lock,
-  LogOut,
+  Sparkles, 
+  LogOut, 
+  CreditCard, 
+  Clock, 
+  Layers, 
+  RotateCcw, 
+  ExternalLink,
+  Target,
+  Users,
+  Briefcase,
+  HelpCircle,
   Calendar,
-  DollarSign
+  Check
 } from 'lucide-react';
 
 interface MyCompanyViewProps {
@@ -26,6 +44,18 @@ interface MyCompanyViewProps {
   onUpdateProfile: (updated: CompanyProfile) => void;
   onOpenSiiModal: () => void;
   onLogout: () => void;
+  onNavigateTab?: (tab: string) => void;
+}
+
+interface PaymentRecord {
+  id: string;
+  paymentId: string;
+  amount: number;
+  currencyId: string;
+  status: string;
+  approvedAt: string | null;
+  paymentMethodId: string;
+  externalReference: string;
 }
 
 export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
@@ -33,8 +63,22 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
   currentUser,
   onUpdateProfile,
   onOpenSiiModal,
-  onLogout
+  onLogout,
+  onNavigateTab
 }) => {
+  // Plan hook
+  const { 
+    hasActivePlan, 
+    expiresAt, 
+    daysLeft, 
+    activeFundIds, 
+    isExpiringSoon, 
+    isExpired,
+    price,
+    isFirstPurchase,
+    refresh: refreshPlan 
+  } = usePlan();
+
   // Local form state initialized from profile & currentUser
   const [companyName, setCompanyName] = useState(profile.companyName || currentUser?.companyName || '');
   const [rut, setRut] = useState(profile.rut || currentUser?.rut || '');
@@ -51,8 +95,65 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
   const [representativeEmail, setRepresentativeEmail] = useState(currentUser?.email || '');
   const [representativePhone, setRepresentativePhone] = useState(currentUser?.phone || '');
 
+  // Project Profile state (Requirement A.1)
+  const initialProject = profile.projectProfile || {};
+  const [whatItDoes, setWhatItDoes] = useState(initialProject.whatItDoes || profile.projectSummary || '');
+  const [problemAndTarget, setProblemAndTarget] = useState(initialProject.problemAndTarget || '');
+  const [currentSolutionAndDiff, setCurrentSolutionAndDiff] = useState(initialProject.currentSolutionAndDiff || '');
+  const [currentProgress, setCurrentProgress] = useState(initialProject.currentProgress || '');
+  const [teamDetails, setTeamDetails] = useState(initialProject.teamDetails || '');
+  const [businessModel, setBusinessModel] = useState(initialProject.businessModel || '');
+  const [fundingPurpose, setFundingPurpose] = useState(initialProject.fundingPurpose || '');
+  const [websiteOrSocial, setWebsiteOrSocial] = useState(initialProject.websiteOrSocial || '');
+
+  // Payment history state (Requirement C.9)
+  const [paymentHistory, setPaymentHistory] = useState<PaymentRecord[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState<boolean>(true);
+  const [renewingPlan, setRenewingPlan] = useState<boolean>(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
+  // Current project profile object
+  const currentProjectProfile: ProjectProfile = useMemo(() => ({
+    whatItDoes,
+    problemAndTarget,
+    currentSolutionAndDiff,
+    currentProgress,
+    teamDetails,
+    businessModel,
+    fundingPurpose,
+    websiteOrSocial
+  }), [whatItDoes, problemAndTarget, currentSolutionAndDiff, currentProgress, teamDetails, businessModel, fundingPurpose, websiteOrSocial]);
+
+  // Project completion percentage (Requirement A.1)
+  const projectCompletionPct = useMemo(() => {
+    return calculateProjectProfileCompletion(currentProjectProfile);
+  }, [currentProjectProfile]);
+
+  // Load payment history on mount (Requirement C.9)
+  useEffect(() => {
+    let isMounted = true;
+    const fetchHistory = async () => {
+      try {
+        setLoadingHistory(true);
+        const res = await apiFetch('/api/pagos/historial');
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted) {
+            setPaymentHistory(data.payments || []);
+          }
+        }
+      } catch (err) {
+        console.warn('Could not load payment history:', err);
+      } finally {
+        if (isMounted) setLoadingHistory(false);
+      }
+    };
+
+    fetchHistory();
+    return () => { isMounted = false; };
+  }, []);
+
+  // Save handler for company & project profile
   const handleSave = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const updated: CompanyProfile = {
@@ -66,28 +167,90 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
       isFemaleLed,
       femaleEquityPct: isFemaleLed ? (femaleEquityPct || 100) : 0,
       representativeName: representativeName.trim(),
-      representativeRut: representativeRut.trim()
+      representativeRut: representativeRut.trim(),
+      projectProfile: currentProjectProfile,
+      projectSummary: whatItDoes.trim() || profile.projectSummary
     };
     onUpdateProfile(updated);
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 3000);
   };
 
+  // Renew / Upgrade plan handler (Mercado Pago Checkout Pro)
+  const handleRenewPlan = async () => {
+    if (auth.authStateReady) {
+      try {
+        await auth.authStateReady();
+      } catch (err) {
+        console.warn('authStateReady error:', err);
+      }
+    }
+
+    if (!auth.currentUser) {
+      requestLogin({
+        message: 'Inicia sesión para continuar con el pago del Plan Semestral.',
+        mode: 'login',
+        onSuccess: async () => {
+          await handleRenewPlan();
+        }
+      });
+      return;
+    }
+
+    setRenewingPlan(true);
+    try {
+      const res = await apiFetch('/api/pagos/crear', { method: 'POST' });
+      const data = await res.json();
+      if (res.ok && data.init_point) {
+        window.location.href = data.init_point;
+      } else {
+        alert(data.error || 'No se pudo iniciar el proceso de renovación con Mercado Pago.');
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Error de conexión al renovar.');
+    } finally {
+      setRenewingPlan(false);
+    }
+  };
+
   const isCompanyRutValid = rut ? validateRut(rut) : true;
   const isRepRutValid = representativeRut ? validateRut(representativeRut) : true;
 
+  // Format dates for plan
+  const formattedExpiry = expiresAt 
+    ? new Date(expiresAt).toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' })
+    : 'No definido';
+
+  const formattedStart = useMemo(() => {
+    if (!expiresAt) return null;
+    const expDate = new Date(expiresAt);
+    const startDate = new Date(expDate);
+    startDate.setMonth(startDate.getMonth() - 6);
+    return startDate.toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' });
+  }, [expiresAt]);
+
   return (
-    <div className="space-y-6 animate-fade-in max-w-4xl mx-auto pb-8">
+    <div className="space-y-6 animate-fade-in max-w-4xl mx-auto pb-12 min-w-0 max-w-full">
       {/* 1. Header Banner */}
       <div className="p-6 sm:p-8 rounded-3xl bg-white border border-slate-200 shadow-sm relative overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-blue-50/70 to-transparent rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 font-mono text-[10px] font-bold tracking-wider uppercase">
                 BÓVEDA EMPRESARIAL
               </span>
+              {hasActivePlan ? (
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Plan Semestral Activo</span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
+                  <span>Plan Gratuito</span>
+                </span>
+              )}
               {currentUser && (
                 <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
                   <ShieldCheck className="w-3.5 h-3.5" />
@@ -96,12 +259,12 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
               )}
             </div>
 
-            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight truncate">
               {companyName || 'Mi Empresa'}
             </h1>
 
             <p className="text-xs text-slate-600 max-w-2xl leading-relaxed">
-              Gestiona el perfil de tu empresa, tus antecedentes tributarios del SII y los datos del representante legal para formular y validar tus postulaciones.
+              Gestiona el perfil de tu empresa, el perfil de tu proyecto para que la IA redacte con hechos reales, tus antecedentes tributarios del SII y el estado de tu plan.
             </p>
           </div>
 
@@ -120,7 +283,184 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
       </div>
 
       <form onSubmit={handleSave} className="space-y-6">
-        {/* 2. Carpeta Tributaria SII Section (Requirement 1) */}
+        
+        {/* ========================================================================= */}
+        {/* SECCIÓN A: PERFIL DEL PROYECTO (Requirement A.1) */}
+        {/* ========================================================================= */}
+        <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center shrink-0">
+                <Target className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm sm:text-base font-bold text-slate-900">
+                    Perfil del Proyecto
+                  </h3>
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-cyan-100 text-cyan-800">
+                    IA Con Hechos Reales
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  La IA utilizará estos datos para formular secciones, redactar cartas LOI y simular comités sin inventar información.
+                </p>
+              </div>
+            </div>
+
+            {/* Completion Indicator (Requirement A.1) */}
+            <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-2xl shrink-0">
+              <div className="text-right">
+                <span className="text-[10px] text-slate-500 block uppercase font-bold tracking-wider">
+                  Perfil del proyecto:
+                </span>
+                <span className={`text-xs font-black font-mono ${
+                  projectCompletionPct >= 60 ? 'text-emerald-700' : 'text-amber-700'
+                }`}>
+                  {projectCompletionPct}% completo
+                </span>
+              </div>
+              <div className="w-16 h-2 bg-slate-200 rounded-full overflow-hidden">
+                <div 
+                  className={`h-full transition-all duration-300 rounded-full ${
+                    projectCompletionPct >= 60 ? 'bg-emerald-600' : 'bg-amber-500'
+                  }`}
+                  style={{ width: `${Math.max(6, projectCompletionPct)}%` }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {projectCompletionPct < 60 && (
+            <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 flex items-start gap-2.5 text-xs text-amber-900">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold">Perfil del proyecto incompleto ({projectCompletionPct}%)</p>
+                <p className="text-[11px] text-amber-800 mt-0.5">
+                  Se requiere al menos un 60% para desbloquear la redacción técnica precisa con IA y evitar marcas [COMPLETAR: dato faltante].
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-4 text-xs">
+            {/* 1. ¿Qué hace tu empresa o proyecto? */}
+            <div className="space-y-1.5">
+              <label className="font-bold text-slate-800 block">
+                ¿Qué hace tu empresa o proyecto? <span className="font-normal text-slate-500">(producto o servicio)</span>
+              </label>
+              <textarea
+                rows={3}
+                value={whatItDoes}
+                onChange={(e) => setWhatItDoes(e.target.value)}
+                placeholder="Ej: Desarrollamos una plataforma SaaS con algoritmos de IA y sensores IoT para optimizar el riego y fertilización en viñedos y frutales..."
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 placeholder:text-slate-400 placeholder:italic focus:bg-white focus:border-cyan-600 focus:outline-hidden leading-relaxed"
+              />
+            </div>
+
+            {/* 2. ¿Qué problema resuelve y a quién? */}
+            <div className="space-y-1.5">
+              <label className="font-bold text-slate-800 block">
+                ¿Qué problema resuelve y a quién? <span className="font-normal text-slate-500">(cliente objetivo)</span>
+              </label>
+              <textarea
+                rows={3}
+                value={problemAndTarget}
+                onChange={(e) => setProblemAndTarget(e.target.value)}
+                placeholder="Ej: Los productores agrícolas y viticultores pierden hasta un 35% de su producción por heladas imprevistas y sobre-riego, afectando a más de 4.000 pymes agrícolas en Chile..."
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 placeholder:text-slate-400 placeholder:italic focus:bg-white focus:border-cyan-600 focus:outline-hidden leading-relaxed"
+              />
+            </div>
+
+            {/* 3. ¿Cómo lo resuelven hoy tus clientes y qué te diferencia? */}
+            <div className="space-y-1.5">
+              <label className="font-bold text-slate-800 block">
+                ¿Cómo lo resuelven hoy tus clientes y qué te diferencia?
+              </label>
+              <textarea
+                rows={3}
+                value={currentSolutionAndDiff}
+                onChange={(e) => setCurrentSolutionAndDiff(e.target.value)}
+                placeholder="Ej: Hoy usan estaciones meteorológicas importadas de alto costo ($15.000 USD) o planillas Excel manuales. Nuestra solución cuesta un 80% menos y entrega alertas predictivas en tiempo real..."
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 placeholder:text-slate-400 placeholder:italic focus:bg-white focus:border-cyan-600 focus:outline-hidden leading-relaxed"
+              />
+            </div>
+
+            {/* 4. Avance actual */}
+            <div className="space-y-1.5">
+              <label className="font-bold text-slate-800 block">
+                Avance actual <span className="font-normal text-slate-500">(prototipo, clientes, ventas, pilotos, cartas de interés)</span>
+              </label>
+              <textarea
+                rows={3}
+                value={currentProgress}
+                onChange={(e) => setCurrentProgress(e.target.value)}
+                placeholder="Ej: Contamos con prototipo funcional TRL 4 validado en laboratorio, 2 pilotos en terreno en el Valle de Colchagua y 3 cartas de interés comercial (LOI) firmadas por viñas locales..."
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 placeholder:text-slate-400 placeholder:italic focus:bg-white focus:border-cyan-600 focus:outline-hidden leading-relaxed"
+              />
+            </div>
+
+            {/* 5. Equipo */}
+            <div className="space-y-1.5">
+              <label className="font-bold text-slate-800 block">
+                Equipo <span className="font-normal text-slate-500">(nombre, rol y experiencia de cada integrante clave)</span>
+              </label>
+              <textarea
+                rows={3}
+                value={teamDetails}
+                onChange={(e) => setTeamDetails(e.target.value)}
+                placeholder="Ej: Rodrigo Muñoz (CEO, Ing. Agrónomo U. de Chile, 8 años en gestión de predios), Camila Sepúlveda (CTO, Master en Ciencias de la Computación, 5 años en IoT)..."
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 placeholder:text-slate-400 placeholder:italic focus:bg-white focus:border-cyan-600 focus:outline-hidden leading-relaxed"
+              />
+            </div>
+
+            {/* 6. Modelo de negocio */}
+            <div className="space-y-1.5">
+              <label className="font-bold text-slate-800 block">
+                Modelo de negocio <span className="font-normal text-slate-500">(cómo cobras y cuánto)</span>
+              </label>
+              <textarea
+                rows={2}
+                value={businessModel}
+                onChange={(e) => setBusinessModel(e.target.value)}
+                placeholder="Ej: Modelo B2B SaaS con suscripción mensual de $180.000 CLP por hectárea monitoreada más arriendo de hardware IoT por $50.000 CLP mensuales..."
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 placeholder:text-slate-400 placeholder:italic focus:bg-white focus:border-cyan-600 focus:outline-hidden leading-relaxed"
+              />
+            </div>
+
+            {/* 7. ¿Para qué necesitas el financiamiento y en qué lo usarías? */}
+            <div className="space-y-1.5">
+              <label className="font-bold text-slate-800 block">
+                ¿Para qué necesitas el financiamiento y en qué lo usarías?
+              </label>
+              <textarea
+                rows={2}
+                value={fundingPurpose}
+                onChange={(e) => setFundingPurpose(e.target.value)}
+                placeholder="Ej: El subsidio de CORFO ($15M) se destinará en un 55% a contratación de desarrolladores de software, 30% en adquisición de sensores para validación y 15% en prospección comercial..."
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 placeholder:text-slate-400 placeholder:italic focus:bg-white focus:border-cyan-600 focus:outline-hidden leading-relaxed"
+              />
+            </div>
+
+            {/* 8. Sitio web o redes (opcional) */}
+            <div className="space-y-1.5">
+              <label className="font-bold text-slate-800 block">
+                Sitio web o redes <span className="font-normal text-slate-400">(opcional)</span>
+              </label>
+              <input
+                type="text"
+                value={websiteOrSocial}
+                onChange={(e) => setWebsiteOrSocial(e.target.value)}
+                placeholder="Ej: https://miempresa.cl o @miempresa_cl"
+                className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 placeholder:text-slate-400 placeholder:italic focus:bg-white focus:border-cyan-600 focus:outline-hidden font-mono text-xs"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* ========================================================================= */}
+        {/* SECCIÓN B: CARPETA TRIBUTARIA ELECTRÓNICA SII */}
+        {/* ========================================================================= */}
         <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2.5">
@@ -217,7 +557,9 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
           )}
         </div>
 
-        {/* 3. Identificación y Perfil de la Empresa */}
+        {/* ========================================================================= */}
+        {/* SECCIÓN C: IDENTIFICACIÓN Y PERFIL DE LA EMPRESA */}
+        {/* ========================================================================= */}
         <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-4">
           <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
             <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
@@ -225,10 +567,10 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
             </div>
             <div>
               <h3 className="text-sm font-bold text-slate-900">
-                Perfil de la Empresa
+                Identificación y Datos de la Empresa
               </h3>
               <p className="text-[11px] text-slate-500">
-                Datos constitutivos y características del negocio
+                Datos constitutivos y características legales de la sociedad
               </p>
             </div>
           </div>
@@ -354,7 +696,9 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
           </div>
         </div>
 
-        {/* 4. Datos del Representante Legal (Requirement 1) */}
+        {/* ========================================================================= */}
+        {/* SECCIÓN D: DATOS DEL REPRESENTANTE LEGAL */}
+        {/* ========================================================================= */}
         <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-4">
           <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
             <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
@@ -437,25 +781,199 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
         </div>
 
         {/* 5. Save Button Bar */}
-        <div className="flex items-center justify-between p-4 rounded-2xl bg-white border border-slate-200 shadow-sm">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 rounded-2xl bg-white border border-slate-200 shadow-sm">
           <div>
-            {savedSuccess && (
+            {savedSuccess ? (
               <span className="text-xs font-bold text-emerald-700 flex items-center gap-1.5 animate-fade-in">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                <span>¡Datos de la empresa guardados correctamente!</span>
+                <span>¡Datos de la empresa y perfil del proyecto guardados en Firestore!</span>
+              </span>
+            ) : (
+              <span className="text-xs text-slate-500">
+                Guarda los cambios para que la IA disponga de tus antecedentes actualizados.
               </span>
             )}
           </div>
 
           <button
             type="submit"
-            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-600/20 active:scale-95 transition-all cursor-pointer"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-600/20 active:scale-95 transition-all cursor-pointer"
           >
             <Save className="w-4 h-4" />
-            <span>Guardar Datos de Mi Empresa</span>
+            <span>Guardar Datos de Mi Empresa y Proyecto</span>
           </button>
         </div>
       </form>
+
+      {/* ========================================================================= */}
+      {/* SECCIÓN E: MI PLAN Y FACTURACIÓN (Requirement C.9) */}
+      {/* ========================================================================= */}
+      <div className="p-6 sm:p-8 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+              <CreditCard className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
+                <span>Mi Plan y Suscripción</span>
+                {hasActivePlan && (
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                    Semestral Activo
+                  </span>
+                )}
+              </h3>
+              <p className="text-[11px] text-slate-500">
+                Información de vigencia, cupos de postulación e historial de transacciones de Mercado Pago
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleRenewPlan}
+            disabled={renewingPlan}
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all cursor-pointer disabled:opacity-50 shrink-0"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>{hasActivePlan ? 'Renovar Plan Semestral' : 'Activar Plan Semestral'}</span>
+          </button>
+        </div>
+
+        {/* Plan Status Overview Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+          {/* Card 1: Plan Actual */}
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+            <span className="text-[10px] uppercase font-bold text-slate-500 block">Plan Actual</span>
+            <p className="text-base font-black text-slate-900">
+              {hasActivePlan ? 'Plan Semestral' : 'Plan Gratuito'}
+            </p>
+            <p className="text-[11px] text-slate-500">
+              {hasActivePlan ? 'Acceso completo e ilimitado a IA' : 'Acceso limitado a diagnóstico'}
+            </p>
+          </div>
+
+          {/* Card 2: Vigencia */}
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+            <span className="text-[10px] uppercase font-bold text-slate-500 block">Vigencia</span>
+            <p className="text-base font-black text-slate-900">
+              {hasActivePlan ? formattedExpiry : 'Sin plan activo'}
+            </p>
+            <p className="text-[11px] text-slate-500">
+              {hasActivePlan && formattedStart ? `Inicio: ${formattedStart}` : 'Vencimiento no aplicable'}
+            </p>
+          </div>
+
+          {/* Card 3: Días Restantes */}
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+            <span className="text-[10px] uppercase font-bold text-slate-500 block">Días Restantes</span>
+            <p className={`text-base font-black ${
+              hasActivePlan ? 'text-emerald-700 font-mono' : 'text-slate-400 font-mono'
+            }`}>
+              {hasActivePlan ? `${daysLeft} días` : '0 días'}
+            </p>
+            <p className="text-[11px] text-slate-500">
+              {isExpiringSoon ? '⚠️ Próximo a vencer' : hasActivePlan ? 'Plan vigente' : 'Sin días disponibles'}
+            </p>
+          </div>
+
+          {/* Card 4: Postulaciones Activas */}
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+            <span className="text-[10px] uppercase font-bold text-slate-500 block">Postulaciones Activas</span>
+            <p className="text-base font-black text-blue-700 font-mono">
+              {activeFundIds.length} de 3 usadas
+            </p>
+            <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden mt-1">
+              <div 
+                className="h-full bg-blue-600 rounded-full transition-all"
+                style={{ width: `${(Math.min(3, activeFundIds.length) / 3) * 100}%` }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Historial de Pagos (Requirement C.9) */}
+        <div className="space-y-3 pt-2">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-slate-500" />
+              <span>Historial de Pagos</span>
+            </h4>
+            <span className="text-[11px] text-slate-400">
+              {paymentHistory.length} transacciones registradas
+            </span>
+          </div>
+
+          {loadingHistory ? (
+            <div className="p-6 text-center text-xs text-slate-400">
+              Cargando historial de pagos...
+            </div>
+          ) : paymentHistory.length === 0 ? (
+            <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 text-center space-y-1 text-xs text-slate-500">
+              <p className="font-semibold text-slate-700">No registras pagos previos</p>
+              <p className="text-[11px]">
+                Cuando adquieras o renueves el Plan Semestral, tus comprobantes oficiales de Mercado Pago aparecerán aquí.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-2xl border border-slate-200">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase font-bold text-slate-500 tracking-wider">
+                  <tr>
+                    <th className="py-2.5 px-3.5">Fecha</th>
+                    <th className="py-2.5 px-3.5">Operación MP</th>
+                    <th className="py-2.5 px-3.5">Monto</th>
+                    <th className="py-2.5 px-3.5">Estado</th>
+                    <th className="py-2.5 px-3.5">Medio</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {paymentHistory.map((pay) => {
+                    const formattedDate = pay.approvedAt 
+                      ? new Date(pay.approvedAt).toLocaleDateString('es-CL', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })
+                      : 'Fecha no registrada';
+
+                    const isApproved = pay.status === 'approved';
+
+                    return (
+                      <tr key={pay.id} className="hover:bg-slate-50/50">
+                        <td className="py-2.5 px-3.5 text-slate-700 font-mono">
+                          {formattedDate}
+                        </td>
+                        <td className="py-2.5 px-3.5 font-mono text-slate-600 font-semibold">
+                          #{pay.paymentId}
+                        </td>
+                        <td className="py-2.5 px-3.5 font-bold text-slate-900 font-mono">
+                          ${pay.amount.toLocaleString('es-CL')} {pay.currencyId}
+                        </td>
+                        <td className="py-2.5 px-3.5">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            isApproved 
+                              ? 'bg-emerald-100 text-emerald-800' 
+                              : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {isApproved ? '✓ Aprobado' : pay.status}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3.5 text-slate-500 uppercase font-mono text-[11px]">
+                          {pay.paymentMethodId || 'Mercado Pago'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
     </div>
   );
 };

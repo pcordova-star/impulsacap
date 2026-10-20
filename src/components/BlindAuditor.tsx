@@ -23,6 +23,7 @@ import {
 interface BlindAuditorProps {
   initialFund?: ChileanFund | null;
   initialFormulation?: FormulationOutput | null;
+  profile?: CompanyProfile;
   onSaveAudit?: (result: BlindAuditResult) => void;
   onNavigateTab?: (tab: string) => void;
 }
@@ -30,6 +31,7 @@ interface BlindAuditorProps {
 export const BlindAuditor: React.FC<BlindAuditorProps> = ({
   initialFund,
   initialFormulation,
+  profile,
   onSaveAudit,
   onNavigateTab
 }) => {
@@ -63,7 +65,15 @@ export const BlindAuditor: React.FC<BlindAuditorProps> = ({
         body: JSON.stringify({
           fund: selectedFund,
           formulationText: inputText,
-          projectSummary: inputText.substring(0, 1000)
+          projectSummary: inputText.substring(0, 1000),
+          profile,
+          projectProfile: profile?.projectProfile,
+          taxFolderData: profile ? {
+            sector: profile.sector,
+            region: profile.region,
+            monthsActive: profile.monthsActive,
+            annualSalesCLP: profile.annualSalesCLP
+          } : undefined
         })
       });
 

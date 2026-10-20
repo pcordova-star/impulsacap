@@ -50,7 +50,8 @@ service cloud.firestore {
         && (!('salesBracket' in data) || (data.salesBracket is string && data.salesBracket.size() <= 50))
         && (!('annualSalesCLP' in data) || (data.annualSalesCLP is number))
         && (!('isFemaleLed' in data) || (data.isFemaleLed is bool))
-        && (!('trlStage' in data) || (data.trlStage is string && data.trlStage.size() <= 40));
+        && (!('trlStage' in data) || (data.trlStage is string && data.trlStage.size() <= 40))
+        && (!('projectProfile' in data) || (data.projectProfile is map));
     }
 
     // Application Validation

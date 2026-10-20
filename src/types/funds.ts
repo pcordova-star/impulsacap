@@ -76,6 +76,32 @@ export interface GeneratedDocument {
   updatedAt: string;
 }
 
+export interface ProjectProfile {
+  whatItDoes: string;               // ¿Qué hace tu empresa o proyecto? (producto o servicio)
+  problemAndTarget: string;         // ¿Qué problema resuelve y a quién? (cliente objetivo)
+  currentSolutionAndDiff: string;   // ¿Cómo lo resuelven hoy tus clientes y qué te diferencia?
+  currentProgress: string;          // Avance actual (prototipo, clientes, ventas, pilotos, cartas de interés)
+  teamDetails: string;              // Equipo: nombre, rol y experiencia de cada integrante clave
+  businessModel: string;            // Modelo de negocio: cómo cobras y cuánto
+  fundingPurpose: string;           // ¿Para qué necesitas el financiamiento y en qué lo usarías?
+  websiteOrSocial?: string;         // Sitio web o redes (opcional)
+}
+
+export function calculateProjectProfileCompletion(project?: Partial<ProjectProfile> | null): number {
+  if (!project) return 0;
+  const fields = [
+    project.whatItDoes,
+    project.problemAndTarget,
+    project.currentSolutionAndDiff,
+    project.currentProgress,
+    project.teamDetails,
+    project.businessModel,
+    project.fundingPurpose
+  ];
+  const filled = fields.filter(val => typeof val === 'string' && val.trim().length >= 10).length;
+  return Math.round((filled / fields.length) * 100);
+}
+
 export interface CompanyProfile {
   companyName: string;
   rut: string;
@@ -102,6 +128,7 @@ export interface CompanyProfile {
   representativeRut?: string;
   representativeEmail?: string;
   representativePhone?: string;
+  projectProfile?: ProjectProfile;
 }
 
 export interface FundMatchResult {

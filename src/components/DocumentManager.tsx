@@ -200,6 +200,14 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
           legalRepName: legalRepName.trim(),
           legalRepRut: legalRepRut.trim(),
           city: city.trim(),
+          profile,
+          projectProfile: profile.projectProfile,
+          taxFolderData: {
+            sector: profile.sector,
+            region: profile.region,
+            monthsActive: profile.monthsActive,
+            annualSalesCLP: profile.annualSalesCLP
+          },
           details: {
             clientContact: clientContactName.trim() || undefined,
             rut: profile.rut,

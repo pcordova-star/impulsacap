@@ -289,49 +289,66 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
   const { hasActivePlan, loading: planLoading } = usePlan();
   const [showPaywall, setShowPaywall] = useState<boolean>(false);
 
-  // User input answers for each section - Restored from unified Expediente (Requirement 11)
-  const [answersBySection, setAnswersBySection] = useState<Record<string, Record<string, string>>>(() => {
-    if (expediente?.answersBySection && Object.keys(expediente.answersBySection).length > 0) {
-      return expediente.answersBySection;
-    }
+  // Helper: Preload section answers from Project Profile (Requirement A.3)
+  const getPreloadedAnswers = (prof: CompanyProfile, initForm?: FormulationOutput | null): Record<string, Record<string, string>> => {
+    const proj = prof.projectProfile || {};
     return {
       title_pitch: {
-        projectTitle: initialFormulation?.projectTitle || '',
-        pitchSummary30s: initialFormulation?.pitchSummary30s || ''
+        projectTitle: initForm?.projectTitle || (prof.companyName ? `${prof.companyName} - Innovación` : ''),
+        pitchSummary30s: initForm?.pitchSummary30s || proj.whatItDoes || prof.projectSummary || ''
       },
       problem: {
-        who: '',
+        who: proj.problemAndTarget || '',
         cost: '',
-        alternatives: ''
+        alternatives: proj.currentSolutionAndDiff || ''
       },
       solution: {
-        how: '',
-        tech: '',
-        noveltyVsCompetitors: initialFormulation?.noveltyVsCompetitors || ''
+        how: proj.whatItDoes || '',
+        tech: prof.coreTech || '',
+        noveltyVsCompetitors: initForm?.noveltyVsCompetitors || proj.currentSolutionAndDiff || ''
       },
       market: {
-        archetype: initialFormulation?.marketAnalysisTAM?.clientArchetype || '',
-        tam: initialFormulation?.marketAnalysisTAM?.tam || '',
-        sam: initialFormulation?.marketAnalysisTAM?.sam || '',
-        som: initialFormulation?.marketAnalysisTAM?.som || ''
+        archetype: initForm?.marketAnalysisTAM?.clientArchetype || proj.problemAndTarget || '',
+        tam: initForm?.marketAnalysisTAM?.tam || '',
+        sam: initForm?.marketAnalysisTAM?.sam || '',
+        som: initForm?.marketAnalysisTAM?.som || ''
       },
       model: {
-        revenue: '',
-        salesStrategy: ''
+        revenue: proj.businessModel || '',
+        salesStrategy: proj.currentProgress || ''
       },
       workplan: {
-        milestone1: initialFormulation?.workPlanMilestones?.[0]?.description || '',
-        milestone2: initialFormulation?.workPlanMilestones?.[1]?.description || '',
-        milestone3: initialFormulation?.workPlanMilestones?.[2]?.description || ''
+        milestone1: initForm?.workPlanMilestones?.[0]?.description || (proj.currentProgress ? `Validación técnica inicial: ${proj.currentProgress}` : ''),
+        milestone2: initForm?.workPlanMilestones?.[1]?.description || '',
+        milestone3: initForm?.workPlanMilestones?.[2]?.description || ''
       },
       team: {
-        members: '',
-        dedication: '',
-        skills: ''
+        members: proj.teamDetails || '',
+        dedication: '40 horas semanales por integrante clave (dedicación completa 100%)',
+        skills: proj.teamDetails ? 'Equipo complementario con roles técnicos y comerciales' : ''
       },
       budget: {}
     };
+  };
+
+  // User input answers for each section - Precargado con perfil del proyecto (Requirement A.3)
+  const [answersBySection, setAnswersBySection] = useState<Record<string, Record<string, string>>>(() => {
+    const preloaded = getPreloadedAnswers(profile, initialFormulation);
+    if (!expediente?.answersBySection || Object.keys(expediente.answersBySection).length === 0) {
+      return preloaded;
+    }
+    const merged: Record<string, Record<string, string>> = { ...preloaded };
+    Object.entries(expediente.answersBySection).forEach(([secKey, secAnswers]) => {
+      merged[secKey] = {
+        ...(preloaded[secKey] || {}),
+        ...secAnswers
+      };
+    });
+    return merged;
   });
+
+  // Missing data tasks by section (Requirement B.7)
+  const [missingDataBySection, setMissingDataBySection] = useState<Record<string, string[]>>({});
 
   // Dedicated Budget Accounts State (Requirement 10: Real amounts entered by user)
   const [budgetAccounts, setBudgetAccounts] = useState<Record<string, {
@@ -385,6 +402,23 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
   const [savedNotice, setSavedNotice] = useState<string | null>(null);
 
   const currentSection = SECTIONS[currentSectionIndex];
+
+  // Answered questions count & validation (Requirement B.4: mínimo 2 de 3)
+  const currentSectionAns = answersBySection[currentSection.id] || {};
+  const answeredCount = currentSection.questions.filter(q => Boolean(currentSectionAns[q.key]?.trim())).length;
+  const totalQuestions = currentSection.questions.length;
+  const minRequiredAnswers = Math.min(2, totalQuestions);
+  const hasMinimumAnswers = totalQuestions === 0 || answeredCount >= minRequiredAnswers;
+
+  // Extracted and API missingData tasks (Requirement B.7)
+  const currentGenerated = generatedTexts[currentSection.id] || '';
+  const currentMissingTasks = useMemo(() => {
+    const extracted = (currentGenerated.match(/\[COMPLETAR:[^\]]+\]/g) || []).map(t =>
+      t.replace(/^\[COMPLETAR:\s*/i, '').replace(/\]$/, '').trim()
+    );
+    const fromApi = missingDataBySection[currentSection.id] || [];
+    return Array.from(new Set([...fromApi, ...extracted])).filter(Boolean);
+  }, [currentGenerated, missingDataBySection, currentSection.id]);
 
   // Sync when selectedFund prop changes
   useEffect(() => {
@@ -517,11 +551,19 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           profile,
+          projectProfile: profile.projectProfile,
+          taxFolderData: {
+            sector: profile.sector,
+            region: profile.region,
+            monthsActive: profile.monthsActive,
+            annualSalesCLP: profile.annualSalesCLP,
+            salesBracket: profile.salesBracket
+          },
           fund: currentFund,
           sectionKey: currentSection.id,
           sectionTitle: currentSection.title,
           questionsAndAnswers: questionsObj,
-          projectSummary: profile.projectSummary
+          projectSummary: profile.projectProfile?.whatItDoes || profile.projectSummary
         })
       });
 
@@ -545,6 +587,12 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
 
       const data = await response.json();
       const generated = data.generatedText || '';
+      const missing = Array.isArray(data.missingData) ? data.missingData : [];
+
+      setMissingDataBySection(prev => ({
+        ...prev,
+        [currentSection.id]: missing
+      }));
 
       setGeneratedTexts(prev => ({
         ...prev,
@@ -888,25 +936,38 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
             </h2>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
             {currentSection.id !== 'budget' && (
-              <button
-                onClick={handleGenerateSection}
-                disabled={loading || planLoading}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 disabled:opacity-50 text-white font-bold text-xs shadow-lg shadow-cyan-600/20 transition-all cursor-pointer"
-              >
-                {loading ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin text-white" />
-                    <span>Redactando con IA...</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4 text-cyan-200" />
-                    <span>Redactar esta Sección con IA</span>
-                  </>
+              <div className="flex flex-col items-end gap-1">
+                <button
+                  onClick={handleGenerateSection}
+                  disabled={loading || planLoading || !hasMinimumAnswers}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs shadow-lg shadow-cyan-600/20 transition-all cursor-pointer"
+                  title={!hasMinimumAnswers ? `Debes responder al menos ${minRequiredAnswers} preguntas para generar esta sección` : undefined}
+                >
+                  {loading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                      <span>Redactando con IA...</span>
+                    </>
+                  ) : !hasMinimumAnswers ? (
+                    <>
+                      <AlertCircle className="w-4 h-4 text-amber-300" />
+                      <span>Responde las preguntas para generar esta sección</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 text-cyan-200" />
+                      <span>Generar sección con IA</span>
+                    </>
+                  )}
+                </button>
+                {!hasMinimumAnswers && totalQuestions > 0 && (
+                  <span className="text-[10px] text-amber-400 font-medium">
+                    Faltan respuestas obligatorias ({answeredCount} de {minRequiredAnswers} mínimo)
+                  </span>
                 )}
-              </button>
+              </div>
             )}
           </div>
         </div>
@@ -1174,9 +1235,44 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
                 rows={6}
                 value={generatedTexts[currentSection.id] || ''}
                 onChange={(e) => handleTextEdit(e.target.value)}
-                placeholder="El texto técnico redactado para esta sección aparecerá aquí al hacer clic en 'Redactar esta Sección con IA', o puedes escribir directamente tu borrador..."
+                placeholder="El texto técnico redactado para esta sección aparecerá aquí al hacer clic en 'Generar sección con IA', o puedes escribir directamente tu borrador..."
                 className="w-full bg-slate-950 border border-slate-800 text-slate-100 text-xs rounded-2xl p-4 focus:outline-none focus:border-cyan-500 placeholder:text-slate-500 placeholder:italic leading-relaxed font-sans"
               />
+
+              {/* Tareas de datos faltantes (Requirement B.7) */}
+              {currentMissingTasks.length > 0 ? (
+                <div className="p-4 rounded-2xl bg-amber-950/40 border border-amber-500/40 space-y-3 animate-fade-in mt-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                      <h4 className="text-xs font-bold text-amber-200 uppercase tracking-wider">
+                        Tareas pendientes por completar en esta sección ({currentMissingTasks.length})
+                      </h4>
+                    </div>
+                    <span className="text-[10px] text-amber-400 font-mono">
+                      La IA no inventó estos datos
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-amber-300/80 leading-relaxed">
+                    Reemplaza cada una de las marcas en el texto editable de arriba con los datos reales de tu empresa antes de postular:
+                  </p>
+                  <ul className="space-y-1.5">
+                    {currentMissingTasks.map((task, idx) => (
+                      <li key={idx} className="flex items-start gap-2 text-xs text-amber-100 bg-amber-900/30 p-2.5 rounded-xl border border-amber-800/50">
+                        <span className="w-4 h-4 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5 font-mono">
+                          {idx + 1}
+                        </span>
+                        <span className="flex-1 font-medium">{task}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : currentGenerated.trim().length > 60 && (
+                <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-500/30 flex items-center gap-2 text-xs text-emerald-300 animate-fade-in mt-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>¡Sección completa y sin marcas [COMPLETAR] pendientes! Lista para la auditoría.</span>
+                </div>
+              )}
             </div>
           </div>
         )}
