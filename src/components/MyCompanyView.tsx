@@ -96,7 +96,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
   const [representativePhone, setRepresentativePhone] = useState(currentUser?.phone || '');
 
   // Project Profile state (Requirement A.1)
-  const initialProject = profile.projectProfile || {};
+  const initialProject = profile.projectProfile || ({} as Partial<ProjectProfile>);
   const [whatItDoes, setWhatItDoes] = useState(initialProject.whatItDoes || profile.projectSummary || '');
   const [problemAndTarget, setProblemAndTarget] = useState(initialProject.problemAndTarget || '');
   const [currentSolutionAndDiff, setCurrentSolutionAndDiff] = useState(initialProject.currentSolutionAndDiff || '');

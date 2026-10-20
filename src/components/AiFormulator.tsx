@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ChileanFund, CompanyProfile, FormulationOutput } from '../types/funds';
+import { ChileanFund, CompanyProfile, FormulationOutput, ProjectProfile } from '../types/funds';
 import { ExpedienteData } from '../types/expediente';
 import { apiFetch } from '../utils/apiFetch';
 import { usePlan } from '../hooks/usePlan';
@@ -291,7 +291,7 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
 
   // Helper: Preload section answers from Project Profile (Requirement A.3)
   const getPreloadedAnswers = (prof: CompanyProfile, initForm?: FormulationOutput | null): Record<string, Record<string, string>> => {
-    const proj = prof.projectProfile || {};
+    const proj = prof.projectProfile || ({} as Partial<ProjectProfile>);
     return {
       title_pitch: {
         projectTitle: initForm?.projectTitle || (prof.companyName ? `${prof.companyName} - Innovación` : ''),

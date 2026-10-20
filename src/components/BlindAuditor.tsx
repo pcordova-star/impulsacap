@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChileanFund, BlindAuditResult, FormulationOutput } from '../types/funds';
+import { ChileanFund, BlindAuditResult, FormulationOutput, CompanyProfile } from '../types/funds';
 import { apiFetch } from '../utils/apiFetch';
 import { usePlan } from '../hooks/usePlan';
 import { PlanPaywallCard } from './PlanPaywallCard';

@@ -1,0 +1,23 @@
+name: Probar correo
+
+# Envía un correo de prueba a ADMIN_EMAIL para confirmar que Resend funciona en producción.
+# Se ejecuta solo a mano: Actions > Probar correo > Run workflow.
+on:
+  workflow_dispatch:
+
+jobs:
+  probar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enviar correo de prueba
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          IMPORT_TOKEN: ${{ secrets.CONVOCATORIAS_IMPORT_TOKEN }}
+        run: |
+          status=$(curl -sS -o respuesta.json -w "%{http_code}" \
+            -H "x-import-token: ${IMPORT_TOKEN}" \
+            "${APP_URL%/}/api/admin/test-email")
+          # El repo es público: no imprimimos la respuesta completa (incluye el correo destino).
+          echo "HTTP ${status}"
+          jq -r '"Enviado: \(.sent)" + (if .error then " — \(.error)" else "" end)' respuesta.json || true
+          if [ "$status" != "200" ]; then exit 1; fi
