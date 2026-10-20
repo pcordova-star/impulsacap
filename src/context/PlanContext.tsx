@@ -7,6 +7,8 @@ import { apiFetch } from '../utils/apiFetch';
 export interface PlanState {
   hasActivePlan: boolean;
   expiresAt: string | null;
+  /** Id del último pago de Mercado Pago que activó o extendió el plan. */
+  lastPaymentId: string | null;
   daysLeft: number;
   isFirstPurchase: boolean;
   price: number;
@@ -21,6 +23,7 @@ export interface PlanState {
 const defaultPlanState: PlanState = {
   hasActivePlan: false,
   expiresAt: null,
+  lastPaymentId: null,
   daysLeft: 0,
   isFirstPurchase: true,
   price: 19990,
@@ -41,6 +44,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode }> = ({ children
     plan?: string;
     status?: string;
     expiresAt?: string;
+    lastPaymentId?: string;
     activeFundIds?: string[];
   } | null>(null);
 
@@ -101,6 +105,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode }> = ({ children
             plan: data.plan,
             status: data.status,
             expiresAt: data.expiresAt,
+            lastPaymentId: data.lastPaymentId ? String(data.lastPaymentId) : undefined,
             activeFundIds: Array.isArray(data.activeFundIds) ? data.activeFundIds : []
           });
         } else {
@@ -145,6 +150,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const value: PlanState = {
     hasActivePlan,
     expiresAt,
+    lastPaymentId: entitlementData?.lastPaymentId || null,
     daysLeft,
     isFirstPurchase: pricingState.isFirstPurchase,
     price: pricingState.price,

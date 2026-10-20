@@ -542,6 +542,13 @@ export default function App() {
               window.history.pushState({}, '', '/');
               setActiveTab('my-applications');
             }}
+            onNavigateToPlan={() => {
+              window.history.pushState({}, '', '/');
+              setActiveTab('my-company');
+              setTimeout(() => {
+                document.getElementById('mi-plan')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }, 300);
+            }}
           />
         )}
 

@@ -1548,9 +1548,9 @@ app.post('/api/pagos/crear', requireAuth, async (req, res) => {
           currency_id: 'CLP',
         }
       ],
-      payer: {
-        email: user.email || undefined,
-      },
+      // Sin payer.email: el comprador inicia sesión en Mercado Pago con su propia cuenta.
+      // Prellenar el correo provoca el error "una de las partes es de prueba" al mezclar cuentas
+      // y no es necesario: el pago se asocia al usuario por external_reference.
       external_reference: externalReference,
       back_urls: {
         success: `${appUrl}/pago/resultado`,

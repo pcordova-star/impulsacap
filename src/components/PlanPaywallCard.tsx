@@ -124,13 +124,13 @@ export const PlanPaywallCard: React.FC<PlanPaywallCardProps> = ({
             },
             {
               icon: ShieldCheck,
-              title: 'Auditor Ciego con Rúbrica Oficial',
+              title: 'Auditoría simulada con la rúbrica del fondo',
               desc: 'Simula la evaluación de los comités antes de enviar tu postulación'
             },
             {
               icon: MessageSquareCode,
               title: 'Chat Experto en Fondos Públicos',
-              desc: 'Consultas ilimitadas sobre bases, topes de ventas y requisitos tributarios'
+              desc: 'Resuelve dudas sobre bases, topes de ventas y requisitos tributarios'
             },
             {
               icon: FileText,

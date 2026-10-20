@@ -373,7 +373,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
         { label: 'Checklist de documentación de admisibilidad', done: isRutValid && hasFormulation && hasBudget, detail: 'Listo para copiar respuestas al portal' },
         { label: 'Subida formal a la plataforma oficial', done: false, detail: `Portal oficial ${selectedFund.agency} (e-CORFO o Sercotec)` }
       ],
-      actionLabel: 'Ver / Descargar Dossier PDF Oficial',
+      actionLabel: 'Ver / Descargar expediente PDF',
       onAction: () => setShowDossierModal(true)
     }
   ], [isRutValid, activeRut, hasLetters, profile.customerValidationCount, profile.isFemaleLed, selectedFund, hasFormulation, formulation, hasBudget, hasAudit, isAuditApproved, auditResult, onOpenSiiModal, onNavigateTab, confirmedInicioActividades, confirmedEstatutoSocial, confirmedGarantia]);

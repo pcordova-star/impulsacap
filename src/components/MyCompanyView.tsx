@@ -808,7 +808,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
       {/* ========================================================================= */}
       {/* SECCIÓN E: MI PLAN Y FACTURACIÓN (Requirement C.9) */}
       {/* ========================================================================= */}
-      <div className="p-6 sm:p-8 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-6">
+      <div id="mi-plan" className="scroll-mt-24 p-6 sm:p-8 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
@@ -849,7 +849,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
               {hasActivePlan ? 'Plan Semestral' : 'Plan Gratuito'}
             </p>
             <p className="text-[11px] text-slate-500">
-              {hasActivePlan ? 'Acceso completo e ilimitado a IA' : 'Acceso limitado a diagnóstico'}
+              {hasActivePlan ? 'Acceso completo a las herramientas' : 'Acceso limitado a diagnóstico'}
             </p>
           </div>
 
