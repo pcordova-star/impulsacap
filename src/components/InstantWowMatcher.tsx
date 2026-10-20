@@ -49,65 +49,6 @@ interface InstantWowMatcherProps {
   onAuthSuccess?: (user: CompanyUser) => void;
 }
 
-// 5 Situation Shortcuts
-const QUICK_QUESTION_OPTIONS = [
-  {
-    icon: '🚀',
-    title: 'Startup Tecnológica o Innovación',
-    subtitle: 'Sin ventas o ventas < $60M (validar prototipo o MVP)',
-    stage: 'Prototipo' as const,
-    sales: 'Sin ventas' as const,
-    constitution: 'SpA, EIRL, SRL o S.A.' as const,
-    female: 'No' as const,
-    summary: 'Somos una startup tecnológica innovadora de software/IA recién creada como SpA, sin ventas previas, buscando validar producto y primeras ventas.',
-    targetFundId: 'corfo_semilla_inicia'
-  },
-  {
-    icon: '📈',
-    title: 'Primeras Ventas ($1M - $60M)',
-    subtitle: 'Clientes pagando y queremos acelerar a nivel nacional',
-    stage: 'Ya vendo' as const,
-    sales: 'Menos de $60M' as const,
-    constitution: 'SpA, EIRL, SRL o S.A.' as const,
-    female: 'No' as const,
-    summary: 'Empresa constituida con ventas demostradas de $15 millones en los últimos 12 meses, buscando escalar comercialmente en Chile y el extranjero.',
-    targetFundId: 'corfo_semilla_expande'
-  },
-  {
-    icon: '🏢',
-    title: 'Pyme con Ventas (> 200 UF)',
-    subtitle: 'Empresa formalizada que necesita modernizar maquinaria o digitalizarse',
-    stage: 'Ya vendo' as const,
-    sales: '$60M a $1.000M' as const,
-    constitution: 'SpA, EIRL, SRL o S.A.' as const,
-    female: 'No' as const,
-    summary: 'Pyme formalizada en primera categoría con facturación de 2.500 UF anuales, buscando inversión en nueva maquinaria y desarrollo comercial.',
-    targetFundId: 'sercotec_crece'
-  },
-  {
-    icon: '👩‍💼',
-    title: 'Mujer Emprendedora desde Cero',
-    subtitle: 'Sin inicio de actividades en 1ª categoría ante SII (primer fondo)',
-    stage: 'Idea' as const,
-    sales: 'Sin ventas' as const,
-    constitution: 'Persona natural sin inicio de actividades' as const,
-    female: 'Sí' as const,
-    summary: 'Mujer emprendedora sin inicio de actividades ante el SII que busca formalizar un taller productivo con subsidio no reembolsable.',
-    targetFundId: 'sercotec_abeja_emprende'
-  },
-  {
-    icon: '🔬',
-    title: 'Proyecto de I+D o Base Científica',
-    subtitle: 'Desarrollo de biotecnología, ingeniería o minería con universidades',
-    stage: 'Prototipo' as const,
-    sales: 'Sin ventas' as const,
-    constitution: 'SpA, EIRL, SRL o S.A.' as const,
-    female: 'No' as const,
-    summary: 'Empresa que busca desarrollar un prototipo tecnológico de I+D con alto desafío técnico e incertidumbre experimental.',
-    targetFundId: 'corfo_crea_valida'
-  }
-];
-
 export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
   onSelectFundToFormulate,
   onNavigateTab,
@@ -329,17 +270,6 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
         resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 100);
     }
-  };
-
-  // Handle shortcut selection
-  const handleSelectShortcut = (opt: typeof QUICK_QUESTION_OPTIONS[0]) => {
-    setStage(opt.stage);
-    setSales(opt.sales);
-    setConstitution(opt.constitution);
-    setIsFemale(opt.female);
-    setProjectSummary(opt.summary);
-    setOnboardingStep(5);
-    executeMatch(opt.stage, opt.sales, opt.constitution, opt.female, opt.summary, opt.targetFundId);
   };
 
   // Main Action: "Crear mi hoja de ruta para este fondo"
@@ -617,23 +547,23 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
   const progressPct = (onboardingStep / 5) * 100;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 min-w-0 max-w-full">
       {/* ImpulsaCap Hero & Guided Onboarding Container */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-b from-blue-50/80 via-white to-emerald-50/40 border border-blue-100 p-5 sm:p-9 shadow-sm">
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-b from-blue-50/80 via-white to-emerald-50/40 border border-blue-100 p-4 sm:p-9 shadow-sm min-w-0 max-w-full">
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-400/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-emerald-400/10 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="relative z-10 max-w-4xl mx-auto space-y-6">
+        <div className="relative z-10 max-w-4xl mx-auto space-y-6 min-w-0">
           {/* Header Tag */}
-          <div className="text-center space-y-2">
+          <div className="text-center space-y-2 min-w-0">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold shadow-xs">
               <span className="text-emerald-600 font-black">✦</span>
-              <span>ImpulsaCap • Diagnóstico Asistido y Calce Rápido 2026</span>
+              <span>Diagnóstico en 1 minuto</span>
             </div>
-            <h1 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight leading-tight">
+            <h1 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight leading-tight break-words">
               Descubre a qué fondos concursables califica tu empresa
             </h1>
-            <p className="text-slate-600 text-xs sm:text-sm max-w-xl mx-auto">
+            <p className="text-slate-600 text-xs sm:text-sm max-w-xl mx-auto break-words">
               Responde 5 breves preguntas paso a paso para que nuestra IA analice las bases oficiales de CORFO, SERCOTEC y Start-Up Chile.
             </p>
           </div>
@@ -956,38 +886,6 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
                   </div>
                 </div>
               )}
-            </div>
-          )}
-
-          {/* SHORTCUT CARDS (5 situaciones como atajo rápido) - Requirement 6 */}
-          {!matchResult && !loading && onboardingStep === 1 && !stage && (
-            <div className="pt-2 animate-fade-in max-w-3xl mx-auto">
-              <p className="text-[11px] uppercase tracking-wider text-slate-500 font-extrabold mb-2.5 text-center">
-                ¿Prefieres un atajo?
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 text-left">
-                {QUICK_QUESTION_OPTIONS.map((opt, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleSelectShortcut(opt)}
-                    className="p-3.5 rounded-2xl bg-white border border-slate-200 hover:border-blue-400 hover:bg-blue-50/40 hover:shadow-sm transition-all group cursor-pointer active:scale-95 text-left"
-                  >
-                    <div className="flex items-start gap-2.5">
-                      <span className="text-xl shrink-0 p-1.5 rounded-xl bg-blue-50 border border-blue-100 group-hover:scale-110 transition-transform">
-                        {opt.icon}
-                      </span>
-                      <div>
-                        <h4 className="text-xs font-bold text-slate-900 group-hover:text-blue-700 leading-snug">
-                          {opt.title}
-                        </h4>
-                        <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2">
-                          {opt.subtitle}
-                        </p>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
             </div>
           )}
 

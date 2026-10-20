@@ -15,9 +15,11 @@ import {
   ChevronRight,
   Printer,
   Copy,
-  FolderOpen
+  FolderOpen,
+  MessageSquareCode
 } from 'lucide-react';
 import { MyActiveApplication } from './MyActiveApplication';
+import { ExpertChat } from './ExpertChat';
 
 // Lazy-loaded components for optimal performance (Requirement 9)
 const AiFormulator = React.lazy(() => 
@@ -33,7 +35,7 @@ const OfficialDossierModal = React.lazy(() =>
   import('./OfficialDossierModal').then(m => ({ default: m.OfficialDossierModal }))
 );
 
-export type PostulationSubTab = 'roadmap' | 'formulator' | 'documents' | 'auditor' | 'expediente';
+export type PostulationSubTab = 'roadmap' | 'formulator' | 'documents' | 'auditor' | 'advisor' | 'expediente';
 
 interface PostulationWorkspaceProps {
   fund: ChileanFund;
@@ -119,12 +121,13 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
     return { completedCount, percentage };
   }, [profile, application, expediente, formulation, auditResult]);
 
-  // Tab definitions (Requirement 2 & 3: "Documentos y cartas")
+  // Tab definitions: includes Asesor Experto inside each postulation (Requirement 3)
   const tabs: { id: PostulationSubTab; label: string; icon: React.FC<{ className?: string }> }[] = [
     { id: 'roadmap', label: 'Hoja de Ruta', icon: CheckCircle2 },
     { id: 'formulator', label: 'Formulador', icon: Sparkles },
     { id: 'documents', label: 'Documentos y cartas', icon: FileText },
     { id: 'auditor', label: 'Auditoría', icon: ShieldCheck },
+    { id: 'advisor', label: 'Asesor', icon: MessageSquareCode },
     { id: 'expediente', label: 'Expediente', icon: Award },
   ];
 
@@ -226,6 +229,7 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
               if (tab === 'formulator') onChangeSubTab('formulator');
               else if (tab === 'documents') onChangeSubTab('documents');
               else if (tab === 'auditor') onChangeSubTab('auditor');
+              else if (tab === 'advisor') onChangeSubTab('advisor');
               else onNavigateTab(tab);
             }}
             onOpenSiiModal={onOpenSiiModal}
@@ -253,6 +257,7 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
               onNavigateTab={(tab) => {
                 if (tab === 'auditor') onChangeSubTab('auditor');
                 else if (tab === 'documents') onChangeSubTab('documents');
+                else if (tab === 'advisor') onChangeSubTab('advisor');
                 else if (tab === 'my-application') onChangeSubTab('roadmap');
                 else onNavigateTab(tab);
               }}
@@ -279,6 +284,7 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
               onDeleteGeneratedDoc={onDeleteGeneratedDoc}
               onNavigateTab={(tab) => {
                 if (tab === 'formulator') onChangeSubTab('formulator');
+                else if (tab === 'advisor') onChangeSubTab('advisor');
                 else if (tab === 'my-application') onChangeSubTab('roadmap');
                 else onNavigateTab(tab);
               }}
@@ -303,11 +309,22 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
               onSaveAudit={onSaveAudit}
               onNavigateTab={(tab) => {
                 if (tab === 'formulator') onChangeSubTab('formulator');
+                else if (tab === 'advisor') onChangeSubTab('advisor');
                 else if (tab === 'my-application') onChangeSubTab('roadmap');
                 else onNavigateTab(tab);
               }}
             />
           </Suspense>
+        )}
+
+        {/* Asesor Experto Tab (Requirement 3) */}
+        {activeSubTab === 'advisor' && (
+          <div className="animate-fade-in">
+            <ExpertChat
+              profile={profile}
+              currentFund={fund}
+            />
+          </div>
         )}
 
         {activeSubTab === 'expediente' && (
@@ -414,6 +431,7 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
               if (tab === 'formulator') onChangeSubTab('formulator');
               else if (tab === 'documents') onChangeSubTab('documents');
               else if (tab === 'auditor') onChangeSubTab('auditor');
+              else if (tab === 'advisor') onChangeSubTab('advisor');
               else onNavigateTab(tab);
             }}
             onOpenSiiModal={onOpenSiiModal}

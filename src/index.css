@@ -1,1 +1,19 @@
 @import "tailwindcss";
+
+@keyframes shimmerSweep {
+  0% { transform: translateX(-200%); }
+  40%, 100% { transform: translateX(300%); }
+}
+
+.animate-shimmer {
+  animation: shimmerSweep 3.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-shimmer,
+  .animate-ping,
+  .animate-pulse,
+  .animate-spin {
+    animation: none !important;
+  }
+}

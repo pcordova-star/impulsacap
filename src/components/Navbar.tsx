@@ -1,19 +1,12 @@
 import React from 'react';
 import { 
-  Award, 
-  FileText, 
-  ShieldCheck, 
-  Sparkles, 
   Building2,
   Lock,
   LogOut,
-  Clock,
-  ArrowLeft,
-  UserPlus,
-  Compass,
+  Sparkles,
   Layers,
   Search,
-  MessageSquareCode
+  UserPlus
 } from 'lucide-react';
 
 import { ImpulsaCapLogo } from './ImpulsaCapLogo';
@@ -27,7 +20,6 @@ interface NavbarProps {
   onOpenProfile: () => void;
   onOpenAuthModal: (mode?: 'login' | 'register') => void;
   onLogout: () => void;
-  onToggleAdvisor?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -37,15 +29,13 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentUser,
   onOpenProfile,
   onOpenAuthModal,
-  onLogout,
-  onToggleAdvisor
+  onLogout
 }) => {
-  // Mobile bottom tabs - Requirements 1 & 4
+  // Mobile bottom tabs - Exactly 3 tabs for clean mobile navigation (Requirement 1)
   const mobileNavTabs = currentUser ? [
     { id: 'my-applications', label: 'Mis postulaciones', icon: Layers },
     { id: 'search-funds', label: 'Buscar fondos', icon: Search },
     { id: 'my-company', label: 'Mi empresa', icon: Building2 },
-    { id: 'advisor-button', label: 'Asesor', icon: Sparkles, action: onToggleAdvisor },
   ] : [
     { id: 'diagnostic', label: 'Inicio', icon: Sparkles },
     { id: 'search-funds', label: 'Buscar fondos', icon: Search },
@@ -69,10 +59,9 @@ export const Navbar: React.FC<NavbarProps> = ({
               <ImpulsaCapLogo size={34} withText withTagline={false} />
             </div>
 
-            {/* Desktop Navigation Links */}
+            {/* Desktop Navigation Links (Requirement 1: Mis postulaciones, Buscar fondos, Mi empresa) */}
             <nav className="hidden md:flex items-center gap-2 text-xs font-semibold">
               {currentUser ? (
-                /* Authenticated Menu: Exactly 3 options (Requirement 1) */
                 <>
                   <button
                     onClick={() => setActiveTab('my-applications')}
@@ -167,11 +156,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </button>
                 </div>
               ) : (
-                /* Unauthenticated Actions (Requirement 5: Iniciar sesión y Registrarse) */
-                <div className="flex items-center gap-2">
+                /* Unauthenticated Actions (Requirement 5: Solo logo y Registrarse compacto en móvil; Iniciar sesión en sm+) */
+                <div className="flex items-center gap-1.5 sm:gap-2">
                   <button
                     onClick={() => onOpenAuthModal('login')}
-                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
+                    className="hidden sm:flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
                   >
                     <Lock className="w-3.5 h-3.5" />
                     <span>Iniciar sesión</span>
@@ -179,7 +168,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                   <button
                     onClick={() => onOpenAuthModal('register')}
-                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs shadow-blue-600/20 active:scale-95 transition-all cursor-pointer"
+                    className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[11px] sm:text-xs font-bold shadow-xs shadow-blue-600/20 active:scale-95 transition-all cursor-pointer shrink-0"
                   >
                     <UserPlus className="w-3.5 h-3.5" />
                     <span>Registrarse</span>
@@ -192,7 +181,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </header>
 
-      {/* FIXED MOBILE BOTTOM APP BAR (Requirement 4) */}
+      {/* FIXED MOBILE BOTTOM APP BAR (Requirement 1 & 4) */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-xl border-t border-slate-200 shadow-2xl pb-[env(safe-area-inset-bottom)]">
         <div className={`grid grid-cols-${mobileNavTabs.length} h-16 max-w-md mx-auto px-1`}>
           {mobileNavTabs.map((tab) => {

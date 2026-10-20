@@ -70,6 +70,18 @@ const generalGeminiLimiter = rateLimit({
 app.use('/api/gemini/instant-match', instantMatchLimiter);
 app.use('/api/gemini', generalGeminiLimiter);
 
+// Límite para el robot de ayuda general de la plataforma: 10 por minuto por IP
+const helpChatLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  statusCode: 429,
+  message: { error: 'Demasiadas consultas de ayuda desde tu IP. Por favor, espera un minuto antes de reintentar.' }
+});
+
+app.use('/api/ayuda/chat', helpChatLimiter);
+
 // Shared Gemini client utility (User-Agent header required for telemetry)
 const apiKey = process.env.GEMINI_API_KEY || '';
 const ai = new GoogleGenAI({
@@ -1161,6 +1173,80 @@ Sé conciso, empático, directo y ultra práctico. Habla con terminología chile
   } catch (error: any) {
     console.error('Error in /api/gemini/chat:', error?.message);
     return res.status(503).json({ error: 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.' });
+  }
+});
+
+// 5b. Robot de Ayuda de la Plataforma (Público, sin sesión ni plan requerido - Requirement 2)
+app.post('/api/ayuda/chat', async (req, res) => {
+  try {
+    const message = req.body?.message;
+    if (typeof message !== 'string' || !message.trim()) {
+      return res.status(400).json({ error: 'El mensaje no puede estar vacío.' });
+    }
+    if (message.length > 500) {
+      return res.status(400).json({ error: 'El mensaje no puede superar los 500 caracteres.' });
+    }
+
+    const systemInstruction = `Eres el Robot de Ayuda de ImpulsaCap, el asistente de soporte técnico y guía de navegación de la plataforma web.
+
+BASE DE CONOCIMIENTO OFICIAL DE IMPULSACAP:
+1. ¿CÓMO FUNCIONA LA PLATAFORMA?:
+ImpulsaCap es la plataforma digital chilena que guía a emprendedores y empresas paso a paso para postular a fondos concursables (CORFO, SERCOTEC, ANID, Start-Up Chile, FIA).
+Funciona mediante una Hoja de Ruta en 6 pasos estructurados:
+- Paso 1: Validación Tributaria y SII (se valida RUT con Módulo 11 y se vincula la Carpeta Tributaria Electrónica F29 del SII).
+- Paso 2: Acreditación Legal y Cartas de Interés (estatutos sociales y cartas LOI de clientes para pertinencia comercial).
+- Paso 3: Formulación Técnica con IA (redacción guiada bajo las rúbricas y criterios de comités evaluadores).
+- Paso 4: Presupuesto y Cuentas Oficiales (cuentas de Recursos Humanos, Operación, Inversión y Administración, con topes porcentuales y garantías).
+- Paso 5: Auditoría Ciega (simulación del comité con nota de 1.0 a 5.0 para detectar debilidades antes de postular).
+- Paso 6: Expediente en PDF consolidado y listo para copiar o adjuntar en e-CORFO o SERCOTEC.
+
+2. PLAN SEMESTRAL Y PRECIOS:
+- Precio normal: $39.990 CLP semestral.
+- Descuento Primera Compra: 50% de descuento automático en la primera compra, quedando en $19.990 CLP.
+- Pago único mediante Mercado Pago (Webpay, tarjetas de crédito y débito).
+- NO tiene renovación automática ni cobros recurrentes sorpresa.
+- Vigencia: 6 meses de acceso completo a todas las funciones.
+- Límite: Permite hasta 3 postulaciones activas simultáneas por empresa (se pueden archivar postulaciones terminadas para liberar cupos).
+- Incluye: Formulación técnica con IA ilimitada, Auditor ciego, Gestor de cartas de interés (LOI), Expediente en PDF y Asesor Experto por postulación.
+
+3. CÓMO CREAR CUENTA:
+Hacer clic en "Registrarse" o "Crear Cuenta de Empresa" e ingresar el nombre de la empresa, RUT, correo y contraseña. Los datos quedan protegidos en una bóveda privada.
+
+4. CÓMO SUBIR LA CARPETA TRIBUTARIA:
+Ir a "Mi empresa" o al Paso 1 de una postulación. Descargar gratis la "Carpeta Tributaria para Solicitar Créditos" (PDF o XML) desde www.sii.cl y subirla a ImpulsaCap. El sistema lee el RUT, razón social, inicio de actividades en 1ª categoría, antigüedad y ventas de los últimos 12 meses, mostrando una pantalla de confirmación con datos editables antes de guardar.
+
+5. PRIVACIDAD DE DATOS:
+La Carpeta Tributaria y los antecedentes de la empresa se procesan bajo cifrado para el cálculo exclusivo de admisibilidad de las postulaciones. Nunca se comparten con terceros ni se usan para entrenar modelos públicos.
+
+REGLAS ESTRICTAS DE RESPUESTA:
+- SOLO responde preguntas sobre el funcionamiento de la plataforma ImpulsaCap, navegación, Hoja de Ruta, planes, precios, pagos, registro, subida de documentos y privacidad.
+- Si te preguntan sobre fondos específicos, requisitos particulares de un concurso, bases administrativas, fechas de cierre, montos de subsidio, cómo redactar un proyecto o cómo ganar un fondo, DEBES responder EXACTAMENTE la siguiente frase sin agregar nada más:
+"Eso lo resuelve el Asesor Experto, disponible dentro de cada postulación con el Plan Semestral."
+- Respuestas cortas, amables y directas (máximo 120 palabras).
+- NUNCA inventes información. Si no sabes la respuesta o no está en esta base de conocimiento, responde que no dispones de esa información y sugiere escribir a soporte.`;
+
+    const response = await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: [{ role: 'user', parts: [{ text: message.trim() }] }],
+      config: {
+        systemInstruction,
+        temperature: 0.2,
+        maxOutputTokens: 300
+      }
+    });
+
+    const reply = response.text?.trim() || '';
+    if (!reply) throw new Error('Respuesta vacía de Gemini');
+
+    const isExpertRedirect = reply.includes('Eso lo resuelve el Asesor Experto, disponible dentro de cada postulación con el Plan Semestral');
+
+    return res.json({
+      reply,
+      isExpertRedirect
+    });
+  } catch (error: any) {
+    console.error('Error in /api/ayuda/chat:', error?.message);
+    return res.status(503).json({ error: 'El servicio de ayuda no está disponible en este momento. Intenta nuevamente en unos minutos.' });
   }
 });
 

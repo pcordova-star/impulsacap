@@ -274,9 +274,41 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
     'archivada': { label: 'Archivada', badgeClass: 'bg-slate-100 text-slate-600 border-slate-200' }
   };
 
+  // Compact monitor calculations (Requirement 4)
+  const totalOpenConvocatorias = useMemo(() => {
+    return convocatorias.filter(c => c.vigente).length;
+  }, [convocatorias]);
+
+  const totalClosingThisWeek = useMemo(() => {
+    return convocatorias.filter(c => c.vigente && c.diasRestantes !== null && c.diasRestantes !== undefined && c.diasRestantes <= 7 && c.diasRestantes >= 0).length;
+  }, [convocatorias]);
+
   return (
     <div className="space-y-6 animate-fade-in max-w-6xl mx-auto">
       
+      {/* 0. FRANJA COMPACTA DEL MONITOR EN VIVO (Requirement 4) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-slate-900 text-white shadow-sm border border-slate-800">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <span className="px-2.5 py-0.5 rounded-full bg-slate-800 text-emerald-400 font-mono text-[10px] font-black uppercase flex items-center gap-1.5 border border-slate-700">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
+            <span>Monitor CORFO</span>
+          </span>
+          <span className="text-xs font-semibold text-slate-200">
+            <strong>{totalOpenConvocatorias}</strong> convocatorias abiertas
+          </span>
+          <span className="text-slate-500 text-xs">•</span>
+          <span className={`text-xs font-semibold ${totalClosingThisWeek > 0 ? 'text-amber-300' : 'text-slate-300'}`}>
+            <strong>{totalClosingThisWeek}</strong> {totalClosingThisWeek === 1 ? 'cierra esta semana' : 'cierran esta semana'}
+          </span>
+        </div>
+        <button
+          onClick={() => onNavigateTab ? onNavigateTab('convocatorias') : null}
+          className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-400 hover:text-blue-300 hover:underline cursor-pointer shrink-0"
+        >
+          <span>Ver todas →</span>
+        </button>
+      </div>
+
       {/* 1. RESUMEN DE LA EMPRESA ARRIBA (Requirement 5) */}
       <div className="p-5 sm:p-6 rounded-3xl bg-white border border-slate-200 shadow-sm relative overflow-hidden">
         <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-blue-50/60 to-transparent rounded-full blur-2xl pointer-events-none" />

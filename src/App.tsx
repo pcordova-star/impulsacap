@@ -8,7 +8,9 @@ import { MyCompanyView } from './components/MyCompanyView';
 import { PostulationWorkspace, PostulationSubTab } from './components/PostulationWorkspace';
 import { MyApplicationsDashboard } from './components/MyApplicationsDashboard';
 import { NewApplicationModal } from './components/NewApplicationModal';
-import { FloatingAdvisor } from './components/FloatingAdvisor';
+import { HelpBot } from './components/HelpBot';
+import { MonitorHero } from './components/MonitorHero';
+import { PlanPaywallCard } from './components/PlanPaywallCard';
 import { SiiUploaderModal } from './components/SiiUploaderModal';
 import { AuthModal } from './components/AuthModal';
 import { AuthGateView } from './components/AuthGateView';
@@ -16,6 +18,7 @@ import { PaymentResult } from './components/PaymentResult';
 import { useApplications } from './hooks/useApplications';
 import { useConvocatorias } from './hooks/useConvocatorias';
 import { ExpedienteData } from './types/expediente';
+import { Convocatoria } from './types/convocatoria';
 import { 
   saveActiveProfile, 
   loadActiveProfile, 
@@ -48,9 +51,6 @@ export default function App() {
 
   // Active sub-tab inside a postulation workspace (Requirement 2)
   const [postulationSubTab, setPostulationSubTab] = useState<PostulationSubTab>('roadmap');
-
-  // Floating AI advisor modal state (Requirement 1 & 4)
-  const [showAdvisorModal, setShowAdvisorModal] = useState<boolean>(false);
 
   // URL sync for /pago/resultado
   useEffect(() => {
@@ -123,6 +123,8 @@ export default function App() {
   } = useConvocatorias();
 
   const [showNewAppModal, setShowNewAppModal] = useState<boolean>(false);
+  const [intendedConvocatoria, setIntendedConvocatoria] = useState<Convocatoria | null>(null);
+  const [highlightedConvocatoriaId, setHighlightedConvocatoriaId] = useState<string | null>(null);
 
   // Firebase Auth listener: session driven by onAuthStateChanged
   useEffect(() => {
@@ -264,6 +266,48 @@ export default function App() {
     setActiveFormulation(loadActiveFormulation(user.id));
     setAuditResult(loadActiveAudit(user.id));
     setShowAuthModal(false);
+
+    if (intendedConvocatoria) {
+      const conv = intendedConvocatoria;
+      setIntendedConvocatoria(null);
+      if (conv.fundId) {
+        const matched = liveFunds.find(f => f.id === conv.fundId) || CHILEAN_FUNDS.find(f => f.id === conv.fundId);
+        if (matched) {
+          handleSelectFundToFormulate(matched);
+          return;
+        }
+      }
+      setShowNewAppModal(true);
+    }
+  };
+
+  const handleQualifyCall = (conv: Convocatoria) => {
+    setHighlightedConvocatoriaId(conv.id);
+    setActiveTab('diagnostic');
+    setTimeout(() => {
+      const el = document.getElementById('asistente-5-preguntas');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth' });
+      }
+    }, 100);
+  };
+
+  const handlePostularConvocatoria = (conv: Convocatoria) => {
+    if (!currentUser) {
+      setIntendedConvocatoria(conv);
+      setAuthModalMode('register');
+      setShowAuthModal(true);
+      return;
+    }
+
+    if (conv.fundId) {
+      const fund = liveFunds.find(f => f.id === conv.fundId) || CHILEAN_FUNDS.find(f => f.id === conv.fundId);
+      if (fund) {
+        handleSelectFundToFormulate(fund);
+        return;
+      }
+    }
+    setShowNewAppModal(true);
   };
 
   const handleLogout = () => {
@@ -338,7 +382,7 @@ export default function App() {
     if (tab === 'catalog') {
       setActiveTab('search-funds');
     } else if (tab === 'convocatorias') {
-      setActiveTab('search-funds');
+      setActiveTab('convocatorias');
     } else if (tab === 'my-application') {
       setActiveTab('postulation');
       setPostulationSubTab('roadmap');
@@ -354,7 +398,12 @@ export default function App() {
     } else if (tab === 'profile') {
       setActiveTab('my-company');
     } else if (tab === 'advisor') {
-      setShowAdvisorModal(true);
+      if (activeApplicationId) {
+        setActiveTab('postulation');
+        setPostulationSubTab('advisor');
+      } else {
+        setActiveTab('my-applications');
+      }
     } else {
       setActiveTab(tab);
     }
@@ -362,11 +411,11 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-blue-600 selection:text-white overflow-x-hidden w-full max-w-full">
       {/* Top Ticker / Chilean Venture Context Bar - Institutional Navy Bar */}
-      <div className="bg-slate-900 border-b border-slate-800 px-4 py-2 text-xs">
-        <div className="max-w-7xl mx-auto flex items-center justify-between text-slate-300">
-          <div className="flex items-center gap-4 text-[11px] overflow-x-auto no-scrollbar">
+      <div className="bg-slate-900 border-b border-slate-800 px-3 sm:px-4 py-2 text-xs overflow-x-hidden max-w-full">
+        <div className="max-w-7xl mx-auto flex items-center justify-between text-slate-300 min-w-0">
+          <div className="flex items-center gap-2 sm:gap-4 text-[11px] overflow-x-auto no-scrollbar min-w-0">
             {currentUser ? (
               <span className="inline-flex items-center gap-1 text-emerald-400 font-bold whitespace-nowrap">
                 <Lock className="w-3 h-3 text-emerald-400" />
@@ -426,11 +475,10 @@ export default function App() {
         onOpenProfile={() => setActiveTab('my-company')}
         onOpenAuthModal={(mode) => { setAuthModalMode(mode || 'login'); setShowAuthModal(true); }}
         onLogout={handleLogout}
-        onToggleAdvisor={() => setShowAdvisorModal(prev => !prev)}
       />
 
       {/* Main Container */}
-      <main className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 pt-4 pb-28 sm:py-8">
+      <main className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 pt-4 pb-28 sm:py-8 min-w-0 max-w-full overflow-x-hidden">
         {/* Tab: Pago Resultado (Mercado Pago) */}
         {activeTab === 'pago-resultado' && (
           <PaymentResult
@@ -441,15 +489,41 @@ export default function App() {
           />
         )}
 
-        {/* Tab: Inicio (Guest 5-Question Assistant - Requirement 5 & 6) */}
+        {/* Tab: Inicio (Guest Visitor Home - Requirements 1 & 4: Hero -> Asistente -> Beneficios Plan) */}
         {activeTab === 'diagnostic' && (
-          <InstantWowMatcher
-            onSelectFundToFormulate={handleSelectFundToFormulate}
-            onNavigateTab={handleNavigateTab}
-            setProfile={setProfile}
-            currentUser={currentUser}
-            onAuthSuccess={handleAuthSuccess}
-          />
+          <div className="space-y-10 min-w-0 max-w-full">
+            {/* 1. HERO "MONITOR EN VIVO" (Protagonista del inicio para visitantes) */}
+            <MonitorHero
+              convocatorias={convocatorias}
+              syncMeta={syncMeta}
+              loading={convocatoriasLoading}
+              onViewAllConvocatorias={() => handleNavigateTab('convocatorias')}
+              onScrollToAssistant={() => {
+                const el = document.getElementById('asistente-5-preguntas');
+                if (el) {
+                  el.scrollIntoView({ behavior: 'smooth' });
+                }
+              }}
+            />
+
+            {/* 2. ASISTENTE DE 5 PREGUNTAS */}
+            <div id="asistente-5-preguntas" className="min-w-0 max-w-full">
+              <InstantWowMatcher
+                onSelectFundToFormulate={handleSelectFundToFormulate}
+                onNavigateTab={handleNavigateTab}
+                setProfile={setProfile}
+                currentUser={currentUser}
+                onAuthSuccess={handleAuthSuccess}
+              />
+            </div>
+
+            {/* 3. BENEFICIOS DEL PLAN SEMESTRAL */}
+            <div className="pt-2 min-w-0 max-w-full">
+              <PlanPaywallCard
+                highlightText="Asegura el éxito de tus postulaciones con el Plan Semestral: formulador técnico con IA, auditoría ciega oficial y expediente consolidado para fondos CORFO y SERCOTEC."
+              />
+            </div>
+          </div>
         )}
 
         {/* Tab 1: Mis Postulaciones Dashboard (Requirement 1) */}
@@ -536,7 +610,7 @@ export default function App() {
           )
         )}
 
-        {/* Tab 2: Buscar Fondos (Catálogo + Convocatorias - Requirement 1) */}
+        {/* Tab 2: Buscar Fondos (Catálogo + Convocatorias - Requirement 1 & 2) */}
         {(activeTab === 'search-funds' || activeTab === 'catalog' || activeTab === 'convocatorias') && (
           <SearchFundsView
             funds={liveFunds}
@@ -544,10 +618,14 @@ export default function App() {
             syncMeta={syncMeta}
             isStale={isConvocatoriasStale}
             loading={convocatoriasLoading}
+            currentUser={currentUser}
             onRefreshConvocatorias={refreshConvocatorias}
             onSelectFundToFormulate={handleSelectFundToFormulate}
             onSelectFundToViewDocs={handleSelectFundToViewDocs}
             onOpenNewApplicationModal={() => setShowNewAppModal(true)}
+            onQualifyCall={handleQualifyCall}
+            onPostularCall={handlePostularConvocatoria}
+            onOpenAuthModal={(mode) => { setAuthModalMode(mode || 'login'); setShowAuthModal(true); }}
             initialTab={activeTab === 'convocatorias' ? 'calls' : 'programs'}
           />
         )}
@@ -588,15 +666,16 @@ export default function App() {
         )}
       </main>
 
-      {/* Floating AI Advisor Widget (Requirements 1 & 4) */}
-      <FloatingAdvisor
-        isOpen={showAdvisorModal}
-        onToggle={() => setShowAdvisorModal(prev => !prev)}
-        onClose={() => setShowAdvisorModal(false)}
-        profile={profile}
-        currentFund={activeFund}
+      {/* Robot de Ayuda de la Plataforma (Visible en todas las pantallas con y sin sesión - Requisito 2) */}
+      <HelpBot
         currentUser={currentUser}
-        onOpenAuthModal={(mode) => { setAuthModalMode(mode || 'login'); setShowAuthModal(true); }}
+        onNavigateTab={(tab) => {
+          handleNavigateTab(tab);
+        }}
+        onOpenAuthModal={(mode) => {
+          setAuthModalMode(mode || 'login');
+          setShowAuthModal(true);
+        }}
       />
 
       {/* New Application Modal */}

@@ -1,5 +1,5 @@
-import React, { useState, Suspense } from 'react';
-import { ChileanFund } from '../types/funds';
+import React, { useState } from 'react';
+import { ChileanFund, CompanyUser } from '../types/funds';
 import { Convocatoria } from '../types/convocatoria';
 import { FundCatalog } from './FundCatalog';
 import { ConvocatoriasView } from './ConvocatoriasView';
@@ -11,10 +11,14 @@ interface SearchFundsViewProps {
   syncMeta: any;
   isStale: boolean;
   loading: boolean;
+  currentUser?: CompanyUser | null;
   onRefreshConvocatorias: () => Promise<void>;
   onSelectFundToFormulate: (fund: ChileanFund) => void;
   onSelectFundToViewDocs: (fund: ChileanFund) => void;
   onOpenNewApplicationModal: () => void;
+  onQualifyCall?: (conv: Convocatoria) => void;
+  onPostularCall?: (conv: Convocatoria) => void;
+  onOpenAuthModal?: (mode?: 'login' | 'register') => void;
   initialTab?: 'programs' | 'calls';
 }
 
@@ -24,10 +28,14 @@ export const SearchFundsView: React.FC<SearchFundsViewProps> = ({
   syncMeta,
   isStale,
   loading,
+  currentUser,
   onRefreshConvocatorias,
   onSelectFundToFormulate,
   onSelectFundToViewDocs,
   onOpenNewApplicationModal,
+  onQualifyCall,
+  onPostularCall,
+  onOpenAuthModal,
   initialTab = 'programs'
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'programs' | 'calls'>(initialTab);
@@ -36,7 +44,7 @@ export const SearchFundsView: React.FC<SearchFundsViewProps> = ({
 
   return (
     <div className="space-y-6 animate-fade-in max-w-6xl mx-auto">
-      {/* Top Tab Bar: Programas vs Convocatorias Abiertas (Requirement 1) */}
+      {/* Top Tab Bar: Programas vs Convocatorias Abiertas (Requirement 1 & 2) */}
       <div className="flex items-center justify-center">
         <div className="inline-flex p-1.5 rounded-2xl bg-slate-100 border border-slate-200 shadow-xs">
           <button
@@ -86,9 +94,13 @@ export const SearchFundsView: React.FC<SearchFundsViewProps> = ({
           syncMeta={syncMeta}
           isStale={isStale}
           loading={loading}
+          currentUser={currentUser}
           onRefresh={onRefreshConvocatorias}
           onSelectFundToFormulate={onSelectFundToFormulate}
           onOpenNewApplicationModal={onOpenNewApplicationModal}
+          onQualifyCall={onQualifyCall}
+          onPostularCall={onPostularCall}
+          onOpenAuthModal={onOpenAuthModal}
         />
       )}
     </div>
