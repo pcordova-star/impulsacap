@@ -469,6 +469,12 @@ const requireActivePlan = async (req: express.Request, res: express.Response, ne
       return res.status(402).json({ error: 'Necesitas el Plan Trimestral para usar esta herramienta' });
     }
 
+    // El acceso temporal de la prueba de lanzamiento (eliminada) no cuenta como plan pagado
+    const isAdminUser = Boolean(user.email && user.emailVerified && getAdminDashboardEmails().includes(user.email.toLowerCase()));
+    if (data.provisional && !isAdminUser) {
+      return res.status(402).json({ error: 'Activa tu Plan Trimestral para usar esta herramienta. Tus datos y postulaciones quedan guardados.' });
+    }
+
     // Derecho a retracto (Ley 19.496, art. 3 bis): antes del primer uso de cada compra, el usuario
     // debe confirmar que inicia el servicio. El cliente muestra el aviso y llama a /api/plan/iniciar-servicio.
     const lastPaymentId = data.lastPaymentId ? String(data.lastPaymentId) : '';
@@ -903,6 +909,20 @@ app.post('/api/gemini/parse-tax-folder', requireAuth, guardAi('parse-tax-folder'
     const deterministicData = extractTaxFolderData(extractedText || rawText || '', fileName);
     let finalResult: any = { ...deterministicData, analizadoCon: 'sii-parser' };
 
+    // La IA de respaldo (documentos que no son la carpeta oficial) es solo para el plan pagado
+    const taxUser = (req as AuthenticatedRequest).user!;
+    let paidForAi = false;
+    try {
+      const ent = isFirestoreAdminAuthorized ? (await adminDb.collection('entitlements').doc(taxUser.uid).get()).data() : null;
+      paidForAi = Boolean(ent?.status === 'active' && !ent?.provisional && ent?.expiresAt && new Date(ent.expiresAt).getTime() > Date.now());
+    } catch { paidForAi = false; }
+    if (!paidForAi) {
+      return res.json({
+        ...finalResult,
+        aviso: 'No reconocimos este archivo como la Carpeta Tributaria Electrónica del SII. Descárgala en sii.cl (Servicios online > Situación tributaria > Carpeta tributaria electrónica) y súbela en PDF original para ver tu diagnóstico completo.'
+      });
+    }
+
     // Try Gemini AI enhancement if available
     try {
       let contents: any;
@@ -1051,7 +1071,7 @@ Responde ÚNICAMENTE un JSON con:
 });
 
 // 1. Diagnóstico y Calce Inteligente de Fondos
-app.post('/api/gemini/diagnose', requireAuth, guardAi('diagnose'), async (req, res) => {
+app.post('/api/gemini/diagnose', requireAuth, requireActivePlan, guardAi('diagnose'), async (req, res) => {
   try {
     const { profile, availableFunds } = req.body;
 

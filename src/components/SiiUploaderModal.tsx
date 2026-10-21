@@ -52,6 +52,7 @@ export const SiiUploaderModal: React.FC<SiiUploaderModalProps> = ({
   const [parsedData, setParsedData] = useState<any | null>(null);
   const [applied, setApplied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [isSample, setIsSample] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
@@ -75,6 +76,7 @@ export const SiiUploaderModal: React.FC<SiiUploaderModalProps> = ({
 
   const populateEditFields = (data: any) => {
     setParsedData(data);
+    setNotice(typeof data?.aviso === 'string' ? data.aviso : null);
     setEditCompanyName(data.companyName || '');
     setEditRut(data.rut || '');
     setEditStartDate(data.startDate || '');
@@ -588,6 +590,12 @@ export const SiiUploaderModal: React.FC<SiiUploaderModalProps> = ({
         </>)}
 
         {/* Error Banner with Retry */}
+        {notice && !error && (
+          <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-semibold flex items-start gap-2.5">
+            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+            <span>{notice}</span>
+          </div>
+        )}
         {error && (
           <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
             <div className="flex items-center gap-2.5 text-xs font-semibold">

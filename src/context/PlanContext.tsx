@@ -172,7 +172,8 @@ export const PlanProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const diffDays = Math.ceil((expTime - now) / (1000 * 60 * 60 * 24));
     daysLeft = Math.max(0, diffDays);
 
-    if (entitlementData?.status === 'active' && expTime > now) {
+    // El acceso temporal de la prueba de lanzamiento (eliminada) ya no habilita las herramientas pagadas
+    if (entitlementData?.status === 'active' && expTime > now && !entitlementData?.provisional) {
       hasActivePlan = true;
       planStatus = 'active';
     } else {

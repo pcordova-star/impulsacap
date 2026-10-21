@@ -9,7 +9,7 @@
  * - Registro de tokens y costo estimado por día, por usuario y por función (panel /admin).
  *
  * Todo es configurable con variables de entorno (valores por defecto entre paréntesis):
- *   IA_CREDITOS_DIA_PLAN (80), IA_CREDITOS_DIA_PRUEBA (30), IA_CREDITOS_DIA_GRATIS (8)
+ *   IA_CREDITOS_DIA_PLAN (80), IA_CREDITOS_DIA_PRUEBA (30), IA_CREDITOS_DIA_GRATIS (0: sin plan no hay IA de pago)
  *   IA_COSTO_MAX_PLAN_USD (6), IA_COSTO_MAX_PRUEBA_USD (1)
  *   IA_PRESUPUESTO_DIARIO_USD (25)
  *   IA_PUBLICO_DIA_DIAGNOSTICO (1500), IA_PUBLICO_DIA_AYUDA (2500)
@@ -37,7 +37,7 @@ const num = (name: string, def: number) => {
 };
 
 export const AI_LIMITS = () => ({
-  creditsPerDay: { plan: num('IA_CREDITOS_DIA_PLAN', 80), prueba: num('IA_CREDITOS_DIA_PRUEBA', 30), gratis: num('IA_CREDITOS_DIA_GRATIS', 8) },
+  creditsPerDay: { plan: num('IA_CREDITOS_DIA_PLAN', 80), prueba: num('IA_CREDITOS_DIA_PRUEBA', 30), gratis: num('IA_CREDITOS_DIA_GRATIS', 0) },
   maxCostPerPeriodUsd: { plan: num('IA_COSTO_MAX_PLAN_USD', 6), prueba: num('IA_COSTO_MAX_PRUEBA_USD', 1) },
   dailyBudgetUsd: num('IA_PRESUPUESTO_DIARIO_USD', 25),
   publicPerDay: { 'instant-match': num('IA_PUBLICO_DIA_DIAGNOSTICO', 1500), ayuda: num('IA_PUBLICO_DIA_AYUDA', 2500) } as Record<string, number>,
@@ -51,7 +51,7 @@ export const AI_CREDITS: Record<string, number> = {
   diagnose: 1,
   'formulate-section': 2,
   'generate-doc': 2,
-  'parse-tax-folder': 1,
+  'parse-tax-folder': 0,
   audit: 4,
   formulate: 5,
   'instant-match': 0,
