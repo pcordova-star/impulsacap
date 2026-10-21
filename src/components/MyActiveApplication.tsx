@@ -738,7 +738,9 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
               const isPlanLocked = requiresPlan && !hasActivePlan;
               const isCurrent = step.stepNumber === currentStepNumber && !isPlanLocked;
               const isCompleted = (step.stepNumber < currentStepNumber || step.status === 'completed') && !isPlanLocked;
-              const isLocked = isPlanLocked || (step.stepNumber > currentStepNumber);
+              // Los pasos no se bloquean por orden: solo por plan. El orden recomendado se muestra con el estado.
+              const isLocked = isPlanLocked;
+              const isAhead = !isPlanLocked && !isCompleted && step.stepNumber > currentStepNumber;
               const isExpanded = !isLocked && (expandedStep === step.stepNumber || (!expandedStep && isCurrent));
 
               return (
@@ -756,6 +758,8 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
                       ? 'bg-slate-900/95 border-emerald-500/60 shadow-xl shadow-emerald-950/20 ring-1 ring-emerald-500/30'
                       : isCompleted
                       ? 'bg-slate-900/60 border-slate-800/90'
+                      : isAhead
+                      ? 'bg-slate-900/50 border-slate-800'
                       : 'bg-slate-950/40 border-slate-900 opacity-60'
                   }`}
                 >
@@ -797,6 +801,12 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
                         }`}>
                           {isLocked ? 'Bloqueado' : step.badge}
                         </span>
+                        {isAhead && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-300">
+                            <Clock className="w-3 h-3" />
+                            Pendiente · se recomienda después del paso {currentStepNumber}
+                          </span>
+                        )}
 
                         {isCompleted && (
                           <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-400">
@@ -813,7 +823,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
                         {isLocked && (
                           <span className={`inline-flex items-center gap-1 text-[11px] font-semibold ${isPlanLocked ? 'text-amber-300' : 'text-slate-500'}`}>
                             <Lock className={`w-3 h-3 ${isPlanLocked ? 'text-amber-400' : 'text-slate-500'}`} />
-                            {isPlanLocked ? 'Requiere Plan Semestral' : 'Completa el paso anterior'}
+                            Requiere Plan Semestral
                           </span>
                         )}
                       </div>
@@ -822,7 +832,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
                         {step.title}
                       </h4>
                       <p className="text-xs text-slate-400">
-                        {isLocked ? (isPlanLocked ? 'Esta herramienta requiere el Plan Semestral activo.' : 'Completa el paso anterior para desbloquear esta etapa.') : step.subtitle}
+                        {isLocked ? 'Esta herramienta requiere el Plan Semestral activo.' : step.subtitle}
                       </p>
                     </div>
 

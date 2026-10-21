@@ -186,9 +186,14 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
     }
 
     setGeneratingDoc(true);
+    setDocError(null);
+    // Si la IA no responde en 2 minutos, se corta y se ofrece reintentar (antes el indicador quedaba girando)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120000);
 
     try {
       const response = await apiFetch('/api/gemini/generate-doc', {
+        signal: controller.signal,
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -277,19 +282,21 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
         console.warn('Could not cache generated doc in localStorage:', e);
       }
 
-      // Persist to Firestore if user is authenticated
+      // Persist to Firestore if user is authenticated (sin esperar: el documento ya está listo en pantalla)
       if (auth.currentUser) {
-        try {
-          await setDoc(doc(db, 'generatedDocs', docId), newDocRecord);
-        } catch (dbErr) {
+        setDoc(doc(db, 'generatedDocs', docId), newDocRecord).catch(dbErr => {
           console.warn('Could not sync generatedDoc to Firestore:', dbErr);
-        }
+        });
       }
+      setTimeout(() => document.getElementById('doc-next-steps')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
     } catch (err: any) {
       console.error('Doc generation error:', err);
       setGeneratedDocText(null);
-      setDocError(err?.message || 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.');
+      setDocError(err?.name === 'AbortError'
+        ? 'La IA está tardando más de lo normal. Intenta de nuevo en un momento.'
+        : (err?.message || 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.'));
     } finally {
+      clearTimeout(timeoutId);
       setGeneratingDoc(false);
     }
   };
@@ -679,12 +686,50 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
             <div className="p-5 rounded-xl bg-slate-900/90 border border-slate-800 text-slate-200 text-xs font-mono whitespace-pre-wrap leading-relaxed max-h-[480px] overflow-y-auto select-text">
               {generatedDocText}
             </div>
+
+            {/* Qué hacer ahora con el documento */}
+            <div id="doc-next-steps" className="scroll-mt-40 p-4 sm:p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 space-y-3">
+              <p className="text-sm font-bold text-emerald-200">¿Y ahora qué hago con este documento?</p>
+              <ol className="list-decimal pl-5 space-y-1.5 text-xs text-slate-200 leading-relaxed">
+                <li><strong>Descárgalo en Word</strong> y revisa que los datos estén correctos. Completa cualquier marca [COMPLETAR].</li>
+                <li><strong>Envíaselo a {clientName.trim() || 'la contraparte'}</strong> por correo, pidiéndole que lo pase a su papel con logo, lo firme y te lo devuelva en PDF.</li>
+                <li>Cuando tengas la carta firmada, búscala en <strong>"Tus documentos generados"</strong> (más abajo) y presiona <strong>"Marcar como firmada"</strong>. Así cuenta en tu Hoja de Ruta.</li>
+                <li>Guarda el PDF firmado: lo adjuntarás al postular en el portal del fondo.</li>
+              </ol>
+              <div className="flex flex-wrap gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleDownloadDocx}
+                  disabled={downloadingDocx}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold cursor-pointer disabled:opacity-50"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  {downloadingDocx ? 'Exportando Word…' : 'Descargar en Word'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => document.getElementById('docs-generated-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold cursor-pointer"
+                >
+                  Ver mis documentos
+                </button>
+                {onNavigateTab && (
+                  <button
+                    type="button"
+                    onClick={() => onNavigateTab('my-application')}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold cursor-pointer"
+                  >
+                    Volver a la Hoja de Ruta
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </div>
 
       {/* SECTION 2: User Generated Documents History List */}
-      <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4 shadow-lg">
+      <div id="docs-generated-list" className="scroll-mt-40 p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4 shadow-lg">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
           <div className="flex items-center gap-2.5">
             <FileCode className="w-5 h-5 text-emerald-400" />

@@ -144,6 +144,13 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
     return () => clearTimeout(t);
   }, [activeSubTab, projectCompletion, fund.id]);
 
+  // Al cambiar de pestaña, volver al inicio para no quedar a mitad de página
+  const firstTabRender = useRef(true);
+  useEffect(() => {
+    if (firstTabRender.current) { firstTabRender.current = false; return; }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [activeSubTab]);
+
   // Encabezado compacto al bajar: solo pestañas y nombre del fondo, para no tapar el contenido
   const headerSentinelRef = useRef<HTMLDivElement | null>(null);
   const [compactHeader, setCompactHeader] = useState(false);
@@ -170,7 +177,18 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
       <div ref={headerSentinelRef} aria-hidden="true" className="h-px -mb-4" />
       <div className={`sticky top-16 z-30 bg-white/95 backdrop-blur-md border border-slate-200 shadow-sm transition-all ${compactHeader ? 'rounded-2xl px-3 py-2 sm:px-4 space-y-0' : 'rounded-3xl p-4 sm:p-5 space-y-3'}`}>
         {compactHeader && (
-          <p className="text-xs font-bold text-slate-900 truncate px-1 pb-1">{fund.name}</p>
+          <div className="flex items-center gap-2 px-1 pb-1 min-w-0">
+            <button
+              type="button"
+              onClick={onBackToApplications}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer shrink-0"
+              aria-label="Volver a Mis postulaciones"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Mis postulaciones</span>
+            </button>
+            <p className="text-xs font-bold text-slate-900 truncate">{fund.name}</p>
+          </div>
         )}
         <div className={`flex-col sm:flex-row sm:items-center justify-between gap-3 ${compactHeader ? 'hidden' : 'flex'}`}>
           {/* Back button + Fund Title */}
@@ -457,6 +475,27 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
           </div>
         )}
       </div>
+
+      {/* Navegación al final de cada pestaña: no hace falta subir para volver */}
+      {activeSubTab !== 'roadmap' && (
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
+          <button
+            type="button"
+            onClick={() => onChangeSubTab('roadmap')}
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 text-xs font-bold cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Volver a la Hoja de Ruta
+          </button>
+          <button
+            type="button"
+            onClick={onBackToApplications}
+            className="text-xs font-semibold text-slate-500 hover:text-slate-800 underline underline-offset-2 cursor-pointer"
+          >
+            Ir a Mis postulaciones
+          </button>
+        </div>
+      )}
 
       {/* Official Dossier Modal */}
       {showDossierModal && (

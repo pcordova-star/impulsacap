@@ -403,6 +403,23 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
 
   const currentSection = SECTIONS[currentSectionIndex];
 
+  // Requisito para redactar con IA: perfil de la empresa y del proyecto con lo esencial.
+  // Sin eso la IA solo puede dejar marcas [COMPLETAR] (no inventa datos).
+  const PROFILE_FIELDS: { key: keyof NonNullable<CompanyProfile['projectProfile']>; label: string }[] = [
+    { key: 'whatItDoes', label: 'Qué hace tu empresa o proyecto' },
+    { key: 'problemAndTarget', label: 'Qué problema resuelve y para quién' },
+    { key: 'currentSolutionAndDiff', label: 'Cómo lo resuelven hoy y qué te diferencia' },
+    { key: 'currentProgress', label: 'Avance actual (prototipo, clientes, ventas)' },
+    { key: 'teamDetails', label: 'Equipo: nombres, roles y experiencia' },
+    { key: 'businessModel', label: 'Modelo de negocio: cómo cobras y cuánto' },
+    { key: 'fundingPurpose', label: 'Para qué usarías el financiamiento' }
+  ];
+  const missingProfileFields = [
+    ...(!profile.companyName?.trim() ? ['Razón social de la empresa'] : []),
+    ...PROFILE_FIELDS.filter(f => String(profile.projectProfile?.[f.key] || '').trim().length < 10).map(f => f.label)
+  ];
+  const profileReadyForAi = missingProfileFields.length <= 2 && Boolean(profile.companyName?.trim());
+
   // Answered questions count & validation (Requirement B.4: mínimo 2 de 3)
   const currentSectionAns = answersBySection[currentSection.id] || {};
   const answeredCount = currentSection.questions.filter(q => Boolean(currentSectionAns[q.key]?.trim())).length;
@@ -941,7 +958,7 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
               <div className="flex flex-col items-end gap-1">
                 <button
                   onClick={handleGenerateSection}
-                  disabled={loading || planLoading || !hasMinimumAnswers}
+                  disabled={loading || planLoading || !hasMinimumAnswers || !profileReadyForAi}
                   className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs shadow-lg shadow-cyan-600/20 transition-all cursor-pointer"
                   title={!hasMinimumAnswers ? `Debes responder al menos ${minRequiredAnswers} preguntas para generar esta sección` : undefined}
                 >
@@ -949,6 +966,11 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin text-white" />
                       <span>Redactando con IA...</span>
+                    </>
+                  ) : !profileReadyForAi ? (
+                    <>
+                      <AlertCircle className="w-4 h-4 text-amber-300" />
+                      <span>Completa tu perfil para redactar con IA</span>
                     </>
                   ) : !hasMinimumAnswers ? (
                     <>
@@ -971,6 +993,33 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
             )}
           </div>
         </div>
+
+        {currentSection.id !== 'budget' && !profileReadyForAi && (
+          <div className="p-4 sm:p-5 rounded-2xl bg-amber-500/10 border border-amber-500/40 space-y-3">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-sm font-bold text-amber-200">Antes de redactar con IA, completa el perfil de tu empresa y proyecto</p>
+                <p className="text-xs text-amber-100/80 leading-relaxed">
+                  La IA escribe solo con tus datos reales y no inventa nada. Sin estos datos, el texto queda lleno de marcas [COMPLETAR]. Toma unos 5 minutos y sirve para todas las secciones y postulaciones.
+                </p>
+              </div>
+            </div>
+            <ul className="grid sm:grid-cols-2 gap-1.5 text-xs text-amber-100 pl-8 list-disc">
+              {missingProfileFields.map(f => <li key={f}>{f}</li>)}
+            </ul>
+            <div className="pl-8">
+              <button
+                type="button"
+                onClick={() => onNavigateTab?.('my-company')}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs cursor-pointer"
+              >
+                Completar mi perfil
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* SECTION 8: PRESUPUESTO OFICIAL (Requirement 10) */}
         {currentSection.id === 'budget' ? (

@@ -379,124 +379,126 @@ export function useApplications(profile: CompanyProfile) {
     return { ok: true };
   }, [applications, activeApplications, saveApplication, setActiveApplicationId]);
 
-  // Scoped updates for active application
+  // Scoped updates for active application.
+  // Cada cambio se aplica sobre la versión MÁS RECIENTE de la postulación (ref sincronizado) y a Firestore
+  // solo se envían los campos que cambian (merge). Así un guardado no pisa lo que otro acaba de escribir
+  // (antes: guardar la formulación devolvía el texto editado a su versión anterior).
+  const applicationsRef = useRef<ApplicationItem[]>(applications);
+  applicationsRef.current = applications;
+  const activeAppIdRef = useRef<string | null>(null);
+  activeAppIdRef.current = activeApplication?.id || null;
+
+  const patchActive = useCallback(async (
+    build: (app: ApplicationItem) => { local: Partial<ApplicationItem>; remote?: Record<string, any> }
+  ) => {
+    const id = activeAppIdRef.current;
+    if (!id) return;
+    const list = applicationsRef.current;
+    const app = list.find(a => a.id === id);
+    if (!app) return;
+    const { local, remote } = build(app);
+    const now = new Date().toISOString();
+    const updated: ApplicationItem = { ...app, ...local, updatedAt: now };
+    const next = list.map(a => (a.id === id ? updated : a));
+    applicationsRef.current = next;
+    setApplications(next);
+    persistLocal(next);
+    if (currentUser?.uid) {
+      try {
+        await setDoc(doc(db, 'applications', id), {
+          ownerId: app.ownerId,
+          fundId: app.fundId,
+          fundName: app.fundName,
+          status: app.status,
+          ...(remote ?? local),
+          updatedAt: now
+        }, { merge: true });
+      } catch (err) {
+        console.warn('Could not sync application patch to Firestore:', err);
+      }
+    }
+  }, [currentUser, persistLocal]);
+
   const updateActiveFormulation = useCallback(async (formulation: FormulationOutput) => {
-    if (!activeApplication) return;
-    const updated: ApplicationItem = {
-      ...activeApplication,
-      formulation,
-      updatedAt: new Date().toISOString()
-    };
-    await saveApplication(updated);
-  }, [activeApplication, saveApplication]);
+    await patchActive(() => ({ local: { formulation } }));
+  }, [patchActive]);
 
   const updateActiveAuditResult = useCallback(async (auditResult: BlindAuditResult) => {
-    if (!activeApplication) return;
-    const updated: ApplicationItem = {
-      ...activeApplication,
-      auditResult,
-      updatedAt: new Date().toISOString()
-    };
-    await saveApplication(updated);
-  }, [activeApplication, saveApplication]);
+    await patchActive(() => ({ local: { auditResult } }));
+  }, [patchActive]);
 
   const updateActiveRoadmapConfirmations = useCallback(async (roadmapConfirmations: Partial<RoadmapConfirmations>) => {
-    if (!activeApplication) return;
-    const current = activeApplication.roadmapConfirmations || {
-      confirmedInicioActividades: false,
-      confirmedEstatutoSocial: false,
-      confirmedGarantia: false
-    };
-    const updated: ApplicationItem = {
-      ...activeApplication,
-      roadmapConfirmations: {
-        ...current,
-        ...roadmapConfirmations
-      },
-      updatedAt: new Date().toISOString()
-    };
-    await saveApplication(updated);
-  }, [activeApplication, saveApplication]);
+    await patchActive(app => ({
+      local: {
+        roadmapConfirmations: {
+          ...(app.roadmapConfirmations || {
+            confirmedInicioActividades: false,
+            confirmedEstatutoSocial: false,
+            confirmedGarantia: false
+          }),
+          ...roadmapConfirmations
+        } as RoadmapConfirmations
+      }
+    }));
+  }, [patchActive]);
 
   const updateActiveDocStatuses = useCallback(async (docStatuses: Partial<DocChecklistStatuses>) => {
-    if (!activeApplication) return;
-    const updated: ApplicationItem = {
-      ...activeApplication,
-      docStatuses: {
-        ...(activeApplication.docStatuses || {
-          f29_sii: Boolean(profile.taxFolderUploaded),
-          estatuto_res: false,
-          deuda_tgr: false,
-          previsional_f30: false,
-          carta_interes_loi: false
-        }),
-        ...docStatuses
-      },
-      updatedAt: new Date().toISOString()
-    };
-    await saveApplication(updated);
-  }, [activeApplication, profile.taxFolderUploaded, saveApplication]);
+    await patchActive(app => ({
+      local: {
+        docStatuses: {
+          ...(app.docStatuses || {
+            f29_sii: Boolean(profile.taxFolderUploaded),
+            estatuto_res: false,
+            deuda_tgr: false,
+            previsional_f30: false,
+            carta_interes_loi: false
+          }),
+          ...docStatuses
+        } as DocChecklistStatuses
+      }
+    }));
+  }, [patchActive, profile.taxFolderUploaded]);
 
   const addActiveGeneratedDoc = useCallback(async (docItem: GeneratedDocument) => {
-    if (!activeApplication) return;
-    const currentDocs = activeApplication.generatedDocs || [];
-    const updated: ApplicationItem = {
-      ...activeApplication,
-      generatedDocs: [
-        ...currentDocs.filter(d => d.id !== docItem.id),
-        { ...docItem, applicationId: activeApplication.id } as any
-      ],
-      updatedAt: new Date().toISOString()
-    };
-    await saveApplication(updated);
-  }, [activeApplication, saveApplication]);
+    await patchActive(app => ({
+      local: {
+        generatedDocs: [
+          ...(app.generatedDocs || []).filter(d => d.id !== docItem.id),
+          { ...docItem, applicationId: app.id } as any
+        ]
+      }
+    }));
+  }, [patchActive]);
 
   const updateActiveGeneratedDocStatus = useCallback(async (docId: string, status: 'borrador' | 'firmada') => {
-    if (!activeApplication) return;
-    const currentDocs = activeApplication.generatedDocs || [];
-    const updatedDocs = currentDocs.map(d => (d.id === docId ? { ...d, status } : d));
-    const updated: ApplicationItem = {
-      ...activeApplication,
-      generatedDocs: updatedDocs,
-      updatedAt: new Date().toISOString()
-    };
-    await saveApplication(updated);
-  }, [activeApplication, saveApplication]);
+    await patchActive(app => ({
+      local: { generatedDocs: (app.generatedDocs || []).map(d => (d.id === docId ? { ...d, status } : d)) }
+    }));
+  }, [patchActive]);
 
   const deleteActiveGeneratedDoc = useCallback(async (docId: string) => {
-    if (!activeApplication) return;
-    const currentDocs = activeApplication.generatedDocs || [];
-    const updatedDocs = currentDocs.filter(d => d.id !== docId);
-    const updated: ApplicationItem = {
-      ...activeApplication,
-      generatedDocs: updatedDocs,
-      updatedAt: new Date().toISOString()
-    };
-    await saveApplication(updated);
-  }, [activeApplication, saveApplication]);
+    await patchActive(app => ({
+      local: { generatedDocs: (app.generatedDocs || []).filter(d => d.id !== docId) }
+    }));
+  }, [patchActive]);
 
   const saveActiveSectionAnswers = useCallback(async (
-    sectionKey: string, 
-    answers: Record<string, string>, 
+    sectionKey: string,
+    answers: Record<string, string>,
     generatedText?: string
   ) => {
-    if (!activeApplication) return;
-    const currentAnswers = activeApplication.answersBySection || {};
-    const currentTexts = activeApplication.generatedTextsBySection || {};
-
-    const updated: ApplicationItem = {
-      ...activeApplication,
-      answersBySection: {
-        ...currentAnswers,
-        [sectionKey]: answers
-      },
-      generatedTextsBySection: generatedText 
-        ? { ...currentTexts, [sectionKey]: generatedText }
-        : currentTexts,
-      updatedAt: new Date().toISOString()
-    };
-    await saveApplication(updated);
-  }, [activeApplication, saveApplication]);
+    await patchActive(app => {
+      const local: Partial<ApplicationItem> = {
+        answersBySection: { ...(app.answersBySection || {}), [sectionKey]: answers }
+      };
+      const remote: Record<string, any> = { answersBySection: { [sectionKey]: answers } };
+      if (typeof generatedText === 'string') {
+        local.generatedTextsBySection = { ...(app.generatedTextsBySection || {}), [sectionKey]: generatedText };
+        remote.generatedTextsBySection = { [sectionKey]: generatedText };
+      }
+      return { local, remote };
+    });
+  }, [patchActive]);
 
   return {
     applications,
