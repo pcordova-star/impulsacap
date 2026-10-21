@@ -424,7 +424,11 @@ export const ConvocatoriasView: React.FC<ConvocatoriasViewProps> = ({
                       </span>
 
                       {/* Días restantes Badge */}
-                      {daysLeft !== null && daysLeft !== undefined ? (
+                      {!conv.vigente ? (
+                        <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold border border-slate-300">
+                          Cerrada{conv.cierre ? ` el ${conv.cierre.split('-').reverse().join('-')}` : ''}
+                        </span>
+                      ) : daysLeft !== null && daysLeft !== undefined ? (
                         <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
                           isClosingToday
                             ? 'bg-rose-50 text-rose-700 border-rose-300 animate-pulse font-black'

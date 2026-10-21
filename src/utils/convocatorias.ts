@@ -5,16 +5,21 @@ import { ChileanFund, CompanyProfile } from '../types/funds';
  * Calcula los días restantes de una convocatoria a partir de su fecha de cierre
  * usando SIEMPRE la fecha actual real (Date.now()), sin fechas fijas.
  */
-export function calculateDaysRemaining(cierre: string | null | undefined): number | null {
-  if (!cierre) return null;
-  // Parse closing date at end of day (23:59:59)
-  const closeTime = new Date(`${cierre}T23:59:59`).getTime();
-  if (isNaN(closeTime)) return null;
+/** Fecha de hoy en Chile (YYYY-MM-DD), independiente de la zona horaria del navegador. */
+export function chileToday(): string {
+  try {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
 
-  const now = Date.now();
-  const diffTime = closeTime - now;
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  return diffDays >= 0 ? diffDays : null;
+/** Días de calendario (en Chile) desde hoy hasta el cierre: 0 = cierra hoy; null si no hay fecha o ya cerró. */
+export function calculateDaysRemaining(cierre: string | null | undefined): number | null {
+  if (!cierre || !/^\d{4}-\d{2}-\d{2}/.test(cierre)) return null;
+  const toUtc = (d: string) => Date.UTC(Number(d.slice(0, 4)), Number(d.slice(5, 7)) - 1, Number(d.slice(8, 10)));
+  const diffDays = Math.round((toUtc(cierre.slice(0, 10)) - toUtc(chileToday())) / 864e5);
+  return Number.isFinite(diffDays) && diffDays >= 0 ? diffDays : null;
 }
 
 /**
@@ -26,7 +31,7 @@ export function calculateCallStatus(
   cierre: string | null | undefined,
   permanente: boolean = false
 ): 'Abierta' | 'Cerrada' | 'Próxima' | 'Por confirmar' {
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = chileToday();
 
   if (cierre && cierre < todayStr) {
     return 'Cerrada';
@@ -77,7 +82,7 @@ export function enrichConvocatoria(raw: any): Convocatoria {
   const fundId = raw.fundId || matchConvocatoriaToFundId(raw.titulo, raw.url);
 
   // Vigencia calculada: si cierre es posterior o igual a hoy, o permanente abierta
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = chileToday();
   const isVigente = raw.cierre ? raw.cierre >= todayStr : Boolean(permanente || raw.vigente);
 
   return {

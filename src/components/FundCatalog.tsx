@@ -208,7 +208,9 @@ export const FundCatalog: React.FC<FundCatalogProps> = ({
                       {hasOpenCall ? (
                         <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 flex items-center gap-1.5 shadow-2xs">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                          <span>Convocatoria abierta {matchingCall?.diasRestantes !== undefined ? `(${matchingCall.diasRestantes} días)` : ''}</span>
+                          <span>Convocatoria abierta{typeof matchingCall?.diasRestantes === 'number' && matchingCall.diasRestantes >= 0
+                            ? (matchingCall.diasRestantes === 0 ? ' (cierra hoy)' : ` (${matchingCall.diasRestantes} ${matchingCall.diasRestantes === 1 ? 'día' : 'días'})`)
+                            : ''}</span>
                         </span>
                       ) : (
                         <span className="text-[10px] font-medium px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
