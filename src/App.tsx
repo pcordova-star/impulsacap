@@ -758,8 +758,12 @@ export default function App() {
               convocatorias={activeConvocatorias}
               funds={liveFunds}
               currentUser={currentUser}
-              onContinueApplication={(appId) => {
+              onContinueApplication={(appId, target) => {
                 setActiveApplicationId(appId);
+                if (target) {
+                  handleNavigateTab(target);
+                  return;
+                }
                 setActiveTab('postulation');
                 setPostulationSubTab('roadmap');
                 window.scrollTo({ top: 0, behavior: 'smooth' });

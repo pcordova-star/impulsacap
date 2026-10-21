@@ -1,5 +1,8 @@
-import React, { useState, useMemo } from 'react';
-import { ChileanFund, CompanyProfile, getFundVisibleStatus, CompanyUser } from '../types/funds';
+import React, { useState, useMemo, useEffect } from 'react';
+import { usePlan } from '../hooks/usePlan';
+import { apiFetch } from '../utils/apiFetch';
+import { announceEarlyAccess, getPaymentsMode } from '../utils/earlyAccess';
+import { ChileanFund, CompanyProfile, getFundVisibleStatus, CompanyUser, calculateProjectProfileCompletion } from '../types/funds';
 import { CHILEAN_FUNDS } from '../data/chileanFunds';
 import { ApplicationItem } from '../types/application';
 import { Convocatoria } from '../types/convocatoria';
@@ -39,7 +42,7 @@ interface MyApplicationsDashboardProps {
   convocatorias?: Convocatoria[];
   funds?: ChileanFund[];
   currentUser?: CompanyUser | null;
-  onContinueApplication: (applicationId: string) => void;
+  onContinueApplication: (applicationId: string, target?: string) => void;
   onArchiveApplication: (applicationId: string) => Promise<{ ok: boolean }>;
   onReactivateApplication: (applicationId: string) => Promise<{ ok: boolean; error?: string }>;
   onOpenNewApplicationModal: () => void;
@@ -206,10 +209,25 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
       nextAction = 'Postulación enviada oficialmente';
     }
 
+    const nextIndex = steps.findIndex(x => !x);
+    const NEXT: Record<number, { label: string; target: string }> = {
+      0: !isRutValid ? { label: 'Ingresar RUT', target: 'my-company#company-identity' } : { label: 'Subir carpeta', target: 'sii' },
+      1: (app.generatedDocs && app.generatedDocs.length > 0) ? { label: 'Confirmar estatutos', target: 'my-application' } : { label: 'Generar cartas', target: 'documents#doc-generator' },
+      2: { label: 'Redactar con IA', target: 'formulator#section:next' },
+      3: { label: 'Armar presupuesto', target: 'formulator#section:budget' },
+      4: { label: 'Simular evaluación', target: 'auditor' },
+      5: { label: 'Abrir expediente', target: 'my-application' }
+    };
+    const next = nextIndex >= 0 ? NEXT[nextIndex] : null;
+
     return {
       completedCount,
       percentage: Math.round((completedCount / 6) * 100),
-      nextAction
+      nextAction,
+      steps,
+      nextIndex,
+      nextTarget: next?.target || null,
+      nextLabel: next?.label || ''
     };
   }
 
@@ -284,409 +302,369 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
     return convocatorias.filter(c => c.vigente && c.diasRestantes !== null && c.diasRestantes !== undefined && c.diasRestantes <= 7 && c.diasRestantes >= 0).length;
   }, [convocatorias]);
 
+  // --- Plan: tarjeta visible para contratar o ver el plan ---
+  const { hasActivePlan, provisional, daysLeft, expiresAt, price, isFirstPurchase } = usePlan();
+  const [paymentsEnabled, setPaymentsEnabled] = useState(true);
+  const [planLoading, setPlanLoading] = useState(false);
+  const [planError, setPlanError] = useState<string | null>(null);
+  useEffect(() => { getPaymentsMode().then(m => setPaymentsEnabled(m.paymentsEnabled)); }, []);
+  const handleActivatePlan = async () => {
+    setPlanLoading(true);
+    setPlanError(null);
+    try {
+      const res = await apiFetch('/api/pagos/crear', { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.earlyAccess) { announceEarlyAccess(data); return; }
+      if (res.ok && data?.init_point) { window.location.href = data.init_point; return; }
+      setPlanError(data?.error || 'No se pudo iniciar el pago. Intenta nuevamente.');
+    } catch (err: any) {
+      setPlanError(err?.message || 'No se pudo iniciar el pago. Intenta nuevamente.');
+    } finally {
+      setPlanLoading(false);
+    }
+  };
+
+  const projectPct = calculateProjectProfileCompletion(profile.projectProfile);
+  const firstName = (profile.representativeName || currentUser?.representativeName || auth.currentUser?.displayName || '').trim().split(/\s+/)[0] || '';
+  const freeSlots = Math.max(0, 3 - activeApplications.length);
+  const fmtDate = (iso?: string | null) => iso ? new Date(iso).toLocaleDateString('es-CL', { day: 'numeric', month: 'long' }) : '';
+
+  // Convocatorias sugeridas: abiertas, de tu región, sin postulación, y que sean fondos (no créditos ni garantías)
+  const suggestedCalls = useMemo(() => {
+    const NOT_GRANT = /(garant[ií]a|cr[eé]dito|cobertura|certificaci[oó]n|fogain|fogape|cobex|reprogramaci|seguro|pr[eé]stamo)/i;
+    return newCallAlerts.length >= 0
+      ? convocatorias
+          .filter(c => c.vigente && !NOT_GRANT.test(c.titulo || '') && !dismissedAlerts.includes(`new_call_${c.id}`))
+          .filter(c => !(c.fundId && activeApplications.some(a => a.fundId === c.fundId)))
+          .filter(c => {
+            const norm = (t: string) => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+            const alc = norm(c.alcance || '');
+            if (!alc || alc.includes('todo chile') || alc.includes('nacional')) return true;
+            const reg = norm(profile.region || '').replace(/^region\s+(de\s+la\s+|del\s+|de\s+)?/, '');
+            return Boolean(reg) && (alc.includes(reg) || reg.includes(alc));
+          })
+          .sort((a, b) => {
+            if (Boolean(a.fundId) !== Boolean(b.fundId)) return a.fundId ? -1 : 1;
+            const da = typeof a.diasRestantes === 'number' ? a.diasRestantes : 9999;
+            const dbb = typeof b.diasRestantes === 'number' ? b.diasRestantes : 9999;
+            return da - dbb;
+          })
+          .slice(0, 3)
+      : [];
+  }, [convocatorias, activeApplications, profile.region, dismissedAlerts, newCallAlerts.length]);
+
+  const STEP_NAMES = ['Requisitos SII', 'Legal y cartas', 'Formulación', 'Presupuesto', 'Auditoría', 'Envío'];
+
+  const goNext = (app: ApplicationItem, target: string) => {
+    if (target === 'sii') { onOpenSiiModal(); return; }
+    onContinueApplication(app.id, target);
+  };
+
   return (
-    <div className="space-y-6 animate-fade-in max-w-6xl mx-auto">
-      
-      {/* 0. FRANJA COMPACTA DEL MONITOR EN VIVO (Requirement 4) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-slate-900 text-white shadow-sm border border-slate-800">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <span className="px-2.5 py-0.5 rounded-full bg-slate-800 text-emerald-400 font-mono text-[10px] font-black uppercase flex items-center gap-1.5 border border-slate-700">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
-            <span>Monitor CORFO</span>
-          </span>
-          <span className="text-xs font-semibold text-slate-200">
-            <strong>{totalOpenConvocatorias}</strong> convocatorias abiertas
-          </span>
-          <span className="text-slate-500 text-xs">•</span>
-          <span className={`text-xs font-semibold ${totalClosingThisWeek > 0 ? 'text-amber-300' : 'text-slate-300'}`}>
-            <strong>{totalClosingThisWeek}</strong> {totalClosingThisWeek === 1 ? 'cierra esta semana' : 'cierran esta semana'}
-          </span>
+    <div className="space-y-7 animate-fade-in max-w-6xl mx-auto">
+
+      {/* 1. SALUDO */}
+      <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pt-1">
+        <div className="space-y-1 min-w-0">
+          <p className="text-sm text-slate-500">{firstName ? `Hola, ${firstName}` : 'Hola'} 👋</p>
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight truncate">
+            {profile.companyName || 'Tu empresa'}
+          </h1>
+          <p className="text-sm text-slate-600">
+            {activeApplications.length === 0
+              ? 'Elige un fondo para empezar tu primera postulación.'
+              : `Tienes ${activeApplications.length} ${activeApplications.length === 1 ? 'postulación en curso' : 'postulaciones en curso'}. Sigue con el próximo paso de cada una.`}
+          </p>
         </div>
         <button
-          onClick={() => onNavigateTab ? onNavigateTab('convocatorias') : null}
-          className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-400 hover:text-blue-300 hover:underline cursor-pointer shrink-0"
+          onClick={onOpenNewApplicationModal}
+          disabled={freeSlots === 0}
+          title={freeSlots === 0 ? 'Usaste tus 3 cupos: archiva una postulación para empezar otra' : undefined}
+          className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold shadow-md shadow-blue-600/20 active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
         >
-          <span>Ver todas →</span>
+          <Plus className="w-4 h-4" />
+          Nueva postulación
         </button>
-      </div>
+      </header>
 
-      {/* 1. RESUMEN DE LA EMPRESA ARRIBA (Requirement 5) */}
-      <div className="p-5 sm:p-6 rounded-3xl bg-white border border-slate-200 shadow-sm relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-blue-50/60 to-transparent rounded-full blur-2xl pointer-events-none" />
-
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-start gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-black text-lg shadow-sm shrink-0">
-              {profile.companyName ? profile.companyName.charAt(0).toUpperCase() : <Building2 className="w-6 h-6" />}
-            </div>
-
-            <div className="space-y-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                  {profile.companyName || 'Empresa Sin Registrar'}
-                </h1>
-                
-                <button
-                  onClick={onOpenProfile}
-                  className="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
-                >
-                  Editar perfil
-                </button>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                <span className="flex items-center gap-1 font-mono">
-                  RUT: <strong className={isRutValid ? 'text-slate-800' : 'text-rose-600'}>{profile.rut ? (isRutValid ? formatRut(profile.rut) : profile.rut) : 'Sin configurar'}</strong>
-                  {profile.rut && (
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded font-sans font-bold ${isRutValid ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
-                      {isRutValid ? '✓ Módulo 11' : '✗ Inválido'}
-                    </span>
-                  )}
-                </span>
-
-                <span className="text-slate-300">•</span>
-
-                <div className="flex items-center gap-1.5">
-                  <span>Carpeta Tributaria:</span>
-                  {profile.taxFolderUploaded ? (
-                    <span className="inline-flex items-center gap-1 font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                      Cargada ({profile.taxFolderFileName || 'F29.pdf'})
-                    </span>
-                  ) : (
-                    <button
-                      onClick={onOpenSiiModal}
-                      className="inline-flex items-center gap-1 font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded-full border border-amber-200 cursor-pointer transition-colors"
-                    >
-                      <Upload className="w-3 h-3" />
-                      Subir F29 ahora
-                    </button>
-                  )}
-                </div>
-
-                <span className="text-slate-300 hidden sm:inline">•</span>
-
-                <span className="hidden sm:inline">
-                  Ventas 12M: <strong className="text-slate-700 font-mono">${(profile.annualSalesCLP || 0).toLocaleString('es-CL')} CLP</strong>
-                </span>
-              </div>
-            </div>
+      {/* 2. CIERRES PRÓXIMOS (solo si hay) */}
+      {closingSoonAlerts.map(alert => (
+        <div key={alert.alertId} className="p-4 rounded-2xl bg-rose-50 border border-rose-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+            <p className="text-sm text-rose-950">
+              <strong>{alert.fund.name}</strong> cierra {alert.daysLeft === 0 ? <strong>hoy</strong> : <>en <strong>{alert.daysLeft} {alert.daysLeft === 1 ? 'día' : 'días'}</strong></>} ({alert.closeDate}). Revisa tu expediente y súbelo a tiempo.
+            </p>
           </div>
-
-          {/* Plan Quota counter & New Postulation Button */}
-          <div className="flex flex-wrap items-center gap-3 pt-2 md:pt-0 border-t md:border-t-0 border-slate-100">
-            <div className="text-right hidden sm:block">
-              <p className="text-[11px] font-bold text-slate-600">
-                Cupos de Postulación
-              </p>
-              <p className="text-xs font-mono text-emerald-700 font-bold">
-                {activeApplications.length} de 3 activos
-              </p>
-            </div>
-
-            <button
-              onClick={onOpenNewApplicationModal}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm shadow-blue-600/20 active:scale-95 transition-all cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>+ Nueva postulación</span>
+          <div className="flex items-center gap-2 shrink-0">
+            <button onClick={() => onContinueApplication(alert.app.id)} className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold cursor-pointer inline-flex items-center gap-1">
+              Abrir postulación <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+            <button onClick={() => handleDismissAlert(alert.alertId)} aria-label="Descartar aviso" className="p-1.5 rounded-lg text-rose-400 hover:text-rose-700 hover:bg-rose-100 cursor-pointer">
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
-      </div>
+      ))}
 
-      {/* 1.1 ALERTAS INTELIGENTES (Requirement 8) */}
-      {(closingSoonAlerts.length > 0 || newCallAlerts.length > 0) && (
-        <div className="space-y-3">
-          {/* Alerta (b): Cierre en 7 días o menos */}
-          {closingSoonAlerts.map(alert => (
-            <div
-              key={alert.alertId}
-              className="p-4 rounded-2xl bg-gradient-to-r from-rose-50 via-rose-50/70 to-amber-50 border border-rose-300 shadow-xs flex items-start justify-between gap-4 animate-fade-in"
-            >
-              <div className="flex items-start gap-3">
-                <div className="p-2 rounded-xl bg-rose-100 text-rose-700 shrink-0 mt-0.5">
-                  <AlertTriangle className="w-5 h-5 animate-pulse" />
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded-full bg-rose-600 text-white font-mono text-[9px] font-bold">
-                      CIERRE PRÓXIMO: {alert.daysLeft === 0 ? 'HOY' : `${alert.daysLeft} DÍAS`}
-                    </span>
-                    <span className="text-xs font-bold text-rose-950">
-                      Plazo crítico de postulación
-                    </span>
-                  </div>
-                  <p className="text-xs text-rose-900 leading-snug">
-                    La postulación a <strong>{alert.fund.name}</strong> cierra el <strong>{alert.closeDate}</strong>. Revisa tus anexos y descarga tu expediente consolidado para subirlo a tiempo al portal oficial.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={() => onContinueApplication(alert.app.id)}
-                  className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs cursor-pointer inline-flex items-center gap-1 transition-colors"
-                >
-                  <span>Continuar</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => handleDismissAlert(alert.alertId)}
-                  title="Descartar aviso"
-                  className="p-1.5 rounded-lg text-rose-400 hover:text-rose-700 hover:bg-rose-100/60 cursor-pointer transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          ))}
-
-          {/* Alerta (a): Nueva convocatoria para tu perfil */}
-          {newCallAlerts.map(conv => (
-            <div
-              key={conv.id}
-              className="p-4 rounded-2xl bg-gradient-to-r from-blue-50 via-indigo-50/70 to-emerald-50 border border-blue-200 shadow-xs flex items-start justify-between gap-4 animate-fade-in"
-            >
-              <div className="flex items-start gap-3">
-                <div className="p-2 rounded-xl bg-blue-100 text-blue-700 shrink-0 mt-0.5">
-                  <Sparkles className="w-5 h-5 text-blue-600" />
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded-full bg-blue-600 text-white font-mono text-[9px] font-bold">
-                      {/todo chile|nacional/i.test(conv.alcance || '') || !conv.alcance ? 'ABIERTA PARA TODO CHILE' : 'ABIERTA EN TU REGIÓN'}
-                    </span>
-                    <span className="text-[10px] px-2 py-0.2 rounded-full bg-white text-slate-700 border border-slate-200">
-                      📍 {conv.alcance}
-                    </span>
-                  </div>
-                  <h4 className="text-xs font-bold text-slate-900">
-                    {conv.titulo}
-                  </h4>
-                  <p className="text-[11px] text-slate-600 leading-snug line-clamp-1">
-                    {conv.tope_aprox ? `Subsidio de ${conv.tope_aprox}. ` : ''}
-                    {conv.cierre ? `Cierre oficial: ${conv.cierre}. ` : 'Ventanilla permanente. '}
-                    {conv.resumen || ''}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={() => {
-                    if (conv.fundId) {
-                      const fund = funds.find(f => f.id === conv.fundId);
-                      if (fund) {
-                        onSelectFundToFormulate(fund);
-                        return;
-                      }
-                    }
-                    if (onNavigateTab) {
-                      onNavigateTab('convocatorias');
-                    } else {
-                      onOpenNewApplicationModal();
-                    }
-                  }}
-                  className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs cursor-pointer inline-flex items-center gap-1 transition-colors"
-                >
-                  <span>Ver / Postular</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => handleDismissAlert(`new_call_${conv.id}`)}
-                  title="Descartar aviso"
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 cursor-pointer transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* 2. LISTA DE POSTULACIONES ACTIVAS */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+      {/* 3. POSTULACIONES EN CURSO (lo principal) */}
+      <section className="space-y-3" aria-labelledby="mis-postulaciones-titulo">
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 id="mis-postulaciones-titulo" className="text-lg font-black text-slate-900 flex items-center gap-2">
             <Layers className="w-5 h-5 text-blue-600" />
-            <h2 className="text-lg font-bold text-slate-900">
-              Postulaciones en Curso ({activeApplications.length})
-            </h2>
-          </div>
-          <span className="text-xs text-slate-500 font-medium">
-            Ordenadas por fecha de cierre más próxima
-          </span>
+            Tus postulaciones
+          </h2>
+          <span className="text-xs font-semibold text-slate-500">{activeApplications.length} de 3 cupos usados</span>
         </div>
 
-        {activeApplications.length === 0 ? (
-          /* Empty State (Requirement 5) */
-          <div className="p-8 sm:p-12 rounded-3xl bg-white border border-slate-200 text-center space-y-6 shadow-sm">
-            <div className="w-16 h-16 rounded-3xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto shadow-inner">
-              <Clock className="w-8 h-8" />
-            </div>
-
-            <div className="max-w-md mx-auto space-y-2">
-              <h3 className="text-lg font-bold text-slate-900">
-                Aún no tienes postulaciones activas
-              </h3>
-              <p className="text-xs text-slate-500 leading-relaxed">
-                Selecciona uno de los fondos recomendados según tu perfil empresarial o explora el catálogo completo para preparar tu expediente.
-              </p>
-            </div>
-
-            {/* Recommended Funds cards */}
-            {recommendedFunds.length > 0 && (
-              <div className="max-w-3xl mx-auto pt-2 space-y-3">
-                <p className="text-xs font-bold text-slate-700 uppercase tracking-wider text-left">
-                  Fondos recomendados para tu empresa:
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {recommendedFunds.map(fund => (
-                    <div
-                      key={fund.id}
-                      className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 hover:bg-blue-50/40 hover:border-blue-300 text-left transition-all flex flex-col justify-between"
-                    >
-                      <div className="space-y-1.5">
-                        <span className="px-2 py-0.5 rounded-md bg-slate-800 text-white font-mono text-[9px] font-bold">
-                          {fund.agency}
-                        </span>
-                        <h4 className="text-xs font-bold text-slate-900 line-clamp-2">
-                          {fund.name}
-                        </h4>
-                        <p className="text-xs font-mono font-bold text-emerald-700">
-                          {fund.subsidyFormatted}
-                        </p>
-                      </div>
-
-                      <button
-                        onClick={() => onSelectFundToFormulate(fund)}
-                        className="mt-3 w-full py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold cursor-pointer transition-colors inline-flex items-center justify-center gap-1"
-                      >
-                        <span>Formular</span>
-                        <ArrowRight className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))}
+        <div className={`grid gap-4 ${sortedActiveApplications.length + (freeSlots > 0 ? 1 : 0) > 1 ? 'lg:grid-cols-2' : ''}`}>
+          {sortedActiveApplications.map(app => {
+            const fund = funds.find(f => f.id === app.fundId) || funds[0];
+            const progress = computeApplicationProgress(app);
+            const statusCfg = statusLabels[app.status] || statusLabels['en_preparacion'];
+            return (
+              <article key={app.id} className="relative rounded-3xl bg-white border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition-all overflow-hidden flex flex-col">
+                <div className="h-1.5 bg-slate-100">
+                  <div className="h-full bg-gradient-to-r from-blue-600 to-emerald-500 transition-all" style={{ width: `${Math.max(4, progress.percentage)}%` }} />
                 </div>
-              </div>
-            )}
-
-            <div>
-              <button
-                onClick={onOpenNewApplicationModal}
-                className="px-5 py-2.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold cursor-pointer transition-all inline-flex items-center gap-2 shadow-xs"
-              >
-                <span>Elegir otro fondo del catálogo</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        ) : (
-          /* Cards grid */
-          <div className="grid grid-cols-1 gap-4">
-            {sortedActiveApplications.map(app => {
-              const fund = funds.find(f => f.id === app.fundId) || funds[0];
-              const progress = computeApplicationProgress(app);
-              const visibleCallStatus = getFundVisibleStatus(fund);
-              const statusCfg = statusLabels[app.status] || statusLabels['en_preparacion'];
-
-              return (
-                <div
-                  key={app.id}
-                  className="p-5 sm:p-6 rounded-3xl bg-white border border-slate-200 hover:border-blue-300 shadow-sm hover:shadow-md transition-all space-y-4"
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    
-                    {/* Fund info */}
-                    <div className="space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="px-2.5 py-0.5 rounded-md bg-slate-800 text-white font-mono text-[10px] font-bold">
-                          {fund.agency}
-                        </span>
-
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                          visibleCallStatus === 'Abierta' 
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-                            : visibleCallStatus === 'Próxima'
-                            ? 'bg-blue-50 text-blue-700 border-blue-200'
-                            : 'bg-slate-100 text-slate-600 border-slate-200'
-                        }`}>
-                          Convocatoria {visibleCallStatus}
-                        </span>
-
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${statusCfg.badgeClass}`}>
-                          {statusCfg.label}
-                        </span>
+                <div className="p-5 sm:p-6 space-y-4 flex-1 flex flex-col">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1.5 min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="px-2 py-0.5 rounded-md bg-slate-900 text-white font-mono text-[10px] font-bold">{fund.agency}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${statusCfg.badgeClass}`}>{statusCfg.label}</span>
                       </div>
-
-                      <h3 className="text-base sm:text-lg font-bold text-slate-900">
-                        {fund.name}
-                      </h3>
-
-                      <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                        <span>Subsidio Máximo: <strong className="text-emerald-700 font-mono font-bold">{fund.subsidyFormatted}</strong></span>
-                        <span className="text-slate-300">•</span>
-                        <span>Cierre: <strong className={fund.closeDate ? 'text-slate-800' : 'text-slate-500 italic'}>{fund.closeDate || 'Ventanilla continua / Por definir'}</strong></span>
-                      </div>
+                      <h3 className="text-lg sm:text-xl font-black text-slate-900 leading-tight">{fund.name}</h3>
+                      <p className="text-xs text-slate-500">
+                        Hasta <strong className="text-emerald-700">{fund.subsidyFormatted}</strong> · Cierre: {fund.closeDate || 'por definir'}
+                      </p>
                     </div>
+                    <button
+                      title="Archivar esta postulación (libera un cupo)"
+                      aria-label="Archivar postulación"
+                      disabled={actionLoading === app.id}
+                      onClick={() => handleArchive(app.id)}
+                      className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer shrink-0"
+                    >
+                      <Archive className="w-4 h-4" />
+                    </button>
+                  </div>
 
-                    {/* Actions button */}
-                    <div className="flex items-center gap-2 shrink-0 pt-2 sm:pt-0">
-                      <button
-                        title="Archivar esta postulación para liberar cupo"
-                        disabled={actionLoading === app.id}
-                        onClick={() => handleArchive(app.id)}
-                        className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
-                      >
-                        <Archive className="w-4 h-4" />
-                      </button>
+                  {/* Pasos */}
+                  <ol className="grid grid-cols-6 gap-1.5" aria-label={`Avance: ${progress.completedCount} de 6 pasos`}>
+                    {progress.steps.map((done, i) => (
+                      <li key={i} className="space-y-1 min-w-0">
+                        <div className={`h-2 rounded-full ${done ? 'bg-emerald-500' : i === progress.nextIndex ? 'bg-blue-500 animate-pulse' : 'bg-slate-200'}`} />
+                        <p className={`hidden sm:block text-[10px] leading-tight truncate ${done ? 'text-emerald-700 font-semibold' : i === progress.nextIndex ? 'text-blue-700 font-bold' : 'text-slate-400'}`}>{STEP_NAMES[i]}</p>
+                      </li>
+                    ))}
+                  </ol>
+                  <p className="text-xs text-slate-600"><strong className="text-slate-900">{progress.completedCount} de 6 pasos</strong> listos ({progress.percentage}%)</p>
 
+                  {/* Próximo paso */}
+                  <div className="mt-auto p-3.5 rounded-2xl bg-blue-50 border border-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-blue-700">Próximo paso</p>
+                      <p className="text-sm font-bold text-slate-900">{progress.nextAction}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
                       <button
                         onClick={() => onContinueApplication(app.id)}
-                        className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs active:scale-95 transition-all cursor-pointer inline-flex items-center gap-2"
+                        className="px-3 py-2 rounded-xl text-xs font-bold text-blue-800 hover:bg-blue-100 cursor-pointer"
                       >
-                        <span>Continuar</span>
-                        <ArrowRight className="w-4 h-4" />
+                        Ver hoja de ruta
                       </button>
-                    </div>
-                  </div>
-
-                  {/* Progress bar (6 steps) */}
-                  <div className="pt-2 border-t border-slate-100 space-y-2">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-semibold text-slate-700">
-                        Avance del Expediente: <strong className="text-blue-700">{progress.completedCount} de 6 pasos completados</strong> ({progress.percentage}%)
-                      </span>
-
-                      <span className="text-slate-500 text-[11px] truncate max-w-xs">
-                        Siguiente acción: <strong className="text-slate-800">{progress.nextAction}</strong>
-                      </span>
-                    </div>
-
-                    {/* Visual Segmented Progress Bar */}
-                    <div className="grid grid-cols-6 gap-1.5 h-2">
-                      {[1, 2, 3, 4, 5, 6].map(stepNum => (
-                        <div
-                          key={stepNum}
-                          className={`rounded-full transition-all ${
-                            stepNum <= progress.completedCount 
-                              ? 'bg-emerald-500' 
-                              : 'bg-slate-200'
-                          }`}
-                        />
-                      ))}
+                      {progress.nextTarget && (
+                        <button
+                          onClick={() => goNext(app, progress.nextTarget!)}
+                          className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm cursor-pointer inline-flex items-center gap-1.5"
+                        >
+                          {progress.nextLabel}
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
-              );
-            })}
+              </article>
+            );
+          })}
+
+          {/* Cupos libres */}
+          {freeSlots > 0 && (
+            <button
+              type="button"
+              onClick={onOpenNewApplicationModal}
+              className={`rounded-3xl border-2 border-dashed border-slate-300 hover:border-blue-400 hover:bg-blue-50/40 text-slate-500 hover:text-blue-700 transition-all cursor-pointer p-6 flex flex-col items-center justify-center gap-2 text-center ${activeApplications.length === 0 ? 'min-h-[200px]' : 'min-h-[160px]'}`}
+            >
+              <span className="w-11 h-11 rounded-2xl bg-white border border-slate-200 flex items-center justify-center shadow-xs">
+                <Plus className="w-5 h-5" />
+              </span>
+              <span className="text-sm font-bold">{activeApplications.length === 0 ? 'Empieza tu primera postulación' : 'Agregar otra postulación'}</span>
+              <span className="text-xs">Te quedan {freeSlots} {freeSlots === 1 ? 'cupo' : 'cupos'} de 3. Elige un fondo y te guiamos paso a paso.</span>
+            </button>
+          )}
+        </div>
+
+        {activeApplications.length === 0 && recommendedFunds.length > 0 && (
+          <div className="rounded-3xl bg-white border border-slate-200 p-5 space-y-3">
+            <p className="text-sm font-bold text-slate-900">Fondos que calzan con tu empresa</p>
+            <div className="grid gap-3 md:grid-cols-3">
+              {recommendedFunds.map(fund => (
+                <div key={fund.id} className="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 flex flex-col justify-between gap-3">
+                  <div className="space-y-1">
+                    <span className="px-2 py-0.5 rounded-md bg-slate-900 text-white font-mono text-[9px] font-bold">{fund.agency}</span>
+                    <p className="text-sm font-bold text-slate-900">{fund.name}</p>
+                    <p className="text-xs font-bold text-emerald-700">{fund.subsidyFormatted}</p>
+                  </div>
+                  <button onClick={() => onSelectFundToFormulate(fund)} className="w-full py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer inline-flex items-center justify-center gap-1">
+                    Postular a este fondo <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
-      </div>
+      </section>
 
-      {/* 3. SECCIÓN COLAPSABLE ARCHIVADAS (Requirement 5) */}
+      {/* 4. MURAL: plan, empresa y monitor */}
+      <section className="grid gap-4 md:grid-cols-3" aria-label="Resumen">
+        {/* Plan */}
+        {hasActivePlan ? (
+          <div className="rounded-3xl p-5 bg-gradient-to-br from-emerald-600 to-teal-700 text-white shadow-md flex flex-col justify-between gap-4">
+            <div className="space-y-1.5">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-100 flex items-center gap-1.5"><ShieldCheck className="w-4 h-4" /> Tu plan</p>
+              <p className="text-xl font-black">{provisional ? 'Prueba gratis activa' : 'Plan Semestral activo'}</p>
+              <p className="text-sm text-emerald-50">Quedan <strong>{daysLeft} {daysLeft === 1 ? 'día' : 'días'}</strong>{expiresAt ? ` · hasta el ${fmtDate(expiresAt)}` : ''}.</p>
+            </div>
+            <button onClick={() => onNavigateTab?.('my-company#mi-plan')} className="self-start px-4 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-bold cursor-pointer inline-flex items-center gap-1.5">
+              {provisional ? 'Activar mi plan' : 'Ver mi plan'} <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ) : (
+          <div className="rounded-3xl p-5 bg-gradient-to-br from-blue-700 via-indigo-700 to-slate-900 text-white shadow-lg flex flex-col justify-between gap-4 ring-2 ring-amber-300/70">
+            <div className="space-y-2">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-amber-200 flex items-center gap-1.5"><Sparkles className="w-4 h-4" /> Plan Semestral</p>
+              <p className="text-xl font-black leading-tight">Prepara tu postulación completa con IA</p>
+              <ul className="text-xs text-blue-50 space-y-1">
+                <li>✓ Redacción por secciones y cartas</li>
+                <li>✓ Auditoría simulada y expediente PDF</li>
+                <li>✓ Asesor experto · 3 postulaciones · 6 meses</li>
+              </ul>
+              <p className="text-sm">
+                {isFirstPurchase && price < 39990 && <span className="line-through text-blue-200 mr-1.5">$39.990</span>}
+                <strong className="text-2xl font-black text-amber-300">${price.toLocaleString('es-CL')}</strong>
+                <span className="text-xs text-blue-100"> pago único, IVA incl.</span>
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <button onClick={handleActivatePlan} disabled={planLoading} className="w-full px-4 py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-sm font-black cursor-pointer disabled:opacity-60 inline-flex items-center justify-center gap-1.5">
+                {planLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
+                {paymentsEnabled ? 'Contratar plan' : 'Probar gratis 5 días'}
+              </button>
+              {planError && <p role="alert" className="text-xs text-rose-200">{planError}</p>}
+              <p className="text-[11px] text-blue-100 text-center">Pago seguro con Mercado Pago · No se renueva solo</p>
+            </div>
+          </div>
+        )}
+
+        {/* Empresa */}
+        <div className="rounded-3xl p-5 bg-white border border-slate-200 shadow-sm flex flex-col justify-between gap-4">
+          <div className="space-y-2.5">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5"><Building2 className="w-4 h-4 text-indigo-600" /> Tu empresa</p>
+            <ul className="space-y-2 text-sm">
+              <li className="flex items-center justify-between gap-2">
+                <span className="text-slate-600">RUT</span>
+                {isRutValid
+                  ? <span className="font-mono font-bold text-slate-900 text-xs">{formatRut(profile.rut)} <CheckCircle2 className="inline w-3.5 h-3.5 text-emerald-600" /></span>
+                  : <button onClick={() => onNavigateTab?.('my-company#company-identity')} className="text-xs font-bold text-amber-700 hover:underline cursor-pointer">Ingresar RUT</button>}
+              </li>
+              <li className="flex items-center justify-between gap-2">
+                <span className="text-slate-600">Carpeta tributaria</span>
+                {profile.taxFolderUploaded
+                  ? <span className="text-xs font-bold text-emerald-700 inline-flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> Cargada</span>
+                  : <button onClick={onOpenSiiModal} className="text-xs font-bold text-amber-700 hover:underline cursor-pointer inline-flex items-center gap-1"><Upload className="w-3.5 h-3.5" /> Subir</button>}
+              </li>
+              <li className="space-y-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-slate-600">Perfil del proyecto</span>
+                  <span className={`text-xs font-bold ${projectPct >= 70 ? 'text-emerald-700' : 'text-amber-700'}`}>{projectPct}%</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                  <div className={`h-full rounded-full ${projectPct >= 70 ? 'bg-emerald-500' : 'bg-amber-400'}`} style={{ width: `${Math.max(4, projectPct)}%` }} />
+                </div>
+              </li>
+            </ul>
+          </div>
+          <button
+            onClick={() => onNavigateTab?.(projectPct < 70 ? 'my-company#project-profile' : 'my-company')}
+            className="self-start px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold cursor-pointer inline-flex items-center gap-1.5"
+          >
+            {projectPct < 70 ? 'Completar perfil' : 'Editar datos'} <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {/* Monitor */}
+        <div className="rounded-3xl p-5 bg-slate-900 text-white shadow-sm flex flex-col justify-between gap-4">
+          <div className="space-y-2">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-300 flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" /> Monitor CORFO
+            </p>
+            <p className="text-3xl font-black">{totalOpenConvocatorias}</p>
+            <p className="text-sm text-slate-300">convocatorias abiertas hoy</p>
+            <p className={`text-sm font-semibold ${totalClosingThisWeek > 0 ? 'text-amber-300' : 'text-slate-400'}`}>
+              {totalClosingThisWeek} {totalClosingThisWeek === 1 ? 'cierra' : 'cierran'} esta semana
+            </p>
+          </div>
+          <button onClick={() => onNavigateTab?.('convocatorias')} className="self-start px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold cursor-pointer inline-flex items-center gap-1.5">
+            Ver convocatorias <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </section>
+
+      {/* 5. CONVOCATORIAS SUGERIDAS (secundario) */}
+      {suggestedCalls.length > 0 && (
+        <section className="rounded-3xl bg-white border border-slate-200 p-5 sm:p-6 space-y-3" aria-labelledby="sugeridas-titulo">
+          <div>
+            <h2 id="sugeridas-titulo" className="text-base font-black text-slate-900 flex items-center gap-2">
+              <Bell className="w-4 h-4 text-blue-600" /> Convocatorias abiertas que podrían servirte
+            </h2>
+            <p className="text-xs text-slate-500">Abiertas hoy, para todo Chile o tu región, y sin postulación tuya. Primero las que cierran antes.</p>
+          </div>
+          <ul className="divide-y divide-slate-100">
+            {suggestedCalls.map(conv => {
+              const linkedFund = conv.fundId ? funds.find(f => f.id === conv.fundId) : null;
+              return (
+                <li key={conv.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-slate-900 truncate">{conv.titulo}</p>
+                    <p className="text-xs text-slate-500">
+                      {conv.alcance || 'Todo Chile'} · {typeof conv.diasRestantes === 'number' ? (conv.diasRestantes === 0 ? 'cierra hoy' : `cierra en ${conv.diasRestantes} días`) : 'sin fecha de cierre'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {conv.url && (
+                      <a href={conv.url} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-slate-600 hover:text-slate-900 inline-flex items-center gap-1">
+                        Bases <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                    {linkedFund ? (
+                      <button onClick={() => onSelectFundToFormulate(linkedFund)} className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer">Postular</button>
+                    ) : (
+                      <button onClick={() => onNavigateTab?.('convocatorias')} className="px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-bold cursor-pointer">Ver en el monitor</button>
+                    )}
+                    <button onClick={() => handleDismissAlert(`new_call_${conv.id}`)} aria-label="No me interesa" title="No me interesa" className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
+      {/* 6. SECCIÓN COLAPSABLE ARCHIVADAS (Requirement 5) */}
       {archivedApplications.length > 0 && (
         <div className="rounded-3xl bg-white border border-slate-200 p-5 space-y-3">
           <button

@@ -11,6 +11,8 @@ import {
 
 import { ImpulsaCapLogo } from './ImpulsaCapLogo';
 import { CompanyUser } from '../types/funds';
+import { usePlan } from '../hooks/usePlan';
+import { goToTarget } from '../utils/navFocus';
 
 interface NavbarProps {
   activeTab: string;
@@ -31,6 +33,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAuthModal,
   onLogout
 }) => {
+  const { hasActivePlan, provisional, daysLeft, loading: planLoading } = usePlan();
+  const openPlan = () => { setActiveTab('my-company'); goToTarget('mi-plan'); };
   // Mobile bottom tabs - Exactly 3 tabs for clean mobile navigation (Requirement 1)
   const mobileNavTabs = currentUser ? [
     { id: 'my-applications', label: 'Mis postulaciones', icon: Layers },
@@ -133,6 +137,17 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="flex items-center gap-2 sm:gap-2.5">
               {currentUser ? (
                 <div className="flex items-center gap-2">
+                  {!planLoading && (!hasActivePlan || provisional) && (
+                    <button
+                      onClick={openPlan}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black shadow-2xs cursor-pointer"
+                      title="Contratar el Plan Semestral"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">{provisional ? `Prueba: ${daysLeft} d · Activar plan` : 'Contratar plan'}</span>
+                      <span className="sm:hidden">Plan</span>
+                    </button>
+                  )}
                   <button
                     onClick={() => setActiveTab('my-company')}
                     title="Ver perfil de la empresa y carpeta tributaria"
