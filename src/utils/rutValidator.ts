@@ -53,3 +53,38 @@ export function validateRut(rut: string): boolean {
 
   return dv === expectedDv;
 }
+
+/**
+ * Formatea un RUT mientras se escribe: deja solo números y K, máximo 9 caracteres,
+ * y agrega puntos y guion (129019123 → 12.901.912-3).
+ */
+export function formatRutInput(raw: string): string {
+  const cleaned = cleanRut(raw).replace(/K(?=.)/g, '').slice(0, 9);
+  if (cleaned.length < 2) return cleaned;
+  return formatRut(cleaned);
+}
+
+/** Estado del RUT para mostrar ayuda bajo el campo. */
+export function rutStatus(raw: string): 'vacio' | 'incompleto' | 'valido' | 'invalido' {
+  const cleaned = cleanRut(raw);
+  if (!cleaned) return 'vacio';
+  if (cleaned.length < 8) return 'incompleto';
+  return validateRut(raw) ? 'valido' : 'invalido';
+}
+
+/**
+ * Formatea un celular chileno mientras se escribe: +56 9 1234 5678.
+ * Acepta que el usuario escriba con o sin +56.
+ */
+export function formatPhoneCLInput(raw: string): string {
+  let rest = (raw || '').trim();
+  if (rest.startsWith('+56')) rest = rest.slice(3);
+  let digits = rest.replace(/\D/g, '');
+  if (digits.length > 9 && digits.startsWith('56')) digits = digits.slice(2);
+  digits = digits.slice(0, 9);
+  if (!digits) return '';
+  const a = digits.slice(0, 1);
+  const b = digits.slice(1, 5);
+  const c = digits.slice(5, 9);
+  return `+56 ${a}${b ? ' ' + b : ''}${c ? ' ' + c : ''}`;
+}

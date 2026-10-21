@@ -22,6 +22,8 @@ export function getFirebaseAuthErrorMessage(error: any): string {
       return 'La ventana emergente de Google fue bloqueada por el navegador.';
     case 'auth/network-request-failed':
       return 'Error de conexión. Verifica tu conexión a internet.';
+    case 'auth/operation-not-allowed':
+      return 'Por ahora no está habilitado crear cuentas con correo y contraseña. Usa "Continuar con Google" o inténtalo más tarde.';
     case 'auth/missing-password':
       return 'Debes ingresar una contraseña.';
     default:

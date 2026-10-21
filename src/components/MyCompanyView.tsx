@@ -7,7 +7,7 @@ import {
   ProjectProfile, 
   calculateProjectProfileCompletion 
 } from '../types/funds';
-import { validateRut, formatRut } from '../utils/rutValidator';
+import { validateRut, formatRut, formatRutInput, formatPhoneCLInput } from '../utils/rutValidator';
 import { usePlan } from '../hooks/usePlan';
 import { apiFetch } from '../utils/apiFetch';
 import { auth } from '../firebase';
@@ -601,7 +601,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
               <input
                 type="text"
                 value={rut}
-                onChange={(e) => setRut(formatRut(e.target.value))}
+                onChange={(e) => setRut(formatRutInput(e.target.value))}
                 placeholder="77.123.456-K"
                 className={`w-full px-3.5 py-2 rounded-xl bg-slate-50 border text-slate-900 font-mono font-semibold focus:bg-white focus:outline-hidden ${
                   rut && isCompanyRutValid ? 'border-emerald-400' : 'border-slate-300 focus:border-blue-500'
@@ -740,7 +740,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
               <input
                 type="text"
                 value={representativeRut}
-                onChange={(e) => setRepresentativeRut(formatRut(e.target.value))}
+                onChange={(e) => setRepresentativeRut(formatRutInput(e.target.value))}
                 placeholder="15.123.456-7"
                 className={`w-full px-3.5 py-2 rounded-xl bg-slate-50 border text-slate-900 font-mono font-semibold focus:bg-white focus:outline-hidden ${
                   representativeRut && isRepRutValid ? 'border-emerald-400' : 'border-slate-300 focus:border-blue-500'
@@ -771,7 +771,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
                 <input
                   type="tel"
                   value={representativePhone}
-                  onChange={(e) => setRepresentativePhone(e.target.value)}
+                  onChange={(e) => setRepresentativePhone(formatPhoneCLInput(e.target.value))}
                   placeholder="+56 9 8765 4321"
                   className="w-full pl-9 pr-3.5 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 focus:bg-white focus:border-blue-500 focus:outline-hidden font-mono"
                 />

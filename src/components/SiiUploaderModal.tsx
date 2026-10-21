@@ -1,7 +1,7 @@
 import { apiFetch } from '../utils/apiFetch';
 import React, { useState, useRef, useEffect } from 'react';
 import { CompanyProfile } from '../types/funds';
-import { validateRut, formatRut } from '../utils/rutValidator';
+import { validateRut, formatRut, formatRutInput } from '../utils/rutValidator';
 import { syncTaxFolderToFirestore } from '../utils/firebaseSync';
 import { TaxDiagnosisView } from './TaxDiagnosisView';
 import { buildSampleCarpetaText } from '../utils/sampleCarpeta';
@@ -356,7 +356,7 @@ export const SiiUploaderModal: React.FC<SiiUploaderModalProps> = ({
                 <input
                   type="text"
                   value={editRut}
-                  onChange={(e) => setEditRut(e.target.value)}
+                  onChange={(e) => setEditRut(formatRutInput(e.target.value))}
                   placeholder="Ej: 76.123.456-7"
                   className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-900 font-mono text-xs font-semibold focus:outline-hidden focus:border-blue-500"
                 />

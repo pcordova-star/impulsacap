@@ -15,7 +15,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { CompanyUser } from '../types/funds';
-import { validateRut } from '../utils/rutValidator';
+import { validateRut, formatRutInput, rutStatus, formatPhoneCLInput } from '../utils/rutValidator';
 import { auth, googleProvider, db } from '../firebase';
 import { 
   signInWithPopup, 
@@ -144,7 +144,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
     const cleanRut = regRut?.trim() || '';
     if (cleanRut && !validateRut(cleanRut)) {
-      setErrorMsg('El RUT ingresado no es válido según el algoritmo del Registro Civil.');
+      setErrorMsg('El RUT no es válido: revisa los números y el dígito verificador.');
       return;
     }
 
@@ -313,8 +313,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </h2>
           <p className="text-xs text-slate-600 leading-relaxed">
             {mode === 'login' 
-              ? 'Accede a tu bóveda protegida en Firestore. Tus postulaciones y datos del SII solo son accesibles por tu cuenta.'
-              : 'Crea tu cuenta empresarial para guardar tus diagnósticos, balances tributarios y redactar con IA en la nube.'}
+              ? 'Entra para ver tus postulaciones y los datos de tu empresa.'
+              : 'Crea tu cuenta para guardar tu diagnóstico, tu carpeta tributaria y tus postulaciones.'}
           </p>
         </div>
 
@@ -344,13 +344,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
               />
             </svg>
-            <span>{isGoogleLoading ? 'Conectando con Firebase...' : 'Continuar con Google (Firebase Auth)'}</span>
+            <span>{isGoogleLoading ? 'Conectando con Google…' : 'Continuar con Google'}</span>
           </button>
 
           <div className="relative flex items-center justify-center">
             <div className="border-t border-slate-200 w-full" />
             <span className="bg-white px-3 text-[10px] uppercase font-bold tracking-wider text-slate-400 absolute">
-              o con credenciales de empresa
+              o con tu correo
             </span>
           </div>
         </div>
@@ -456,7 +456,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm shadow-md shadow-blue-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
             >
               <Lock className="w-4 h-4" />
-              <span>{isSubmitting ? 'Verificando con Firebase...' : 'Acceder a Mi Bóveda Empresarial'}</span>
+              <span>{isSubmitting ? 'Entrando…' : 'Entrar'}</span>
             </button>
           </form>
         )}
@@ -492,11 +492,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     type="text"
                     required
                     value={regRut}
-                    onChange={(e) => setRegRut(e.target.value)}
+                    onChange={(e) => setRegRut(formatRutInput(e.target.value))}
+                    inputMode="text"
+                    autoComplete="off"
                     placeholder="77.654.321-0"
                     className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs placeholder:text-slate-400 placeholder:italic focus:bg-white focus:border-emerald-500 focus:outline-hidden font-mono"
                   />
                 </div>
+                {rutStatus(regRut) === 'invalido' && (
+                  <p className="mt-1 text-[11px] text-rose-600">Revisa el RUT: el dígito verificador no corresponde.</p>
+                )}
+                {rutStatus(regRut) === 'valido' && (
+                  <p className="mt-1 text-[11px] text-emerald-700">RUT válido</p>
+                )}
               </div>
 
               <div>
@@ -563,7 +571,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   <input
                     type="tel"
                     value={regPhone}
-                    onChange={(e) => setRegPhone(e.target.value)}
+                    onChange={(e) => setRegPhone(formatPhoneCLInput(e.target.value))}
+                    inputMode="tel"
                     placeholder="+56 9 1234 5678"
                     className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs placeholder:text-slate-400 placeholder:italic focus:bg-white focus:border-emerald-500 focus:outline-hidden"
                   />
