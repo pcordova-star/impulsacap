@@ -25,7 +25,7 @@ import {
   sendPasswordResetEmail 
 } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import { syncUserProfileToFirestore, syncCompanyToFirestore } from '../utils/firebaseSync';
+import { syncUserProfileToFirestore, syncCompanyToFirestore, seedCompanyIfMissing } from '../utils/firebaseSync';
 import { getFirebaseAuthErrorMessage } from '../utils/authErrors';
 import { setCurrentUser } from '../utils/storage';
 
@@ -170,7 +170,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
       // Point 4: Save profile in Firestore at users/{uid} and companies/{id} respecting firestore.rules
       await syncUserProfileToFirestore(companyUser);
-      await syncCompanyToFirestore({
+      await seedCompanyIfMissing({
         companyName: cleanCompanyName,
         rut: cleanRut,
         companyType: 'spa',
@@ -259,7 +259,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
       // Ensure user profile in Firestore exists
       await syncUserProfileToFirestore(companyUser);
-      await syncCompanyToFirestore({
+      await seedCompanyIfMissing({
         companyName,
         rut,
         companyType: 'spa',

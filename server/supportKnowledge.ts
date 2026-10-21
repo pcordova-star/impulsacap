@@ -19,6 +19,7 @@ PLAN SEMESTRAL
 - Pago único por 6 meses. NO se renueva automáticamente. Se avisa por correo 7 días antes de vencer. Si se renueva antes de vencer, los 6 meses se suman.
 - Es para 1 empresa, con hasta 3 postulaciones activas a la vez. Al terminar o archivar una postulación se libera el cupo y se puede empezar otra dentro de los 6 meses.
 - Códigos de vendedor: si un vendedor de ImpulsaCap te dio un código o un link (impulsacap.cl/?ref=CODIGO), el código fija el precio de tu primera compra en lugar del 50% de primera compra. Se aplica con el link o en "¿Tienes un código de vendedor?" junto al precio. Vale solo para la primera compra; se puede quitar o cambiar antes de pagar. Los vendedores ven sus ventas en impulsacap.cl/vendedor.
+- Uso de la IA: el plan incluye uso razonable con un límite diario amplio que se renueva a medianoche (hora de Chile) y un máximo total por plan. Si aparece el aviso de límite diario, el trabajo queda guardado y se puede seguir al día siguiente. La prueba gratis tiene un límite menor. Si el límite no alcanza para un uso legítimo, escribir a contacto@impulsacap.cl.
 - Consultoras o quienes asesoran a varias empresas: escribir a contacto@impulsacap.cl para un plan a medida.
 - Gratis sin plan: diagnóstico de 5 preguntas, monitor de convocatorias, catálogo, Mis postulaciones y hoja de ruta, diagnóstico tributario con la carpeta, robot de ayuda.
 

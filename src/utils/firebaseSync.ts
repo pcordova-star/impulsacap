@@ -93,6 +93,24 @@ export async function syncCompanyToFirestore(profile: CompanyProfile, customOwne
   }
 }
 
+/**
+ * Crea la ficha de empresa solo si el usuario no tiene ninguna (registro o primer ingreso con Google).
+ * Nunca reemplaza un perfil existente. Se guarda con fecha antigua para que cualquier perfil
+ * guardado después (en el navegador o en Firestore) tenga prioridad.
+ */
+export async function seedCompanyIfMissing(profile: CompanyProfile, uid?: string) {
+  const owner = uid || auth.currentUser?.uid;
+  if (!owner) return;
+  try {
+    if ((await getDoc(doc(db, 'companies', `comp_${owner}`))).exists()) return;
+    const legacy = await getDocs(query(collection(db, 'companies'), where('ownerId', '==', owner)));
+    if (!legacy.empty) return;
+    await syncCompanyToFirestore(profile, owner, '2000-01-01T00:00:00.000Z');
+  } catch (error) {
+    console.warn('No se pudo crear la ficha inicial de la empresa:', error);
+  }
+}
+
 /** Quita undefined y funciones (Firestore no los acepta) y limita textos muy largos. */
 function sanitizeForFirestore(value: any): any {
   return JSON.parse(JSON.stringify(value ?? {}, (_k, v) => (typeof v === 'string' && v.length > 20000 ? v.slice(0, 20000) : v)));

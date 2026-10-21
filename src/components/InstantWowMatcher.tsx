@@ -37,7 +37,7 @@ import {
   sendPasswordResetEmail 
 } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import { syncUserProfileToFirestore, syncCompanyToFirestore } from '../utils/firebaseSync';
+import { syncUserProfileToFirestore, syncCompanyToFirestore, seedCompanyIfMissing } from '../utils/firebaseSync';
 import { getFirebaseAuthErrorMessage } from '../utils/authErrors';
 import { validateRut } from '../utils/rutValidator';
 
@@ -336,7 +336,7 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
       const built = buildProfileFromAnswers();
 
       await syncUserProfileToFirestore(companyUser);
-      await syncCompanyToFirestore({
+      await seedCompanyIfMissing({
         companyName: cleanCompanyName,
         rut: cleanRut,
         companyType: (built.companyType as CompanyType) || 'spa',
@@ -485,7 +485,7 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
       const built = buildProfileFromAnswers();
 
       await syncUserProfileToFirestore(companyUser);
-      await syncCompanyToFirestore({
+      await seedCompanyIfMissing({
         companyName,
         rut,
         companyType: (built.companyType as CompanyType) || 'spa',

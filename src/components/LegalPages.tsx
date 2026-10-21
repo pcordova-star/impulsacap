@@ -132,14 +132,18 @@ export const TermsPage: React.FC<LegalPageProps> = ({ onBack, onOpenOther }) => 
       headers={['Concepto', 'Condición']}
       rows={[
         ['Precio', '$39.990 CLP, IVA incluido'],
-        ['Primera compra', '50% de descuento: $19.990 CLP, IVA incluido, una sola vez por usuario'],
+        ['Primera compra', '50% de descuento: $19.990 CLP, IVA incluido, una sola vez por usuario. Un código de vendedor vigente puede reemplazar este descuento por el que indique el código'],
         ['Vigencia', '6 meses desde la aprobación del pago'],
         ['Renovación', 'No es automática. Si renuevas antes del vencimiento, los 6 meses se suman a la fecha de término vigente'],
         ['Medio de pago', 'Mercado Pago. ImpulsaCap no recibe ni almacena datos de tarjetas'],
         ['Postulaciones simultáneas', 'Hasta 3 activas. Puedes archivar una para liberar cupo'],
-        ['Incluye', 'Redacción con IA, documentos y cartas, auditoría simulada, expediente de postulación y asesor experto con IA']
+        ['Incluye', 'Redacción con IA, documentos y cartas, auditoría simulada, expediente de postulación y asesor experto con IA'],
+        ['Uso de la IA', 'Uso razonable con un límite diario amplio que se renueva cada día a medianoche (hora de Chile), y un máximo total por plan para prevenir abusos. Si lo alcanzas, tu trabajo queda guardado y puedes seguir al día siguiente']
       ]}
     />
+    <P>
+      Si un pago se devuelve (por ejemplo, por retracto) o se desconoce ante el emisor de la tarjeta (contracargo), el plan activado con ese pago termina en ese momento.
+    </P>
     <P>
       El plan se activa cuando Mercado Pago confirma el pago, lo que normalmente toma segundos. Los pagos pendientes se activan al acreditarse. Te enviaremos un correo con la confirmación y otro antes del vencimiento. Al vencer el plan, mantienes acceso de solo lectura a lo que ya generaste, pero no podrás generar contenido nuevo hasta renovar.
     </P>

@@ -71,6 +71,27 @@ function legalTabForPath(pathname: string): 'terminos' | 'privacidad' | 'admin' 
   return null;
 }
 
+/** Combina dos perfiles: gana el valor con dato (texto no vacío, número > 0, true); el de `a` primero. */
+function mergeProfilesPreferFilled(a: any, b: any): any {
+  const filled = (v: any) =>
+    v !== undefined && v !== null &&
+    !(typeof v === 'string' && v.trim() === '') &&
+    !(typeof v === 'number' && v === 0) &&
+    v !== false &&
+    !(Array.isArray(v) && v.length === 0);
+  const out: any = { ...(b || {}), ...(a || {}) };
+  for (const k of new Set([...Object.keys(a || {}), ...Object.keys(b || {})])) {
+    const va = a?.[k];
+    const vb = b?.[k];
+    if (va && vb && typeof va === 'object' && typeof vb === 'object' && !Array.isArray(va)) {
+      out[k] = mergeProfilesPreferFilled(va, vb);
+    } else {
+      out[k] = filled(va) ? va : (filled(vb) ? vb : (va ?? vb));
+    }
+  }
+  return out;
+}
+
 export default function App() {
   // Loading state while Firebase verifies initial session (Requirement 2)
   const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
@@ -298,10 +319,17 @@ export default function App() {
             .then(remote => {
               if (!remote || activeUserIdRef.current !== hydratingUid) return;
               const localSavedAt = getProfileSavedAt(hydratingUid);
-              if (!localSavedAt || (remote.updatedAt && remote.updatedAt > localSavedAt)) {
-                const merged = { ...getCleanDefaultProfile(user), ...remote.profile } as CompanyProfile;
+              const local = loadActiveProfile(getCleanDefaultProfile(user), hydratingUid);
+              let merged: CompanyProfile | null = null;
+              if (!localSavedAt) {
+                // Perfil del navegador sin fecha (guardado antes de este cambio): se combina campo por campo,
+                // conservando lo que tenga dato y completando lo vacío con Firestore
+                merged = mergeProfilesPreferFilled(local, remote.profile);
+              } else if (remote.updatedAt && remote.updatedAt > localSavedAt) {
+                merged = { ...getCleanDefaultProfile(user), ...remote.profile } as CompanyProfile;
+              }
+              if (merged) {
                 saveActiveProfile(merged, hydratingUid);
-                if (remote.updatedAt) setProfileSavedAt(remote.updatedAt, hydratingUid);
                 setProfile(merged);
               }
             })
