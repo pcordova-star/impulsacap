@@ -1,72 +1,67 @@
 import { ChileanFund } from '../types/funds';
 
+/**
+ * Catálogo de fondos. Montos, requisitos, criterios y cuentas tomados de las bases oficiales
+ * (revisadas el 21-10-2026; ver src/data/fundStandards.ts para fuentes y reglas completas).
+ */
 export const CHILEAN_FUNDS: ChileanFund[] = [
   {
     id: 'corfo_semilla_inicia',
     name: 'CORFO Semilla Inicia',
     agency: 'CORFO',
     category: 'Capital Semilla',
-    badge: 'Hasta $15M CLP • Sin ventas previas',
+    badge: 'Hasta $15M • Sin ventas • Personas o empresas de hasta 18 meses',
     maxSubsidyCLP: 15000000,
-    subsidyFormatted: '$15.000.000 CLP',
+    subsidyFormatted: '$15.000.000 CLP ($17.000.000 si lo lidera una mujer)',
     maxCoFinancePct: 75,
-    femaleBonusPct: 10, // Hasta 85% para empresas de mujeres
-    beneficiaryTypes: ['persona_natural', 'spa', 'srl', 'eirl'],
-    salesRequirement: 'Sin ventas o facturación neta menor a $60.000.000 CLP en los 12 meses previos.',
-    salesBracketsEligible: ['sin_ventas', 'menor_60m'],
-    trlRange: 'TRL 2 a TRL 4 (Fase de prototipado y validación técnica)',
+    femaleBonusPct: 10,
+    beneficiaryTypes: ['sin_iniciar', 'persona_natural', 'spa', 'srl', 'eirl', 'sa'],
+    salesRequirement: 'Personas naturales mayores de 18 años, o empresas con máximo 18 meses de inicio de actividades y sin ventas.',
+    salesBracketsEligible: ['sin_ventas'],
+    trlRange: 'Idea con plan de implementación rápida hasta producto mínimo viable',
     trlEligible: ['idea_concepto', 'prototipo_lab', 'mvp_validado'],
     requiresInnovation: true,
     requiresCommercialValidation: false,
-    status: 'Ventanilla Abierta',
+    status: 'Próxima Convocatoria',
     callStatus: 'por_confirmar',
     closeDate: null,
-    lastVerified: '2026-10-19',
-    callSchedule: 'Convocatorias bianuales (Marzo/Abril y Agosto/Septiembre) + Apertura regional continua',
-    summary: 'Subsidio no reembolsable para apoyar emprendimientos innovadores con potencial de alcance nacional y global, desde la fase de idea/prototipo hasta la validación comercial y primeras ventas.',
-    description: 'Semilla Inicia de Corfo cofinancia actividades para validar comercial y técnicamente una solución innovadora diferenciada, desarrollar prototipos funcionales, prospección de clientes y formalización.',
+    lastVerified: '2026-10-21',
+    callSchedule: 'Convocatorias regionales (en 2026 abrieron entre enero y junio según la región)',
+    summary: 'Subsidio para emprendimientos innovadores en etapa temprana, con potencial de alcance nacional e internacional, para validar técnica y comercialmente y lograr las primeras ventas.',
+    description: 'Cofinancia mentoría, definición del modelo de negocio, validación técnica y comercial, producto mínimo viable, marketing y estrategia de sostenibilidad. Se ejecuta con una Entidad Patrocinadora en hasta 10 meses.',
     evaluationCriteria: [
-      {
-        name: 'Propuesta de Valor y Nivel de Innovación',
-        weight: 40,
-        description: 'Grado de novedad de la solución frente a lo que ya existe en el mercado chileno o regional, y magnitud del dolor o problema que resuelve.'
-      },
-      {
-        name: 'Escalabilidad del Modelo y Mercado',
-        weight: 30,
-        description: 'Capacidad de crecer a tasas exponenciales, tamaño de mercado direccionable (TAM/SAM) y viabilidad comercial del modelo de monetización.'
-      },
-      {
-        name: 'Capacidad del Equipo Emprendedor',
-        weight: 30,
-        description: 'Experiencia técnica y comercial del equipo fundador, complementariedad, dedicación horaria y capacidad de ejecución demostrada.'
-      }
+      { name: 'Innovación: relevancia del problema u oportunidad', weight: 15, description: 'Qué tan relevante es el problema u oportunidad que aborda el emprendimiento.' },
+      { name: 'Innovación: propuesta de valor', weight: 25, description: 'Grado de innovación de la solución y su valor frente a la competencia.' },
+      { name: 'Escalabilidad: modelo de negocio', weight: 5, description: 'Claridad y viabilidad del modelo de negocio.' },
+      { name: 'Escalabilidad: mercado', weight: 10, description: 'Tamaño y conocimiento del mercado y la competencia.' },
+      { name: 'Escalabilidad: plan de validación', weight: 10, description: 'Actividades y resultados esperados para validar técnica y comercialmente.' },
+      { name: 'Escalabilidad: sostenibilidad', weight: 5, description: 'Estrategia para que el emprendimiento se sostenga.' },
+      { name: 'Equipo: capacidad', weight: 20, description: 'Experiencia y competencias del equipo para ejecutar el proyecto.' },
+      { name: 'Equipo: compromiso', weight: 10, description: 'Dedicación horaria y compromiso del equipo.' }
     ],
     eligibleExpenses: [
-      'Recursos humanos dedicados al desarrollo del proyecto (honorarios o sueldos brutos).',
-      'Desarrollo de prototipos, software MVP, pruebas de laboratorio y certificaciones técnicas.',
-      'Gastos de prospección comercial, marketing digital, validación con clientes piloto y branding.',
-      'Asesorías técnicas, mentorías de la red Corfo y trámites de propiedad intelectual (INAPI).',
-      'Arrendamiento de infraestructura o equipos esenciales para la ejecución del proyecto.'
+      'Mentoría, definición del modelo de negocio, validación técnica y comercial (actividades obligatorias).',
+      'Equipo del proyecto (socios: hasta $700.000 mensuales cada uno, máximo 2).',
+      'Producto mínimo viable, marketing, ventas y empaquetamiento comercial.',
+      'Equipos críticos (Gastos de Inversión: máximo 20% del subsidio).',
+      'Protección de propiedad intelectual y garantías (hasta 3% del subsidio).'
     ],
     ineligibleExpenses: [
-      'Inversiones en instrumentos financieros o pago de deudas y multas.',
-      'Compra de inmuebles o terrenos.',
-      'Pago de IVA (el IVA debe ser asumido íntegramente por el postulante).',
-      'Gastos corrientes no atribuibles al proyecto o realizados antes de la fecha de inicio oficial.'
+      'Compra de inmuebles o vehículos y la mayoría de las construcciones.',
+      'Publicaciones académicas y capacitaciones sin relación con el proyecto.',
+      'IVA (lo asume el beneficiario).',
+      'Bebidas alcohólicas, regalos y gastos similares.'
     ],
     requiredDocuments: [
-      'Cédula de Identidad de postulantes / Personería Legal.',
-      'Certificado de Estatuto Actualizado (Registro de Empresas y Sociedades - Tu Empresa en un Día).',
-      'Carpeta Tributaria Electrónica SII para Acreditar Rentas / Fondos Concursables (últimos 12 meses).',
-      'Certificado de Deuda Tributaria TGR al día.',
-      'Formulario de Postulación Técnica y Presupuestaria oficial.'
+      'Formulario de postulación en línea de Corfo.',
+      'Video de máximo 40 segundos sobre el producto y su innovación.',
+      'Si es empresa: transcripción del objeto social de los estatutos.'
     ],
     corfoAccountsBudget: [
-      { account: 'Recursos Humanos', description: 'Personal contratado o a honorarios para el desarrollo del producto/servicio.', maxPct: 60 },
-      { account: 'Gastos de Operación', description: 'Insumos, software SaaS, servicios en la nube (AWS/GCP), mentorías, prospección comercial.', maxPct: 70 },
-      { account: 'Gastos de Inversión', description: 'Equipamiento y maquinaria indispensable para prototipado (límite según bases).', maxPct: 30 },
-      { account: 'Gastos de Administración', description: 'Costos indirectos y servicios contables/legales atribuibles.', maxPct: 10 }
+      { account: 'Recursos Humanos', description: 'Equipo del proyecto; socios hasta $700.000 al mes (máx. 2).' },
+      { account: 'Gastos de Operación', description: 'Mentoría, validación, producto mínimo viable, marketing, propiedad intelectual.' },
+      { account: 'Gastos de Inversión', description: 'Equipos críticos.', maxPct: 20 },
+      { account: 'Gastos de Administración', description: 'Gestión y garantías (garantías hasta 3% del subsidio).' }
     ]
   },
   {
@@ -74,134 +69,113 @@ export const CHILEAN_FUNDS: ChileanFund[] = [
     name: 'CORFO Semilla Expande',
     agency: 'CORFO',
     category: 'Crecimiento y Escalamiento',
-    badge: 'Hasta $45M CLP en 2 Fases • Con ventas iniciales',
-    maxSubsidyCLP: 45000000,
-    subsidyFormatted: '$45.000.000 CLP ($25M Fase 1 + $20M Fase 2)',
+    badge: 'Hasta $25M • Empresas de hasta 36 meses con primeras ventas',
+    maxSubsidyCLP: 25000000,
+    subsidyFormatted: '$25.000.000 CLP ($28.333.334 si lo lidera una mujer)',
     maxCoFinancePct: 75,
     femaleBonusPct: 10,
     beneficiaryTypes: ['spa', 'srl', 'eirl', 'sa'],
-    salesRequirement: 'Ventas de la solución entre $100.000 y $60.000.000 CLP durante los 12 meses anteriores a la postulación.',
+    salesRequirement: 'Empresa con hasta 36 meses de inicio de actividades, ventas del producto de al menos $100.000 y ventas totales de hasta $80.000.000 en 12 meses.',
     salesBracketsEligible: ['menor_60m', 'micro_200_a_2400uf'],
-    trlRange: 'TRL 6 a TRL 8 (MVP ya validado con primeras transacciones comerciales)',
+    trlRange: 'Producto validado con primeras ventas, listo para escalar',
     trlEligible: ['mvp_validado', 'primeras_ventas'],
     requiresInnovation: true,
     requiresCommercialValidation: true,
-    status: 'Abierto',
+    status: 'Próxima Convocatoria',
     callStatus: 'por_confirmar',
     closeDate: null,
-    lastVerified: '2026-10-19',
-    callSchedule: 'Convocatorias nacionales anuales (Abril - Mayo y Octubre)',
-    summary: 'Para emprendimientos innovadores que ya cuenten con primeras ventas y busquen despegar comercialmente a nivel nacional y acelerar su expansión hacia mercados extranjeros.',
-    description: 'Etapa 1 entrega hasta $25.000.000 CLP (75% cofinanciamiento o hasta 85% para empresas de mujeres) y tras validar crecimiento en ventas, permite acceder a Etapa 2 por hasta $20.000.000 CLP adicionales.',
+    lastVerified: '2026-10-21',
+    callSchedule: 'Convocatoria nacional (2026: enero a febrero) y convocatorias regionales',
+    summary: 'Subsidio para emprendimientos innovadores con primeras ventas que buscan escalar su negocio.',
+    description: 'Cofinancia mentoría o aceleración (obligatoria), prospección comercial, marketing, certificaciones, propiedad intelectual y equipo de trabajo. Algunas regiones incluyen una segunda etapa de hasta $20.000.000.',
     evaluationCriteria: [
-      {
-        name: 'Tracción Comercial y Potencial de Escalamiento',
-        weight: 40,
-        description: 'Ventas demostradas de la innovación, pipeline de clientes, estrategia de crecimiento B2B o B2C y escalabilidad internacional.'
-      },
-      {
-        name: 'Grado de Novedad y Barreras de Entrada',
-        weight: 30,
-        description: 'Diferenciación frente a competidores directos e indirectos, ventajas competitivas sostenibles y defensibilidad del modelo.'
-      },
-      {
-        name: 'Equipo de Ejecución y Plan Operativo',
-        weight: 30,
-        description: 'Habilidades comerciales y técnicas del equipo fundador, metodología de prospección y coherencia del presupuesto.'
-      }
+      { name: 'Innovación', weight: 40, description: 'Relevancia del problema y grado de innovación de la propuesta de valor frente a la competencia.' },
+      { name: 'Escalabilidad', weight: 30, description: 'Mercado, modelo de negocio, tracción y plan para escalar.' },
+      { name: 'Equipo', weight: 30, description: 'Capacidad, experiencia y compromiso del equipo.' }
     ],
     eligibleExpenses: [
-      'Estrategia de ventas, marketing de performance, captación y onboarding de clientes.',
-      'Mejoras técnicas del producto basadas en feedback de usuarios reales.',
-      'Contratación de ejecutivos comerciales, desarrolladores y especialistas de producto.',
-      'Participación en ferias internacionales de negocios y misiones de prospección comercial.',
-      'Certificaciones de seguridad, homologaciones de producto y empaquetamiento comercial.'
+      'Mentoría, incubación o aceleración (obligatoria).',
+      'Prospección comercial, marketing y difusión.',
+      'Certificaciones y propiedad intelectual.',
+      'Equipo de trabajo (socios: hasta $700.000 mensuales, máximo 2) y arriendos críticos.',
+      'Activos (máximo 20% del subsidio).'
     ],
     ineligibleExpenses: [
-      'Adquisición de vehículos de transporte general.',
-      'Pago de dividendos a socios o retiro de utilidades.',
-      'Deudas previas o intereses bancarios.',
-      'Impuestos recuperables (IVA).'
+      'Compra de inmuebles o vehículos.',
+      'Remuneración de socios preexistentes con cargo al subsidio (solo con aportes).',
+      'IVA.'
     ],
     requiredDocuments: [
-      'Carpeta Tributaria Electrónica SII con registro de facturación de los últimos 24 meses.',
-      'Certificado de Registro de Empresas y Sociedades (Vigencia y Estatuto).',
-      'Facturas de venta electrónicas o boletas que acrediten las ventas mínimas exigidas.',
-      'Certificado de Deuda Tributaria TGR sin morosidades.',
-      'Pitch Deck en video (máximo 3 minutos según especificaciones de Corfo).'
+      'Formulario de postulación en línea (sin adjuntos externos).',
+      'Video de máximo 40 segundos (requisito de admisibilidad).',
+      'Resolución del Sello 40 horas, si corresponde.'
     ],
     corfoAccountsBudget: [
-      { account: 'Recursos Humanos', description: 'Equipo comercial, desarrollo y operaciones.', maxPct: 50 },
-      { account: 'Gastos de Operación', description: 'Campaña de marketing, ventas, SaaS, prospección nacional/internacional.', maxPct: 70 },
-      { account: 'Gastos de Inversión', description: 'Herramientas y equipamiento productivo indispensable.', maxPct: 20 },
-      { account: 'Gastos de Administración', description: 'Gestión contable y rendición de cuentas.', maxPct: 10 }
+      { account: 'Recursos Humanos', description: 'Equipo del proyecto.' },
+      { account: 'Gastos de Operación', description: 'Mentoría, marketing, prospección, certificaciones.' },
+      { account: 'Gastos de Inversión', description: 'Activos.', maxPct: 20 },
+      { account: 'Gastos de Administración', description: 'Gestión y garantías.' }
     ]
   },
   {
     id: 'corfo_crea_valida',
-    name: 'CORFO Crea y Valida I+D+i',
+    name: 'CORFO Crea y Valida',
     agency: 'CORFO',
     category: 'I+D+i y Tecnológico',
-    badge: 'Hasta $180M CLP • I+D Empresarial y Prototipos',
+    badge: 'Hasta $180M ($220M colaborativo) • Empresas de 24+ meses con ventas',
     maxSubsidyCLP: 180000000,
-    subsidyFormatted: 'Hasta $180.000.000 CLP (Proyectos colaborativos) / $100M Individual',
-    maxCoFinancePct: 70, // 40% a 70% según tamaño empresa (micro/pequeña hasta 70%)
+    subsidyFormatted: 'Hasta $180.000.000 (individual) / $220.000.000 (colaborativo)',
+    maxCoFinancePct: 80,
     femaleBonusPct: 10,
-    beneficiaryTypes: ['spa', 'srl', 'sa', 'eirl'],
-    salesRequirement: 'Personas jurídicas con al menos 18 a 24 meses de inicio de actividades con ventas demostradas en 1ª categoría.',
-    salesBracketsEligible: ['micro_200_a_2400uf', 'pequena_2400_a_25000uf', 'mediana_25000_a_100000uf', 'grande_mayor_100000uf'],
-    trlRange: 'TRL 3 a TRL 7 (De hipótesis tecnológica a prototipo validado en entorno real)',
+    beneficiaryTypes: ['spa', 'srl', 'eirl', 'sa'],
+    salesRequirement: 'Empresa con al menos 24 meses de inicio de actividades en primera categoría y ventas en los últimos 24 meses.',
+    salesBracketsEligible: ['menor_60m', 'micro_200_a_2400uf', 'pequena_2400_a_25000uf', 'mediana_25000_a_100000uf', 'grande_mayor_100000uf'],
+    trlRange: 'Desde prototipo (etapa CREA) hasta validación a escala productiva o comercial (etapa VALIDA)',
     trlEligible: ['prototipo_lab', 'mvp_validado', 'primeras_ventas'],
     requiresInnovation: true,
     requiresCommercialValidation: false,
-    status: 'Ventanilla Abierta',
+    status: 'Próxima Convocatoria',
     callStatus: 'por_confirmar',
     closeDate: null,
-    lastVerified: '2026-10-19',
-    callSchedule: 'Llamados temáticos (Sostenibilidad, Hidrógeno Verde, IA) y Ventanilla Abierta I+D',
-    summary: 'Subsidio para apoyar proyectos de I+D+i que resuelvan un desafío tecnológico o productivo de alta incertidumbre, mediante el desarrollo o validación de nuevos productos, procesos o servicios.',
-    description: 'Permite a las empresas financiar el desarrollo experimental, pruebas en entornos simulados o reales, contratación de entidades colaboradoras (universidades o centros de I+D) y empaquetamiento tecnológico.',
+    lastVerified: '2026-10-21',
+    callSchedule: 'Fase 1 (perfil obligatorio) y fase 2 (postulación); en 2026 hubo convocatorias nacionales y regionales',
+    summary: 'Cofinancia proyectos de I+D que desarrollan nuevos o mejorados productos, procesos o servicios, desde prototipo hasta validación técnica y comercial a escala.',
+    description: 'Dos etapas obligatorias: CREA (desarrollo desde prototipo) y VALIDA (validación a escala productiva o comercial). Modalidad individual o colaborativa (con entidades de I+D que reciben al menos 30% del costo). El % de subsidio depende del tamaño: 80% micro y pequeña, 60% mediana, 40% grande.',
     evaluationCriteria: [
-      {
-        name: 'Mérito Innovador y Desafío Tecnológico (I+D)',
-        weight: 40,
-        description: 'Grado de incertidumbre científica/tecnológica, novedad respecto al estado del arte internacional y metodología experimental.'
-      },
-      {
-        name: 'Modelo de Negocio e Impacto Económico/Ambiental',
-        weight: 30,
-        description: 'Potencial de retorno de la inversión, mercado objetivo, impacto en productividad y sostenibilidad.'
-      },
-      {
-        name: 'Capacidades de I+D del Postulante y Entidades Colaboradoras',
-        weight: 30,
-        description: 'Infraestructura, investigadores calificados, plan de trabajo e hitos de validación técnica.'
-      }
+      { name: 'Problema: diagnóstico', weight: 10, description: 'Claridad y respaldo del problema, desafío u oportunidad.' },
+      { name: 'Mercado objetivo', weight: 10, description: 'Definición y tamaño del mercado objetivo o potencial.' },
+      { name: 'Solución: metodología', weight: 20, description: 'Calidad y coherencia de la metodología para desarrollar y validar la solución.' },
+      { name: 'Solución: grado de novedad y diferenciación', weight: 10, description: 'Novedad frente al estado del arte y la competencia.' },
+      { name: 'Solución: actividades de I+D', weight: 10, description: 'Peso de la I+D en el costo total (30% o más = nota 5).' },
+      { name: 'Introducción al mercado: impacto', weight: 10, description: 'Impacto económico o productivo esperado.' },
+      { name: 'Introducción al mercado: escalabilidad', weight: 10, description: 'Potencial de escalar y llegar al mercado.' },
+      { name: 'Capacidades de beneficiario, asociados y entidades', weight: 20, description: 'Capacidades técnicas y de gestión del equipo y las entidades participantes.' }
     ],
     eligibleExpenses: [
-      'Investigadores, ingenieros y personal técnico con dedicación al proyecto.',
-      'Servicios de I+D contratados a Universidades, Centros Tecnológicos o laboratorios certificados.',
-      'Materiales, reactivos químicos, componentes de hardware y prototipado.',
-      'Ensayos de campo, validación en condiciones reales y licenciamiento previo.',
-      'Protección de propiedad intelectual (patentes de invención INAPI / PCT).'
+      'Actividades de I+D, integración tecnológica, prototipado y validación.',
+      'Equipos, materiales e insumos (inversión máximo 30% del subsidio).',
+      'Entidades colaboradoras de I+D, certificaciones y propiedad intelectual.',
+      'Escalamiento, validación comercial, marketing y softlanding.',
+      'Formulación externa (micro y pequeñas, hasta $2.500.000) y costos de garantías.'
     ],
     ineligibleExpenses: [
-      'Costos de producción industrial a gran escala una vez validado el prototipo.',
-      'Gastos corrientes no científicos de la empresa.',
-      'Impuestos recuperables (IVA).'
+      'Inmuebles.',
+      'Gastos de administración sobre 10% del subsidio.',
+      'Subcontratación por parte de las entidades colaboradoras.',
+      'IVA recuperable.'
     ],
     requiredDocuments: [
-      'Carpeta Tributaria Electrónica SII (últimos 24 meses).',
-      'Certificado de Estatuto Actualizado y personería vigente del representante legal.',
-      'Carta de Manifestación de Interés / Patrocinio de entidades asociadas (si aplica colaborativo).',
-      'Certificado de no tener deudas tributarias ni previsionales.',
-      'Memoria Técnica de I+D y Estado del Arte.'
+      'Perfil de proyecto (fase 1, obligatorio).',
+      'Formulario de postulación completo con presupuesto (fase 2).',
+      'Transcripción del objeto social.',
+      'Acreditación de ventas de los últimos 24 meses.',
+      'Si es colaborativo: antecedentes de las entidades colaboradoras.'
     ],
     corfoAccountsBudget: [
-      { account: 'Recursos Humanos I+D', description: 'Investigadores, ingenieros y desarrolladores principales.', maxPct: 50 },
-      { account: 'Gastos de Operación y Ensayos', description: 'Ensayos de laboratorio, insumos, pruebas de estrés y software científico.', maxPct: 60 },
-      { account: 'Gastos de Inversión Tecnológica', description: 'Instrumental científico o equipamiento especializado de testeo.', maxPct: 40 },
-      { account: 'Entidades Expertas Contratadas', description: 'Servicios de I+D con universidades o centros tecnológicos.', maxPct: 40 }
+      { account: 'Recursos Humanos', description: 'Equipo de trabajo del proyecto.' },
+      { account: 'Gastos de Operación', description: 'I+D, prototipos, entidades colaboradoras, validación y escalamiento.' },
+      { account: 'Gastos de Inversión', description: 'Equipos y activos.', maxPct: 30 },
+      { account: 'Gastos de Administración', description: 'Gestión y garantías.', maxPct: 10 }
     ]
   },
   {
@@ -209,124 +183,129 @@ export const CHILEAN_FUNDS: ChileanFund[] = [
     name: 'CORFO Súmate a Innovar',
     agency: 'CORFO',
     category: 'I+D+i y Tecnológico',
-    badge: 'Hasta $15M CLP • Resolución rápida de desafíos',
-    maxSubsidyCLP: 15000000,
-    subsidyFormatted: '$15.000.000 CLP (Hasta 80% cofinanciamiento)',
+    badge: 'Hasta $10M • Innovar con una universidad o centro tecnológico',
+    maxSubsidyCLP: 10000000,
+    subsidyFormatted: '$10.000.000 CLP ($11.250.000 si lo lidera una mujer)',
     maxCoFinancePct: 80,
     femaleBonusPct: 10,
-    beneficiaryTypes: ['spa', 'srl', 'sa', 'eirl'],
-    salesRequirement: 'Empresas con al menos 1 año de inicio de actividades y ventas en el último año.',
-    salesBracketsEligible: ['micro_200_a_2400uf', 'pequena_2400_a_25000uf', 'mediana_25000_a_100000uf'],
-    trlRange: 'TRL 3 a TRL 6 (Desarrollo rápido de soluciones o prototipos a desafíos internos)',
-    trlEligible: ['prototipo_lab', 'mvp_validado'],
+    beneficiaryTypes: ['persona_natural', 'spa', 'srl', 'eirl', 'sa'],
+    salesRequirement: 'Persona natural o empresa con al menos 24 meses de inicio de actividades en primera categoría y ventas en los últimos 24 meses.',
+    salesBracketsEligible: ['menor_60m', 'micro_200_a_2400uf', 'pequena_2400_a_25000uf', 'mediana_25000_a_100000uf', 'grande_mayor_100000uf'],
+    trlRange: 'Empresas en operación que quieren resolver un problema de productividad o competitividad',
+    trlEligible: ['mvp_validado', 'primeras_ventas', 'escalamiento_global'],
     requiresInnovation: true,
     requiresCommercialValidation: false,
     status: 'Próxima Convocatoria',
     callStatus: 'por_confirmar',
     closeDate: null,
-    lastVerified: '2026-10-19',
-    callSchedule: 'Llamados regulares con foco en reactivación sostenible y economía circular',
-    summary: 'Para empresas que necesiten resolver un problema o desafío productivo mediante la vinculación con entidades expertas o desarrollo de una solución innovadora ágil.',
-    description: 'Financia hasta el 80% del proyecto con un tope de $15M CLP en un plazo de ejecución de hasta 6 meses. Es el fondo ideal para pymes que dan su primer paso en innovación tecnológica.',
+    lastVerified: '2026-10-21',
+    callSchedule: 'Convocatorias regionales y temáticas (2026: varias regiones, mujeres, economía circular)',
+    summary: 'Para empresas que nunca han innovado: financia contratar a una universidad, centro de investigación o empresa tecnológica para resolver un problema de productividad o competitividad.',
+    description: 'Solo financia la contratación de 1 o 2 entidades colaboradoras (cuenta Gastos de Operación). Hasta 80% micro y pequeña, 70% mediana, 40% grande. Duración de hasta 6 meses.',
     evaluationCriteria: [
-      {
-        name: 'Relevancia del Desafío y Solución Propuesta',
-        weight: 45,
-        description: 'Claridad en la definición del cuello de botella productivo y potencial de la solución para resolverlo.'
-      },
-      {
-        name: 'Capacidad Técnica y Entidad Colaboradora',
-        weight: 30,
-        description: 'Idoneidad de la entidad contratada o del equipo técnico a cargo.'
-      },
-      {
-        name: 'Impacto en la Empresa y Eficiencia',
-        weight: 25,
-        description: 'Mejora proyectada en márgenes, costos, tiempos o reducción de huella ambiental.'
-      }
+      { name: 'Problema: diagnóstico', weight: 15, description: 'Claridad y respaldo del problema o desafío de la empresa.' },
+      { name: 'Problema: potencial', weight: 10, description: 'Potencial de la oportunidad si se resuelve el problema.' },
+      { name: 'Solución: metodología', weight: 20, description: 'Servicios, plan de trabajo y presupuesto con la entidad colaboradora.' },
+      { name: 'Solución: impacto', weight: 15, description: 'Efecto esperado en productividad o competitividad.' },
+      { name: 'Solución: novedad y diferenciación', weight: 15, description: 'Qué tan nueva es la solución para la empresa y su mercado.' },
+      { name: 'Capacidades del beneficiario', weight: 5, description: 'Capacidad de la empresa para implementar los resultados.' },
+      { name: 'Capacidades de la entidad colaboradora', weight: 20, description: 'Experiencia, infraestructura y equipo de I+D de la entidad colaboradora.' }
     ],
     eligibleExpenses: [
-      'Contratación de entidades expertas (universidades, consultores de ingeniería, software houses).',
-      'Prototipado ágil y pruebas piloto en faena o planta.',
-      'Materiales e insumos específicos para la solución.',
-      'Rendición de cuentas y gestión del proyecto.'
+      'Contratación de 1 o 2 entidades colaboradoras para resolver el desafío.',
+      'Costos financieros de garantías y anticipos.',
+      'Viajes nacionales justificados.'
     ],
     ineligibleExpenses: [
-      'Maquinaria estándar de mercado no vinculada al prototipo.',
-      'Gastos operacionales comunes de la empresa.',
-      'Impuestos (IVA).'
+      'Equipos.',
+      'Software comercial estándar.',
+      'Consultoría de negocios estándar.',
+      'Certificaciones y capacitación organizacional.'
     ],
     requiredDocuments: [
-      'Carpeta Tributaria SII últimos 12 meses.',
-      'Estatutos de la sociedad vigentes.',
-      'Cotización y propuesta técnica de la entidad colaboradora (si aplica).'
+      'Formulario en línea con planillas y anexos.',
+      'Transcripción del objeto social.',
+      'Antecedentes y currículum del equipo de la entidad colaboradora.'
     ],
     corfoAccountsBudget: [
-      { account: 'Entidad Experta / Servicios Técnicos', description: 'Consultoría especializada de ingeniería o software.', maxPct: 70 },
-      { account: 'Gastos de Operación y Materiales', description: 'Insumos y desarrollo directo.', maxPct: 40 },
-      { account: 'Recursos Humanos', description: 'Coordinador de proyecto interno de la empresa.', maxPct: 30 }
+      { account: 'Gastos de Operación', description: 'Contratación de las entidades colaboradoras, garantías y viajes.' }
+    ]
+  },
+  {
+    id: 'startup_chile_build',
+    name: 'Start-Up Chile Build',
+    agency: 'START-UP CHILE',
+    category: 'Capital Semilla',
+    badge: '$15M • Pre-aceleración tecnológica • 90% de cofinanciamiento',
+    maxSubsidyCLP: 15000000,
+    subsidyFormatted: '$15.000.000 CLP',
+    maxCoFinancePct: 90,
+    beneficiaryTypes: ['sin_iniciar', 'persona_natural', 'spa', 'srl', 'eirl', 'sa'],
+    salesRequirement: 'Emprendimientos de base tecnológica en etapa temprana (idea validada a prototipo).',
+    salesBracketsEligible: ['sin_ventas', 'menor_60m'],
+    trlRange: 'Idea validada hasta prototipo inicial',
+    trlEligible: ['idea_concepto', 'prototipo_lab'],
+    requiresInnovation: true,
+    requiresCommercialValidation: false,
+    status: 'Próxima Convocatoria',
+    callStatus: 'por_confirmar',
+    closeDate: null,
+    lastVerified: '2026-10-21',
+    callSchedule: 'Dos generaciones al año (revisa startupchile.org)',
+    summary: 'Programa de pre-aceleración de 4 meses para startups tecnológicas en etapa temprana, con $15.000.000 sin cesión de participación.',
+    description: 'Corfo cubre 90% del costo y el equipo 10%. Al menos 50% de las startups seleccionadas son lideradas por mujeres. Se puede extender y pasar a Ignite.',
+    evaluationCriteria: [
+      { name: 'Base tecnológica', weight: 25, description: 'La tecnología es el centro de la solución (ponderación referencial).' },
+      { name: 'Innovación', weight: 25, description: 'Novedad frente a lo existente (ponderación referencial).' },
+      { name: 'Escalabilidad', weight: 25, description: 'Potencial de crecer a nivel global desde Chile (ponderación referencial).' },
+      { name: 'Impacto', weight: 25, description: 'Impacto en Chile y en el mercado (ponderación referencial).' }
+    ],
+    eligibleExpenses: ['Equipo, desarrollo de producto, validación y actividades del programa.'],
+    ineligibleExpenses: ['Pago de deudas y gastos personales.'],
+    requiredDocuments: ['Postulación en línea en startupchile.org.'],
+    corfoAccountsBudget: [
+      { account: 'Recursos Humanos', description: 'Equipo fundador y contrataciones.' },
+      { account: 'Gastos de Operación', description: 'Producto, validación y mercado.' },
+      { account: 'Gastos de Administración', description: 'Gestión y rendiciones.' }
     ]
   },
   {
     id: 'startup_chile_ignite',
-    name: 'Start-Up Chile (Ignite & Build)',
+    name: 'Start-Up Chile Ignite',
     agency: 'START-UP CHILE',
     category: 'Crecimiento y Escalamiento',
-    badge: 'Hasta $25M CLP (Ignite) / $10M (Build) • Equity-Free',
-    maxSubsidyCLP: 25000000,
-    subsidyFormatted: '$25.000.000 CLP (Ignite) / $10.000.000 CLP (Build)',
+    badge: '$30M • Aceleración tecnológica • 80% (90% mujeres)',
+    maxSubsidyCLP: 30000000,
+    subsidyFormatted: '$30.000.000 CLP (extensión posible de $20.000.000)',
     maxCoFinancePct: 80,
     femaleBonusPct: 10,
-    beneficiaryTypes: ['persona_natural', 'spa', 'srl'],
-    salesRequirement: 'Startups tecnológicas sin ventas o con tracción temprana (< 3 años de antigüedad).',
+    beneficiaryTypes: ['sin_iniciar', 'persona_natural', 'spa', 'srl', 'eirl', 'sa'],
+    salesRequirement: 'Startups de base tecnológica con producto funcional y validación temprana, buscando product-market fit.',
     salesBracketsEligible: ['sin_ventas', 'menor_60m', 'micro_200_a_2400uf'],
-    trlRange: 'TRL 3 a TRL 7 (Producto digital o de base tecnológica con proyección global)',
-    trlEligible: ['idea_concepto', 'prototipo_lab', 'mvp_validado', 'primeras_ventas'],
+    trlRange: 'Producto mínimo viable con validación temprana',
+    trlEligible: ['mvp_validado', 'primeras_ventas'],
     requiresInnovation: true,
-    requiresCommercialValidation: false,
-    status: 'Abierto',
+    requiresCommercialValidation: true,
+    status: 'Próxima Convocatoria',
     callStatus: 'por_confirmar',
     closeDate: null,
-    lastVerified: '2026-10-19',
-    callSchedule: '2 batches anuales (Mayo y Noviembre) para startups internacionales y chilenas',
-    summary: 'La aceleradora pública #1 de América Latina. Otorga financiamiento libre de participación accionaria (equity-free), visa de trabajo para fundadores y red global de inversionistas (VCs).',
-    description: 'Build está enfocado en etapas tempranas/prototipo (hasta $10M) e Ignite en startups con producto validado buscando acelerar tracción (hasta $25M con opción a extensión de $25M adicionales en Growth).',
+    lastVerified: '2026-10-21',
+    callSchedule: 'Dos generaciones al año (revisa startupchile.org)',
+    summary: 'Aceleración de 4 meses (ejecución del subsidio en 6) para startups tecnológicas con producto funcional, con $30.000.000 sin cesión de participación.',
+    description: 'Corfo cubre 80% del costo (90% si la líder es mujer). Incluye aceleración, mentorías, espacio de trabajo, red de contactos y visa para fundadores extranjeros.',
     evaluationCriteria: [
-      {
-        name: 'Global Scalability & Market Size',
-        weight: 35,
-        description: 'Capacidad de expandirse rápidamente en América Latina, EE.UU. o Europa; tamaño de mercado global billonario.'
-      },
-      {
-        name: 'Technological Differentiation & Moat',
-        weight: 35,
-        description: 'Algoritmos propietarios, software defensible, efectos de red o innovación en producto que prevenga copias fáciles.'
-      },
-      {
-        name: 'Founding Team Execution Power',
-        weight: 30,
-        description: 'Habilidades técnicas, dedicación full-time de los fundadores, resiliencia y experiencia en el sector.'
-      }
+      { name: 'Base tecnológica', weight: 25, description: 'La tecnología es el centro de la solución (ponderación referencial).' },
+      { name: 'Innovación', weight: 25, description: 'Novedad y ventaja frente a la competencia (ponderación referencial).' },
+      { name: 'Escalabilidad', weight: 25, description: 'Tracción y potencial de crecimiento global (ponderación referencial).' },
+      { name: 'Impacto', weight: 25, description: 'Impacto en el ecosistema chileno (ponderación referencial).' }
     ],
-    eligibleExpenses: [
-      'Sueldos de fundadores y equipo clave de desarrollo / ventas.',
-      'Servidores, infraestructura de nube, herramientas SaaS de IA y analítica.',
-      'Adquisición de usuarios, prospección comercial internacional, viajes de negocios.',
-      'Gastos legales para estructuración en Chile o Delaware (Flip).'
-    ],
-    ineligibleExpenses: [
-      'Compra de vehículos, oficinas o bienes raíces.',
-      'Inversiones pasivas.'
-    ],
-    requiredDocuments: [
-      'Video Pitch en inglés o español de 90 segundos del equipo fundador.',
-      'Perfil de LinkedIn de fundadores.',
-      'Cédula de identidad o Pasaporte.',
-      'Documento de constitución societaria (si ya está constituida).'
-    ],
+    eligibleExpenses: ['Equipo, desarrollo de producto, adquisición de clientes, viajes del programa y propiedad intelectual.'],
+    ineligibleExpenses: ['Pago de deudas y gastos personales.'],
+    requiredDocuments: ['Postulación en línea en startupchile.org.'],
     corfoAccountsBudget: [
-      { account: 'Recursos Humanos Clave', description: 'Dedicación full time de fundadores e ingenieros.', maxPct: 70 },
-      { account: 'Gastos de Operación y Crecimiento', description: 'Cloud, marketing digital, eventos y ventas.', maxPct: 60 }
+      { account: 'Recursos Humanos', description: 'Equipo fundador y contrataciones.' },
+      { account: 'Gastos de Operación', description: 'Producto, mercado y tracción.' },
+      { account: 'Gastos de Administración', description: 'Gestión y rendiciones.' }
     ]
   },
   {
@@ -334,62 +313,52 @@ export const CHILEAN_FUNDS: ChileanFund[] = [
     name: 'SERCOTEC Capital Semilla Emprende',
     agency: 'SERCOTEC',
     category: 'Capital Semilla',
-    badge: 'Hasta $3.5M CLP • Personas sin inicio de actividades',
+    badge: '$3,5M • Para quienes aún no tienen inicio de actividades',
     maxSubsidyCLP: 3500000,
-    subsidyFormatted: '$3.500.000 CLP (No reembolsable)',
-    maxCoFinancePct: 95, // Postulante aporta solo el 5% o 3% en efectivo + IVA
-    beneficiaryTypes: ['persona_natural', 'sin_iniciar'],
-    salesRequirement: 'Exclusivo para personas naturales sin inicio de actividades en primera categoría ante el SII.',
+    subsidyFormatted: '$3.500.000 CLP netos',
+    maxCoFinancePct: 97,
+    beneficiaryTypes: ['sin_iniciar'],
+    salesRequirement: 'Personas naturales mayores de 18 años sin inicio de actividades en primera categoría.',
     salesBracketsEligible: ['sin_ventas'],
-    trlRange: 'TRL 1 a TRL 3 (Idea de negocio o emprendimiento informal)',
-    trlEligible: ['idea_concepto', 'prototipo_lab'],
+    trlRange: 'Idea de negocio o emprendimiento informal por formalizar',
+    trlEligible: ['idea_concepto', 'prototipo_lab', 'mvp_validado'],
     requiresInnovation: false,
     requiresCommercialValidation: false,
     status: 'Próxima Convocatoria',
     callStatus: 'por_confirmar',
     closeDate: null,
-    lastVerified: '2026-10-19',
-    callSchedule: 'Convocatorias anuales entre Marzo y Mayo por región',
-    summary: 'Subsidio no reembolsable del Estado para personas que quieran formalizar un nuevo negocio. Financia plan de inversiones (máquinas) y acciones de gestión empresarial.',
-    description: 'Destinado a emprendedores que desean crear una empresa legal en Chile. Permite destinar hasta $3.300.000 a inversiones (equipos, habilitación) y entre $200.000 y $500.000 a capacitación, marketing y formalización.',
+    lastVerified: '2026-10-21',
+    callSchedule: 'Convocatorias regionales anuales (2026: abril a mayo)',
+    summary: 'Subsidio para personas que quieren iniciar un negocio: financia asesorías, capacitación, marketing, máquinas, equipos y capital de trabajo.',
+    description: 'Entre $200.000 y $500.000 para gestión empresarial y hasta $3.300.000 en inversiones. Aporte del 3% en efectivo. Proceso: test de preselección, formulario de modelo de negocio, video pitch de 90 segundos, visita a terreno y comité regional.',
     evaluationCriteria: [
-      {
-        name: 'Modelo de Negocio Canvas SERCOTEC',
-        weight: 50,
-        description: 'Claridad en propuesta de valor, clientes, canales y estructura de costos.'
-      },
-      {
-        name: 'Viabilidad Técnica y Comercial',
-        weight: 30,
-        description: 'Conocimiento del rubro por parte del emprendedor y factibilidad de ventas.'
-      },
-      {
-        name: 'Presentación en Video Pitch (90 seg)',
-        weight: 20,
-        description: 'Capacidad de comunicación, claridad del mensaje y convencimiento de la oportunidad.'
-      }
+      { name: 'Potencial del proyecto', weight: 20, description: 'Proyección del negocio (comité regional).' },
+      { name: 'Fundamentación de la oportunidad de negocio', weight: 20, description: 'Evidencia de que hay clientes y una necesidad real.' },
+      { name: 'Coherencia y factibilidad técnica', weight: 20, description: 'Que el negocio y las inversiones sean coherentes y realizables.' },
+      { name: 'Orientación al desarrollo sostenible', weight: 10, description: 'Aporte a la economía sostenible.' },
+      { name: 'Coherencia entre la orientación sostenible y las inversiones', weight: 30, description: 'Que las inversiones apoyen la sustentabilidad declarada.' }
     ],
     eligibleExpenses: [
-      'Compra de maquinaria, herramientas productivas y mobiliario de trabajo.',
-      'Habilitación de local comercial o taller de producción.',
-      'Gastos de formalización (notaría, registro de marca en INAPI, obtención de patente municipal).',
-      'Campañas de publicidad, letreros, folletería, sitio web y redes sociales.',
-      'Capacitación técnica y asesoría contable.'
+      'Acciones de gestión empresarial: asesorías, capacitación, marketing y formalización ($200.000 a $500.000).',
+      'Activos fijos e intangibles.',
+      'Habilitación de infraestructura (hasta 30% si arriendas).',
+      'Capital de trabajo (máximo 40% de las inversiones; mercadería máximo 20%).'
     ],
     ineligibleExpenses: [
-      'Pago de arriendos habitacionales particulares.',
-      'Financiamiento de deudas o créditos previos.',
-      'El IVA de las compras (lo paga directamente el emprendedor).'
+      'IVA y otros impuestos recuperables.',
+      'Bienes raíces, vehículos con permiso de circulación.',
+      'Remuneraciones propias, de socios o familiares.',
+      'Consumos básicos (agua, luz, gas, teléfono) y pago de deudas.'
     ],
     requiredDocuments: [
-      'Cédula de Identidad chilena vigente.',
-      'Certificado de no poseer deudas laborales ni previsionales.',
-      'Test de Emprendimiento SERCOTEC aprobado en plataforma web.',
-      'Video Pitch de 90 segundos en formato vertical u horizontal.'
+      'Test de preselección en sercotec.cl.',
+      'Formulario de modelo de negocio (10 ámbitos).',
+      'Estructura de costos.',
+      'Video pitch de hasta 90 segundos.'
     ],
     corfoAccountsBudget: [
-      { account: 'Inversiones en Activos', description: 'Equipamiento, herramientas y habilitación física.', maxPct: 90 },
-      { account: 'Gestión Empresarial', description: 'Marketing, asesorías, capacitación y formalización.', maxPct: 30 }
+      { account: 'Acciones de Gestión Empresarial', description: 'Asesorías, capacitación, marketing y formalización ($200.000 a $500.000).' },
+      { account: 'Inversiones', description: 'Activos, habilitación de infraestructura y capital de trabajo (hasta $3.300.000).' }
     ]
   },
   {
@@ -397,125 +366,102 @@ export const CHILEAN_FUNDS: ChileanFund[] = [
     name: 'SERCOTEC Capital Abeja Emprende',
     agency: 'SERCOTEC',
     category: 'Capital Semilla',
-    badge: 'Hasta $3.5M CLP • Exclusivo Mujeres Emprendedoras',
+    badge: '$3,5M • Exclusivo para mujeres sin inicio de actividades',
     maxSubsidyCLP: 3500000,
-    subsidyFormatted: '$3.500.000 CLP (100% fondo no reembolsable)',
+    subsidyFormatted: '$3.500.000 CLP netos',
     maxCoFinancePct: 97,
-    femaleBonusPct: 10,
-    beneficiaryTypes: ['persona_natural', 'sin_iniciar'],
-    salesRequirement: 'Exclusivo para mujeres mayores de 18 años sin inicio de actividades en 1ª categoría ante el SII.',
+    beneficiaryTypes: ['sin_iniciar'],
+    salesRequirement: 'Mujeres mayores de 18 años sin inicio de actividades en primera categoría.',
     salesBracketsEligible: ['sin_ventas'],
-    trlRange: 'TRL 1 a TRL 3 (Idea de negocio de liderada por mujer)',
-    trlEligible: ['idea_concepto', 'prototipo_lab'],
+    trlRange: 'Idea de negocio o emprendimiento informal por formalizar',
+    trlEligible: ['idea_concepto', 'prototipo_lab', 'mvp_validado'],
     requiresInnovation: false,
     requiresCommercialValidation: false,
     status: 'Próxima Convocatoria',
     callStatus: 'por_confirmar',
     closeDate: null,
-    lastVerified: '2026-10-19',
-    callSchedule: 'Llamados anuales en el primer semestre de cada año',
-    summary: 'Fondo concursable exclusivo para mujeres que buscan liderar y formalizar un negocio propio en cualquier rubro productivo o de servicios.',
-    description: 'Promueve la autonomía económica femenina cofinanciando la compra de activos fijos, insumos, formalización ante SII y marketing para el despegue comercial del emprendimiento.',
+    lastVerified: '2026-10-21',
+    callSchedule: 'Convocatorias regionales anuales (2026: mayo a junio)',
+    summary: 'Subsidio exclusivo para mujeres que quieren iniciar un negocio, con las mismas condiciones que Capital Semilla Emprende.',
+    description: 'Entre $200.000 y $500.000 para gestión empresarial y hasta $3.300.000 en inversiones. Aporte del 3%. El comité regional prioriza comunas definidas y participantes de programas de SernamEG.',
     evaluationCriteria: [
-      {
-        name: 'Plan de Negocio Canvas y Coherencia',
-        weight: 50,
-        description: 'Estructuración de ingresos, propuesta de valor para la clientela y factibilidad.'
-      },
-      {
-        name: 'Motivación y Capacidad Emprendedora',
-        weight: 30,
-        description: 'Compromiso de la postulante, conocimiento del oficio y sostenibilidad en el tiempo.'
-      },
-      {
-        name: 'Pitch de Presentación',
-        weight: 20,
-        description: 'Claridad en la exposición oral del problema y la solución comercial.'
-      }
+      { name: 'Potencial del proyecto', weight: 20, description: 'Proyección del negocio.' },
+      { name: 'Fundamentación de la oportunidad', weight: 15, description: 'Evidencia de clientes y necesidad.' },
+      { name: 'Coherencia y factibilidad técnica', weight: 20, description: 'Negocio e inversiones coherentes y realizables.' },
+      { name: 'Viabilidad económica', weight: 15, description: 'Que el negocio pueda sostenerse (visita a terreno).' },
+      { name: 'Estado de desarrollo', weight: 15, description: 'Avance del modelo de negocio (visita a terreno).' },
+      { name: 'Capacidades de la emprendedora', weight: 15, description: 'Experiencia y capacitación (visita a terreno).' }
     ],
     eligibleExpenses: [
-      'Herramientas y maquinaria de trabajo.',
-      'Materia prima e insumos iniciales para producción.',
-      'Diseño de imagen corporativa, packaging, marketing y redes.',
-      'Gastos de inicio de actividades y patente comercial.'
+      'Acciones de gestión empresarial ($200.000 a $500.000).',
+      'Activos fijos e intangibles.',
+      'Habilitación de infraestructura (hasta 30% si arriendas).',
+      'Capital de trabajo (máximo 40% de las inversiones).'
     ],
     ineligibleExpenses: [
-      'Pago de arriendos residenciales.',
-      'Deudas previas.',
-      'Pago de IVA.'
+      'IVA, bienes raíces, vehículos con permiso de circulación.',
+      'Remuneraciones propias o de familiares.',
+      'Consumos básicos y pago de deudas.'
     ],
     requiredDocuments: [
-      'Cédula de Identidad chilena vigente.',
-      'Aprobación del test en línea de SERCOTEC.',
-      'Video Pitch de 90 segundos.'
+      'Test de preselección en sercotec.cl.',
+      'Formulario de modelo de negocio (10 ámbitos).',
+      'Estructura de costos.',
+      'Video pitch de hasta 90 segundos.'
     ],
     corfoAccountsBudget: [
-      { account: 'Activos Fijos e Infraestructura', description: 'Maquinaria y habilitación.', maxPct: 90 },
-      { account: 'Acciones de Gestión', description: 'Capacitación, marketing, formalización.', maxPct: 30 }
+      { account: 'Acciones de Gestión Empresarial', description: 'Asesorías, capacitación, marketing y formalización.' },
+      { account: 'Inversiones', description: 'Activos, habilitación y capital de trabajo.' }
     ]
   },
   {
     id: 'sercotec_crece',
-    name: 'SERCOTEC Crece (Fondo de Desarrollo de Negocios)',
+    name: 'SERCOTEC Crece',
     agency: 'SERCOTEC',
     category: 'Crecimiento y Escalamiento',
-    badge: 'Hasta $5M CLP • Micro y Pequeñas Empresas con Ventas',
+    badge: '$5M • Micro y pequeñas empresas con ventas de 200 a 25.000 UF',
     maxSubsidyCLP: 5000000,
-    subsidyFormatted: '$5.000.000 CLP',
-    maxCoFinancePct: 90,
-    beneficiaryTypes: ['spa', 'srl', 'eirl', 'sa', 'persona_natural'],
-    salesRequirement: 'Empresas con inicio de actividades en 1ª categoría y ventas netas anuales entre 200 y 25.000 UF.',
-    salesBracketsEligible: ['micro_200_a_2400uf', 'pequena_2400_a_25000uf'],
-    trlRange: 'TRL 7 a TRL 9 (Empresas operativas buscando modernización o nuevos canales)',
+    subsidyFormatted: '$5.000.000 CLP netos',
+    maxCoFinancePct: 87,
+    beneficiaryTypes: ['persona_natural', 'spa', 'srl', 'eirl', 'sa'],
+    salesRequirement: 'Empresas con inicio de actividades en primera categoría y ventas netas anuales entre 200 UF y 25.000 UF.',
+    salesBracketsEligible: ['menor_60m', 'micro_200_a_2400uf', 'pequena_2400_a_25000uf'],
+    trlRange: 'Negocio en marcha que quiere crecer',
     trlEligible: ['primeras_ventas', 'escalamiento_global'],
     requiresInnovation: false,
     requiresCommercialValidation: true,
-    status: 'Abierto',
+    status: 'Próxima Convocatoria',
     callStatus: 'por_confirmar',
     closeDate: null,
-    lastVerified: '2026-10-19',
-    callSchedule: 'Convocatorias anuales entre Mayo y Julio a través de direcciones regionales Sercotec',
-    summary: 'Subsidio no reembolsable destinado a potenciar el crecimiento, consolidación y acceso a nuevos mercados de micro y pequeñas empresas chilenas formalizadas.',
-    description: 'Permite financiar inversiones en nuevos activos productivos, digitalización, software de gestión ERP, certificaciones sanitarias/ISO y marketing para consolidar la empresa.',
+    lastVerified: '2026-10-21',
+    callSchedule: 'Convocatorias regionales y sectoriales (2026: abril a junio)',
+    summary: 'Subsidio para que micro y pequeñas empresas crezcan: asesorías, capacitación, marketing, equipos, habilitación y capital de trabajo.',
+    description: 'Hasta $1.000.000 para gestión empresarial y el resto en inversiones. Aporte del 15% del subsidio. Proceso: test, formulario, video de 90 segundos, visita a terreno y comité regional.',
     evaluationCriteria: [
-      {
-        name: 'Potencial de Crecimiento y Aumento de Ventas',
-        weight: 45,
-        description: 'Capacidad de la empresa de generar nuevos ingresos y empleos a partir del proyecto de inversión.'
-      },
-      {
-        name: 'Solidez Financiera y Trayectoria de la Pyme',
-        weight: 35,
-        description: 'Historial de facturación regular reflejado en los F29 del SII y cumplimiento tributario.'
-      },
-      {
-        name: 'Coherencia del Plan de Inversión',
-        weight: 20,
-        description: 'Justificación clara de cada máquina o acción solicitada en el presupuesto.'
-      }
+      { name: 'Potencial del proyecto de negocio', weight: 40, description: 'Cuánto puede crecer el negocio con el proyecto (comité regional).' },
+      { name: 'Fundamentación de la oportunidad de negocio', weight: 20, description: 'Evidencia de la oportunidad y los clientes.' },
+      { name: 'Coherencia y factibilidad del proyecto', weight: 20, description: 'Que las inversiones respondan al objetivo y sean realizables.' },
+      { name: 'Productos con proceso de manufactura', weight: 20, description: 'Valor agregado en la producción.' }
     ],
     eligibleExpenses: [
-      'Adquisición de maquinaria de mayor capacidad productiva o modernización tecnológica.',
-      'Sistemas de gestión de inventario, software de punto de venta e e-commerce.',
-      'Habilitación de infraestructura de locales comerciales o plantas.',
-      'Contratación de asesorías en eficiencia energética, certificaciones o diseño de nuevos productos.',
-      'Capital de trabajo e insumos vinculados al plan de crecimiento (hasta cierto %).'
+      'Gestión empresarial: asesorías, capacitación, marketing (hasta $1.000.000).',
+      'Activos fijos e intangibles, habilitación de infraestructura.',
+      'Capital de trabajo: contrataciones y arriendos nuevos, materias primas.'
     ],
     ineligibleExpenses: [
-      'Gastos de representación, multas o intereses.',
-      'IVA de las facturas de compra.',
-      'Pago de arriendos o sueldos normales de la empresa.'
+      'IVA, bienes raíces, vehículos con patente.',
+      'Pago a consultores por la postulación.',
+      'Consumos básicos y deudas.'
     ],
     requiredDocuments: [
-      'Carpeta Tributaria Electrónica para Solicitar Créditos emitida por el SII con ventas entre 200 y 25.000 UF.',
-      'Certificado de Vigencia de la Persona Jurídica y Estatuto Actualizado.',
-      'Certificado de Deuda Tributaria TGR.',
-      'Certificado de Antecedentes Laborales y Previsionales F30.',
-      'Plan de Trabajo y Cotizaciones de respaldo de las maquinarias a adquirir.'
+      'Test de preselección.',
+      'Formulario de proyecto de negocio y estructura de costos.',
+      'Video pitch de hasta 90 segundos.',
+      'Carpeta Tributaria para Solicitar Créditos (con los F29).'
     ],
     corfoAccountsBudget: [
-      { account: 'Inversiones en Activos y Equipos', description: 'Maquinarias, obras de infraestructura y tecnología.', maxPct: 80 },
-      { account: 'Gestión Empresarial y Marketing', description: 'Campañas publicitarias, asesorías y desarrollo de canales.', maxPct: 30 }
+      { account: 'Acciones de Gestión Empresarial', description: 'Asesorías, capacitación y marketing (hasta $1.000.000).' },
+      { account: 'Inversiones', description: 'Activos, habilitación y capital de trabajo.' }
     ]
   },
   {
@@ -523,124 +469,107 @@ export const CHILEAN_FUNDS: ChileanFund[] = [
     name: 'ANID Fondef IDeA I+D',
     agency: 'ANID',
     category: 'I+D+i y Tecnológico',
-    badge: 'Hasta $200M CLP • Ciencia Aplicada & Transferencia Tecnológica',
-    maxSubsidyCLP: 200000000,
-    subsidyFormatted: 'Hasta $200.000.000 CLP',
-    maxCoFinancePct: 80,
-    beneficiaryTypes: ['spa', 'srl', 'sa'],
-    salesRequirement: 'Empresas asociadas a universidades o centros de investigación, con o sin ventas previas.',
+    badge: 'Hasta $227,7M • Tu empresa participa asociada a una universidad',
+    maxSubsidyCLP: 227700000,
+    subsidyFormatted: 'Hasta $227.700.000 CLP (24 meses)',
+    maxCoFinancePct: 69,
+    beneficiaryTypes: ['spa', 'srl', 'eirl', 'sa'],
+    salesRequirement: 'Postula una universidad o centro de I+D sin fines de lucro; las empresas participan como entidades asociadas que aportan al menos 15% del subsidio.',
     salesBracketsEligible: ['sin_ventas', 'menor_60m', 'micro_200_a_2400uf', 'pequena_2400_a_25000uf', 'mediana_25000_a_100000uf', 'grande_mayor_100000uf'],
-    trlRange: 'TRL 2 a TRL 4 (Hipótesis científica a prueba de concepto validada en laboratorio)',
-    trlEligible: ['idea_concepto', 'prototipo_lab'],
+    trlRange: 'Resultados previos de I+D (TRL 2 cumplido) hacia una solución validada',
+    trlEligible: ['idea_concepto', 'prototipo_lab', 'mvp_validado', 'primeras_ventas', 'escalamiento_global'],
     requiresInnovation: true,
     requiresCommercialValidation: false,
     status: 'Próxima Convocatoria',
     callStatus: 'por_confirmar',
     closeDate: null,
-    lastVerified: '2026-10-19',
-    callSchedule: 'Convocatoria anual (Octubre a Enero) del Ministerio de Ciencia, Tecnología, Conocimiento e Innovación',
-    summary: 'Para proyectos de investigación científica y tecnológica con potencial de aplicación comercial que cuenten con una empresa contraparte interesada en la transferencia.',
-    description: 'El fondo busca transformar descubrimientos científicos en soluciones tecnológicas viables con la participación activa de empresas interesadas en licenciar o adoptar los desarrollos.',
+    lastVerified: '2026-10-21',
+    callSchedule: 'Concurso anual (la convocatoria 2026 cerró en septiembre de 2025)',
+    summary: 'Financia proyectos de investigación aplicada de universidades y centros de I+D, con empresas asociadas que aportan y aprovechan los resultados.',
+    description: 'La institución beneficiaria aporta al menos 30% y las asociadas al menos 15% del subsidio. Tu empresa no recibe el subsidio, pero participa en el proyecto y en la transferencia de resultados.',
     evaluationCriteria: [
-      {
-        name: 'Calidad Científica y Tecnológica',
-        weight: 40,
-        description: 'Rigor metodológico, formulación de la hipótesis y novedad respecto al estado del arte internacional.'
-      },
-      {
-        name: 'Potencial de Transferencia Tecnológica y Negocio',
-        weight: 35,
-        description: 'Estrategia de propiedad intelectual, rol de la empresa asociada y modelo de explotación comercial.'
-      },
-      {
-        name: 'Capacidad del Equipo de Investigación',
-        weight: 25,
-        description: 'Publicaciones previas, patentes y trayectoria del director del proyecto y de la contraparte empresarial.'
-      }
+      { name: 'Capítulo 1: relevancia del problema, oportunidad y solución', weight: 50, description: 'Problema, solidez de la solución y TRL, mercado objetivo, impactos, mapa de ruta, estado del arte y resultados previos.' },
+      { name: 'Capítulo 2: plan de trabajo, resultados esperados y capacidades', weight: 50, description: 'Objetivos, metodología, hitos con indicadores, colaboración, propiedad intelectual, coherencia de presupuesto y Gantt, y experiencia del equipo.' }
     ],
     eligibleExpenses: [
-      'Honorarios de investigadores principales, postdoctorados y técnicos de laboratorio.',
-      'Equipamiento científico especializado.',
-      'Reactivos, materiales y suministros de laboratorio.',
-      'Ensayos analíticos y publicaciones.',
-      'Protección de propiedad intelectual.'
+      'Personal (honorarios, remuneraciones, pago adicional hasta $600.000 mensuales).',
+      'Equipamiento e infraestructura (infraestructura hasta 20%).',
+      'Gastos de operación: insumos, software, difusión, propiedad intelectual, viajes.',
+      'Gastos de administración indirectos (hasta 15% del subsidio).'
     ],
     ineligibleExpenses: [
-      'Gastos comerciales ajenos a la investigación.',
-      'Costos indirectos que superen el tope reglamentario.'
+      'Pagos a entidades asociadas o colaboradoras.',
+      'Finiquitos, vacaciones, indemnizaciones y becas.'
     ],
     requiredDocuments: [
-      'Carta de Compromiso de la Empresa Beneficiaria Asociada.',
-      'Memoria de I+D y Estado del Arte.',
-      'Currículum Vitae estandarizado de los investigadores.',
-      'Presupuesto analítico y justificación de gastos.'
+      'Formulario oficial (capítulos 1 y 2) y planilla de costos.',
+      'Cartas de compromiso de beneficiarias y asociadas.',
+      'Presentación en PDF y currículum del equipo en el Portal del Investigador.'
     ],
     corfoAccountsBudget: [
-      { account: 'Personal de I+D', description: 'Investigadores y personal de apoyo.', maxPct: 60 },
-      { account: 'Equipamiento', description: 'Instrumental de laboratorio.', maxPct: 30 },
-      { account: 'Operación y Materiales', description: 'Reactivos, suministros y servicios analíticos.', maxPct: 40 }
+      { account: 'Gastos en personal', description: 'Equipo de investigación.' },
+      { account: 'Equipamiento e infraestructura', description: 'Equipos y adecuaciones (infraestructura máx. 20%).' },
+      { account: 'Gastos de operación', description: 'Insumos, software, difusión, PI y viajes.' },
+      { account: 'Gastos de administración indirectos', description: 'Costos indirectos de la institución.', maxPct: 15 }
     ]
   },
   {
     id: 'fia_innovacion_agro',
-    name: 'FIA - Proyectos de Innovación Agroalimentaria',
+    name: 'FIA Proyectos de Innovación de Interés Privado',
     agency: 'FIA',
     category: 'Innovación Agro / Sostenible',
-    badge: 'Hasta $100M CLP • Foco Agro, Agua y Cambio Climático',
-    maxSubsidyCLP: 100000000,
-    subsidyFormatted: 'Hasta $100.000.000 CLP (Hasta 70% cofinanciamiento)',
-    maxCoFinancePct: 70,
-    femaleBonusPct: 10,
-    beneficiaryTypes: ['spa', 'srl', 'sa', 'eirl', 'persona_natural'],
-    salesRequirement: 'Productores, agricultores o empresas del sector silvoagroalimentario y de la cadena de valor.',
-    salesBracketsEligible: ['micro_200_a_2400uf', 'pequena_2400_a_25000uf', 'mediana_25000_a_100000uf'],
-    trlRange: 'TRL 4 a TRL 7 (Validación agronómica y tecnológica en campo)',
-    trlEligible: ['prototipo_lab', 'mvp_validado', 'primeras_ventas'],
+    badge: 'Hasta $50M • Mipymes del agro con prueba de concepto (TRL 3 a 5)',
+    maxSubsidyCLP: 50000000,
+    subsidyFormatted: 'Hasta $50.000.000 CLP',
+    maxCoFinancePct: 80,
+    beneficiaryTypes: ['spa', 'srl', 'eirl', 'sa'],
+    salesRequirement: 'Empresas del sector silvoagropecuario o agroalimentario con ventas de hasta 50.000 UF e inicio de actividades en primera categoría.',
+    salesBracketsEligible: ['menor_60m', 'micro_200_a_2400uf', 'pequena_2400_a_25000uf', 'mediana_25000_a_100000uf'],
+    trlRange: 'Prueba de concepto validada (TRL 3) hacia validación en entorno relevante (TRL 5)',
+    trlEligible: ['prototipo_lab', 'mvp_validado', 'primeras_ventas', 'escalamiento_global'],
     requiresInnovation: true,
     requiresCommercialValidation: false,
-    status: 'Ventanilla Abierta',
+    status: 'Próxima Convocatoria',
     callStatus: 'por_confirmar',
     closeDate: null,
-    lastVerified: '2026-10-19',
-    callSchedule: 'Llamados anuales del Ministerio de Agricultura (Mayo a Julio)',
-    summary: 'Financia soluciones innovadoras ante los desafíos del sector silvoagroalimentario: eficiencia en el uso de agua, adaptación al cambio climático y agroecología.',
-    description: 'Apoya el desarrollo de nuevos cultivos, bioinsumos, robótica agrícola, sensores de humedad y tecnologías para transformar la productividad en el campo chileno.',
+    lastVerified: '2026-10-21',
+    callSchedule: 'Convocatoria nacional anual (2026: mayo a junio)',
+    summary: 'Cofinancia el desarrollo y la validación temprana de tecnologías para el sector silvoagropecuario y agroalimentario.',
+    description: 'FIA aporta hasta 80% del costo (máximo $50.000.000) y la contraparte al menos 20%. Debe responder a un lineamiento: recursos hídricos, sanidad, recursos forestales o mercados agroalimentarios. Incluye un pitch de 5 minutos en la admisión.',
     evaluationCriteria: [
-      {
-        name: 'Impacto Agronómico y Sostenibilidad Hídrica',
-        weight: 40,
-        description: 'Capacidad de reducir consumo de agua o agroquímicos y generar resiliencia climática.'
-      },
-      {
-        name: 'Grado de Innovación en el Sector',
-        weight: 35,
-        description: 'Diferenciación frente a prácticas agrícolas tradicionales.'
-      },
-      {
-        name: 'Viabilidad de Difusión y Adopción en Productores',
-        weight: 25,
-        description: 'Plan de transferencia técnica y adopción masiva por pequeños y medianos agricultores.'
-      }
+      { name: 'Problema u oportunidad', weight: 7.5, description: 'Pertinencia y relevancia para el sector (evaluación individual).' },
+      { name: 'Mérito científico-tecnológico', weight: 15, description: 'Coherencia solución-problema, novedad e incertidumbre tecnológica (evaluación individual).' },
+      { name: 'Calidad científico-técnica', weight: 12.5, description: 'Objetivos, metodología, diseño experimental y avance de TRL (evaluación individual).' },
+      { name: 'Diferenciación competitiva', weight: 5, description: 'Potencial de aplicación productiva y proyección (evaluación individual).' },
+      { name: 'Capacidades del equipo', weight: 5, description: 'Experiencia en I+D y capacidad de gestión (evaluación individual).' },
+      { name: 'Costos', weight: 5, description: 'Pertinencia del aporte FIA y de la contraparte (evaluación individual).' },
+      { name: 'Mérito innovador estratégico', weight: 20, description: 'Novedad a nivel nacional e incertidumbre tecnológica (comité estratégico).' },
+      { name: 'Potencial de impacto competitivo', weight: 20, description: 'Fortalecimiento del sector y nuevas oportunidades (comité estratégico).' },
+      { name: 'Pertinencia del financiamiento público', weight: 10, description: 'Por qué se justifica apoyo público en esta etapa (comité estratégico).' }
     ],
     eligibleExpenses: [
-      'Ensayos en predios piloto y campos experimentales.',
-      'Sensores IoT, sistemas de telemetría de riego y sondas de suelo.',
-      'Especialistas en agronomía, biotecnología y fitopatología.',
-      'Talleres de difusión técnica y días de campo con agricultores.'
+      'Recursos humanos (personal de planta con topes anuales).',
+      'Equipamiento e infraestructura menor.',
+      'Materiales, insumos, viáticos, difusión y gastos generales.',
+      'Servicios de terceros (hasta 70% del aporte FIA).',
+      'Imprevistos (hasta 5% del aporte FIA).'
     ],
     ineligibleExpenses: [
-      'Compra de predios o terrenos agrícolas.',
-      'Sistemas de riego tradicionales sin componente innovador.'
+      'Inmuebles y bienes de capital no determinantes.',
+      'Deudas, acciones, multas, depreciación de vehículos.',
+      'IVA recuperable.'
     ],
     requiredDocuments: [
-      'Acreditación de dominio o arriendo a largo plazo del predio de ensayo.',
-      'Carpeta Tributaria SII de la empresa agropecuaria.',
-      'Certificado de vigencia de la sociedad.'
+      'Formulario de postulación y memoria de cálculo FIA.',
+      'Certificado de vigencia y Carpeta Tributaria para solicitar crédito.',
+      'Declaración jurada de ventas, cartas de compromiso, currículum, evidencia de TRL y presentación del pitch.'
     ],
     corfoAccountsBudget: [
-      { account: 'Recursos Humanos y Asesores de Campo', description: 'Agrónomos y personal de monitoreo.', maxPct: 50 },
-      { account: 'Gastos de Operación y Ensayos', description: 'Insumos biológicos, análisis de laboratorio y software.', maxPct: 60 },
-      { account: 'Equipamiento Piloto', description: 'Sensores y tecnología instalada en predio.', maxPct: 30 }
+      { account: 'Recursos humanos', description: 'Equipo técnico.' },
+      { account: 'Equipamiento e infraestructura menor', description: 'Equipos menores y habilitación.' },
+      { account: 'Materiales, viáticos y difusión', description: 'Operación del proyecto.' },
+      { account: 'Servicios de terceros', description: 'Laboratorios y desarrollos externos.', maxPct: 70 },
+      { account: 'Imprevistos', description: 'Con autorización previa.', maxPct: 5 }
     ]
   }
 ];

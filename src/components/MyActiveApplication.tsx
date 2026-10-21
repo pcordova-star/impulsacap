@@ -1,4 +1,5 @@
-import { REQUIREMENT_GUIDES } from '../data/requirementGuides';
+import { guideFor } from '../data/requirementGuides';
+import { getFundRules, computeRoadmap, coFinancePctFor } from '../data/fundStandards';
 import { consume, onRequest } from '../utils/navFocus';
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
@@ -254,136 +255,75 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
     return () => clearInterval(interval);
   }, [hasFutureCloseDate, selectedFund.closeDate]);
 
-  // Define the 6 sequential steps of the application roadmap
-  // Compute current active step: only ONE step open at a time (first incomplete step)
-  const currentStepNumber = useMemo(() => {
-    const s1Done = isRutValid && confirmedInicioActividades && hasTaxFolder;
-    if (!s1Done) return 1;
+  // Hoja de ruta estándar: los mismos 6 pasos para todos los fondos, con el contenido de sus bases
+  const fundRules = useMemo(() => getFundRules(selectedFund), [selectedFund]);
+  const [localChecks, setLocalChecks] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem(`confirmed_checks_${userKey}_${selectedFund.id}`) || '{}'); } catch { return {}; }
+  });
+  const checks: Record<string, boolean> = { ...localChecks, ...((expediente?.roadmapConfirmations as any)?.checks || {}) };
+  const toggleCheck = (id: string) => {
+    const next = { ...checks, [id]: !checks[id] };
+    onUpdateRoadmapConfirmations?.({ checks: next });
+    setLocalChecks(next);
+    try { localStorage.setItem(`confirmed_checks_${userKey}_${selectedFund.id}`, JSON.stringify(next)); } catch { /* sin almacenamiento */ }
+  };
+  const signedLetters = expediente
+    ? expediente.generatedDocs.filter((d: any) => d.status === 'firmada').length
+    : (profile.customerValidationCount || 0);
 
-    const s2Done = confirmedEstatutoSocial && hasLetters;
-    if (!s2Done) return 2;
+  const runTarget = (target: string) => {
+    if (target === 'sii') return onOpenSiiModal();
+    if (target === 'dossier') return setShowDossierModal(true);
+    if (target === 'guarantees') {
+      setActiveView('guarantees');
+      setTimeout(() => document.getElementById('roadmap-views')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+      return;
+    }
+    if (target.startsWith('url:')) { window.open(target.slice(4), '_blank', 'noopener,noreferrer'); return; }
+    onNavigateTab(target);
+  };
 
-    const s3Done = hasFormulation;
-    if (!s3Done) return 3;
+  const roadmap = useMemo(() => computeRoadmap({
+    fund: selectedFund,
+    profile: { ...profile, rut: activeRut },
+    rutValid: isRutValid,
+    formulation: expediente?.formulation || formulation,
+    auditResult,
+    checks,
+    confirmedGarantia,
+    signedLetters
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [selectedFund, profile, activeRut, isRutValid, expediente, formulation, auditResult, JSON.stringify(checks), confirmedGarantia, signedLetters]);
 
-    const s4Done = hasBudget && confirmedGarantia;
-    if (!s4Done) return 4;
-
-    const s5Done = isAuditApproved;
-    if (!s5Done) return 5;
-
-    return 6;
-  }, [isRutValid, confirmedInicioActividades, hasTaxFolder, confirmedEstatutoSocial, hasLetters, hasFormulation, hasBudget, confirmedGarantia, isAuditApproved]);
+  const currentStepNumber = roadmap.current;
 
   // Persist current active step for the user and auto-open next step
   useEffect(() => {
     const storageKey = `impulsacap_${userKey}_active_step`;
     localStorage.setItem(storageKey, String(currentStepNumber));
-    // Al completarse el paso actual y avanzar, abrir automáticamente el siguiente
     setExpandedStep(currentStepNumber);
   }, [currentStepNumber, userKey]);
 
-  const steps = useMemo(() => [
-    {
-      stepNumber: 1,
-      id: 'step_tax_sii',
-      title: 'Validación Tributaria & Requisitos SII',
-      subtitle: 'RUT verificado, antigüedad según bases e inicio de actividades en 1ª Categoría',
-      badge: 'Requisito Excluyente',
-      status: (isRutValid && confirmedInicioActividades && hasTaxFolder) ? ('completed' as const) : ('in_progress' as const),
-      items: [
-        { label: 'RUT de la empresa válido (Módulo 11)', done: isRutValid, detail: isRutValid ? activeRut : 'Ingresa un RUT válido', go: isRutValid ? undefined : { label: 'Ingresar RUT en Mi empresa', run: () => onNavigateTab('my-company#company-identity') } },
-        { label: 'Inicio de actividades en 1ª Categoría', done: confirmedInicioActividades, interactive: true, onToggle: toggleInicioActividades, detail: confirmedInicioActividades ? 'Confirmado por la empresa' : 'Haz clic para confirmar que ya cuentas con esto' },
-        { 
-          label: 'Carpeta Tributaria Electrónica F29', 
-          done: hasTaxFolder, 
-          detail: hasTaxFolder 
-            ? `Archivo oficial subido: ${profile.taxFolderFileName || 'Carpeta_Tributaria_SII.pdf'} (Validada)` 
-            : 'Sube tu archivo PDF o XML del SII para adjuntarlo a tu expediente',
-          go: { label: hasTaxFolder ? 'Ver o cambiar carpeta' : 'Subir carpeta tributaria', run: () => onOpenSiiModal() }
-        },
-      ],
-      actionLabel: hasTaxFolder ? 'Revisar / Cambiar Carpeta F29' : 'Subir Carpeta Tributaria (PDF/XML)',
-      onAction: () => onOpenSiiModal()
-    },
-    {
-      stepNumber: 2,
-      id: 'step_legal_letters',
-      title: 'Acreditación Legal & Cartas de Interés (LOI)',
-      subtitle: 'Estatutos actualizados y cartas de respaldo comercial firmadas por clientes o aliados',
-      badge: 'Pertinencia Comercial',
-      status: (confirmedEstatutoSocial && hasLetters) ? ('completed' as const) : ('in_progress' as const),
-      items: [
-        { label: 'Estatuto social y poderes de representación', done: confirmedEstatutoSocial, interactive: true, onToggle: toggleEstatutoSocial, detail: confirmedEstatutoSocial ? 'Confirmado por la empresa' : 'Haz clic para confirmar que ya cuentas con esto' },
-        { label: 'Cartas de Intención de Compra / LOI', done: hasLetters, detail: hasLetters ? `${profile.customerValidationCount} cartas registradas` : 'Mínimo 2 cartas recomendadas', go: { label: hasLetters ? 'Generar otra carta' : 'Generar carta LOI', run: () => onNavigateTab('documents#doc-generator') } },
-        { label: 'Acreditación de Liderazgo Femenino', done: profile.isFemaleLed, detail: profile.isFemaleLed ? `+${selectedFund.femaleBonusPct || 10}% cofinanciamiento adicional` : 'No postulado con bono de género', go: { label: 'Indicarlo en Mi empresa', run: () => onNavigateTab('my-company#company-identity') } }
-      ],
-      actionLabel: hasLetters ? 'Ver / Agregar Más Cartas LOI' : 'Generar Carta de Intención (LOI) Oficial',
-      onAction: () => onNavigateTab('documents#doc-generator')
-    },
-    {
-      stepNumber: 3,
-      id: 'step_tech_formulation',
-      title: 'Formulación Técnica del Proyecto',
-      subtitle: 'Problema, solución de alto impacto, grado de novedad técnica y pitch de 30 segundos',
-      badge: 'Criterio 40% Ponderación',
-      status: hasFormulation ? ('completed' as const) : (isRutValid ? ('in_progress' as const) : ('pending' as const)),
-      items: [
-        { label: 'Problema / Oportunidad de mercado', done: hasFormulation, detail: hasFormulation ? 'Estructurado según rúbrica CORFO' : 'Pendiente redactar', go: { label: 'Redactar problema', run: () => onNavigateTab('formulator#section:problem') } },
-        { label: 'Solución innovadora y grado de novedad', done: hasFormulation, detail: hasFormulation ? 'Diferenciación competitiva definida' : 'Pendiente redactar', go: { label: 'Redactar solución', run: () => onNavigateTab('formulator#section:solution') } },
-        { label: 'Plan de trabajo y hitos a 12 meses', done: hasFormulation, detail: hasFormulation ? 'Objetivos técnicos y comerciales listos' : 'Pendiente estructurar', go: { label: 'Armar plan de trabajo', run: () => onNavigateTab('formulator#section:workplan') } },
-        { label: 'Elevator Pitch de 30 segundos', done: !!formulation?.pitchSummary30s, detail: formulation?.pitchSummary30s ? 'Pitch de alto impacto listo' : 'Requerido en formulario oficial', go: { label: 'Redactar título y pitch', run: () => onNavigateTab('formulator#section:title_pitch') } }
-      ],
-      actionLabel: hasFormulation ? 'Editar Formulación Técnica' : 'Redactar Propuesta con Formulador IA',
-      onAction: () => onNavigateTab('formulator#section:next')
-    },
-    {
-      stepNumber: 4,
-      id: 'step_budget_accounts',
-      title: 'Presupuesto Oficial & Co-financiamiento',
-      subtitle: 'Cuentas presupuestarias aprobadas sin IVA imputado y cálculo de garantías de anticipo',
-      badge: 'Financiero',
-      status: (hasBudget && confirmedGarantia) ? ('completed' as const) : (hasFormulation ? ('in_progress' as const) : ('pending' as const)),
-      items: [
-        { label: 'Desglose en Cuentas Oficiales CORFO', done: hasBudget, detail: hasBudget ? `${formulation?.budgetBreakdown?.length} ítems presupuestados` : 'Recursos humanos, operaciones, difusión', go: { label: 'Ir al presupuesto', run: () => onNavigateTab('formulator#section:budget') } },
-        { label: 'Verificación de IVA no imputado al subsidio', done: hasBudget, detail: 'El subsidio fiscal no subsidia IVA recuperable' },
-        { label: 'Aporte empresarial pecuniario', done: hasBudget, detail: `Hasta ${selectedFund.maxCoFinancePct}% subsidio / ${(100 - selectedFund.maxCoFinancePct)}% aporte privado` },
-        { label: 'Simulación de póliza de garantía para anticipo', done: confirmedGarantia, interactive: true, onToggle: toggleGarantia, detail: confirmedGarantia ? 'Simulación realizada y confirmada' : 'Haz clic para confirmar que ya cuentas con esto', go: { label: 'Abrir simulador de garantías', run: () => { setActiveView('guarantees'); setTimeout(() => document.getElementById('roadmap-views')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); } } }
-      ],
-      actionLabel: hasBudget ? 'Revisar Presupuesto & Garantías' : 'Configurar Presupuesto en Formulador',
-      onAction: () => onNavigateTab('formulator#section:budget')
-    },
-    {
-      stepNumber: 5,
-      id: 'step_blind_audit',
-      title: 'Auditoría Ciega Pre-Envío (Simulación de Rúbrica)',
-      subtitle: 'Detección automática de brechas de admisibilidad y nota estimada de evaluador oficial',
-      badge: 'Filtro de Éxito',
-      status: isAuditApproved ? ('completed' as const) : (hasAudit ? ('in_progress' as const) : (hasFormulation ? ('in_progress' as const) : ('pending' as const))),
-      items: [
-        { label: 'Simulación de evaluador ciego oficial', done: hasAudit, detail: hasAudit ? `Nota obtenida: ${auditResult?.overallScore || 0}/5.0 (Escala CORFO)` : 'Aún no has ejecutado la simulación', go: { label: hasAudit ? 'Ver auditoría' : 'Simular evaluación', run: () => onNavigateTab('auditor') } },
-        { label: 'Umbral mínimo de aprobación (>= 3.5 / 70%)', done: isAuditApproved, detail: isAuditApproved ? 'Cumple umbral de corte de adjudicación' : 'Requiere optimización de brechas' },
-        { label: 'Revisión de alertas críticas de rechazo (Red Flags)', done: hasAudit && (auditResult?.redFlags?.length || 0) === 0, detail: hasAudit ? `${auditResult?.redFlags?.length || 0} alertas de rechazo detectadas` : 'Pendiente' }
-      ],
-      actionLabel: hasAudit ? 'Volver a Auditar Expediente' : 'Simular Jurado Evaluador Ciego',
-      onAction: () => onNavigateTab('auditor')
-    },
-    {
-      stepNumber: 6,
-      id: 'step_official_submission',
-      title: 'Cierre de Expediente & Envío Oficial',
-      subtitle: 'Exportación del Dossier Oficial consolidado (PDF) y carga en el portal e-CORFO / Sercotec',
-      badge: 'Postulación Final',
-      status: (isAuditApproved && hasBudget) ? ('in_progress' as const) : ('pending' as const),
-      items: [
-        { label: 'Dossier Consolidado Oficial en PDF listo', done: isRutValid && hasFormulation, detail: 'Incluye memoria técnica, balances y anexos', go: { label: 'Abrir expediente PDF', run: () => setShowDossierModal(true) } },
-        { label: 'Checklist de documentación de admisibilidad', done: isRutValid && hasFormulation && hasBudget, detail: 'Listo para copiar respuestas al portal' },
-        { label: 'Subida formal a la plataforma oficial', done: false, detail: `Portal oficial ${selectedFund.agency} (e-CORFO o Sercotec)` }
-      ],
-      actionLabel: 'Ver / Descargar expediente PDF',
-      onAction: () => setShowDossierModal(true)
-    }
-  ], [isRutValid, activeRut, hasLetters, profile.customerValidationCount, profile.isFemaleLed, selectedFund, hasFormulation, formulation, hasBudget, hasAudit, isAuditApproved, auditResult, onOpenSiiModal, onNavigateTab, confirmedInicioActividades, confirmedEstatutoSocial, confirmedGarantia]);
+  const STEP_BADGES = ['Requisito excluyente', 'Antecedentes', 'Formulario oficial', 'Financiero', 'Simulación', 'Postulación final'];
+  const steps = roadmap.steps.map((st, i) => ({
+    stepNumber: st.number,
+    id: st.id,
+    title: st.title,
+    subtitle: st.subtitle,
+    badge: STEP_BADGES[i] || '',
+    status: st.done ? ('completed' as const) : st.number === currentStepNumber ? ('in_progress' as const) : ('pending' as const),
+    items: st.items.map(it => ({
+      label: it.label,
+      done: it.done,
+      detail: it.detail || '',
+      warn: Boolean(it.warn),
+      interactive: Boolean(it.confirmable),
+      onToggle: it.confirmable ? (it.id === 'garantia' ? toggleGarantia : () => toggleCheck(it.id)) : undefined,
+      go: it.go ? { label: it.go.label, run: () => runTarget(it.go!.target) } : undefined
+    })),
+    actionLabel: st.action.label,
+    onAction: () => runTarget(st.action.target)
+  }));
 
   // Calculate overall progress based on steps completed
   const completedStepsCount = steps.filter(s => s.status === 'completed').length;
@@ -446,7 +386,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
 
             <p className="text-xs text-slate-500">
               Organismo Convocante: <strong className="text-slate-800">{selectedFund.agency}</strong> • 
-              Subsidio Máximo: <strong className="text-emerald-700">{selectedFund.subsidyFormatted}</strong> (hasta {selectedFund.maxCoFinancePct}% no reembolsable)
+              Subsidio Máximo: <strong className="text-emerald-700">{selectedFund.subsidyFormatted}</strong> (hasta {coFinancePctFor(selectedFund, profile)}% del costo total)
             </p>
           </div>
 
@@ -542,7 +482,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
               <span className="text-blue-700 font-extrabold">{selectedFund.callSchedule}</span>
             </h3>
             <p className="text-xs text-slate-600">
-              Las plataformas oficiales de CORFO y Sercotec bloquean el ingreso automáticamente a las 16:00 hrs. Completa tu expediente con anticipación.
+              Los portales cierran a la hora exacta indicada en las bases (en Corfo suele ser a las 15:00 o 16:00). No dejes el envío para el último momento.
             </p>
           </div>
 
@@ -682,6 +622,41 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
         </div>
       </div>
 
+      {/* BASES DEL FONDO: lo esencial que cambia de un fondo a otro */}
+      <details className="rounded-3xl bg-white border border-slate-200 shadow-sm p-5 sm:p-6 group" open={false}>
+        <summary className="cursor-pointer list-none flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Lo que dicen las bases de este fondo</p>
+            <p className="text-sm font-bold text-slate-900">{fundRules.bases.title}</p>
+          </div>
+          <span className="text-xs font-bold text-blue-700 group-open:hidden">Ver resumen</span>
+          <span className="text-xs font-bold text-blue-700 hidden group-open:inline">Ocultar</span>
+        </summary>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 text-sm text-slate-700">
+          <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3"><p className="text-xs font-bold text-slate-500 mb-1">Financiamiento y aportes</p><p>{fundRules.coFinance.text}</p>{fundRules.coFinance.minCashText && <p className="text-xs text-slate-500 mt-1">{fundRules.coFinance.minCashText}</p>}</div>
+          <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3"><p className="text-xs font-bold text-slate-500 mb-1">Cómo se evalúa ({fundRules.evaluation.scale})</p><p>{fundRules.evaluation.rule}</p>
+            {fundRules.evaluation.stages && (
+              <ul className="mt-1 text-xs text-slate-600 space-y-0.5">
+                {fundRules.evaluation.stages.map(st => <li key={st.name}>• {st.name}{st.weight ? ` (${st.weight}%)` : ''}{st.detail ? `: ${st.detail}` : ''}</li>)}
+              </ul>
+            )}
+          </div>
+          {fundRules.partners && <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3"><p className="text-xs font-bold text-slate-500 mb-1">Con quién se postula</p><p>{fundRules.partners}</p></div>}
+          <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3"><p className="text-xs font-bold text-slate-500 mb-1">Duración y garantía</p><p>{fundRules.duration}</p><p className="text-xs text-slate-600 mt-1">{fundRules.guarantee.text}</p></div>
+          {fundRules.formalizationDocs.length > 0 && (
+            <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3 sm:col-span-2"><p className="text-xs font-bold text-slate-500 mb-1">Si ganas, te pedirán</p>
+              <ul className="text-xs text-slate-600 grid sm:grid-cols-2 gap-x-4 gap-y-0.5">{fundRules.formalizationDocs.map(d => <li key={d}>• {d}</li>)}</ul>
+            </div>
+          )}
+          {fundRules.notes && fundRules.notes.map(n => <p key={n} className="sm:col-span-2 text-xs rounded-xl bg-amber-50 border border-amber-200 text-amber-900 p-2.5">{n}</p>)}
+          {fundRules.bases.note && <p className="sm:col-span-2 text-xs text-slate-500">{fundRules.bases.note}</p>}
+          <p className="sm:col-span-2 text-xs text-slate-500">
+            {fundRules.bases.verifiedAt ? `Revisado el ${fundRules.bases.verifiedAt.split('-').reverse().join('-')}. ` : ''}Las bases de cada convocatoria mandan: revisa la versión de tu región antes de postular.{' '}
+            <a href={fundRules.bases.url} target="_blank" rel="noopener noreferrer" className="font-bold text-blue-700 underline underline-offset-2">Abrir bases oficiales</a>
+          </p>
+        </div>
+      </details>
+
       {/* 4. NAVIGATION VIEW SELECTOR: TIMELINE VS DEEP DIVE TOOLS */}
       <div id="roadmap-views" className="scroll-mt-40 flex items-center justify-between border-b border-slate-800 pb-2">
         <div className="flex items-center gap-2">
@@ -694,7 +669,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
             }`}
           >
             <Clock className="w-4 h-4 text-cyan-400" />
-            <span>Línea de Tiempo (6 Pasos)</span>
+            <span>Hoja de ruta (6 pasos)</span>
           </button>
 
           <button
@@ -706,7 +681,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
             }`}
           >
             <FileCheck2 className="w-4 h-4 text-emerald-400" />
-            <span>Auditoría de Admisibilidad (7 Filtros)</span>
+            <span>Requisitos del fondo</span>
           </button>
 
           <button
@@ -728,7 +703,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
         <div className="space-y-4">
           <div className="flex items-center justify-between px-2">
             <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">
-              Pasos Secuenciales para Adjudicar {selectedFund.name}
+              Pasos para postular a {selectedFund.name} según sus bases
             </h3>
             <span className="text-xs text-slate-500">
               Haz clic en cualquier paso para ver sus documentos y requisitos
@@ -904,7 +879,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
                               ? 'Haz clic para confirmar que ya cuentas con esto'
                               : item.detail;
 
-                            const guide = REQUIREMENT_GUIDES[item.label];
+                            const guide = guideFor(item.label);
                             const guideKey = `${step.id}-${idx}`;
                             const guideOpen = openGuide === guideKey;
                             const go = (item as any).go as { label: string; run: () => void } | undefined;
@@ -1014,13 +989,15 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
                                 className={`p-3 rounded-xl border flex items-start gap-2.5 text-xs ${
                                   item.done
                                     ? 'bg-emerald-950/20 border-emerald-500/20 text-slate-200'
+                                    : (item as any).warn
+                                    ? 'bg-rose-950/30 border-rose-500/40 text-rose-100'
                                     : 'bg-slate-900 border-slate-800 text-slate-400'
                                 }`}
                               >
                                 {item.done ? (
                                   <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                                 ) : (
-                                  <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                                  <AlertCircle className={`w-4 h-4 shrink-0 mt-0.5 ${(item as any).warn ? 'text-rose-400' : 'text-amber-400'}`} />
                                 )}
                                 <div>
                                   <p className={`font-semibold ${item.done ? 'text-white' : 'text-slate-300'}`}>
@@ -1054,7 +1031,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
                             onClick={step.onAction}
                             className="w-full sm:w-auto px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow"
                           >
-                            <span>Ejecutar {step.actionLabel}</span>
+                            <span>{step.actionLabel}</span>
                             <ArrowRight className="w-3.5 h-3.5" />
                           </button>
                         </div>

@@ -17,6 +17,7 @@ interface AccountGuide {
   account: string;
   plainName: string;
   share: number; // reparto sugerido del total
+  cap?: string;
   whatGoes: string[];
   whatNot: string[];
   example: string;
@@ -95,9 +96,13 @@ export const BudgetWizard: React.FC<{
   basesUrl?: string | null;
   maxSubsidyCLP: number;
   maxPct: number;
+  /** Cuentas oficiales del fondo (si no se entregan, se usan las genéricas) */
+  guides?: AccountGuide[];
+  coFinanceText?: string;
   accounts: Record<string, BudgetAccountData>;
   onChange: (key: string, field: BudgetField, value: any) => void;
-}> = ({ agency, fundName, basesUrl, maxSubsidyCLP, maxPct, accounts, onChange }) => {
+}> = ({ agency, fundName, basesUrl, maxSubsidyCLP, maxPct, guides, coFinanceText, accounts, onChange }) => {
+  const GUIDES: AccountGuide[] = guides && guides.length ? guides : BUDGET_GUIDES;
   const [totalInput, setTotalInput] = useState<number>(0);
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [showConcepts, setShowConcepts] = useState(true);
@@ -113,7 +118,7 @@ export const BudgetWizard: React.FC<{
   const subExceeded = hasMax && totals.sub > maxSubsidyCLP;
   const pctExceeded = totals.total > 0 && totals.pct > maxPct + 0.05;
   const valid = totals.sub > 0 && !subExceeded && !pctExceeded;
-  const missingTexts = BUDGET_GUIDES.filter(g => {
+  const missingTexts = GUIDES.filter(g => {
     const a = accounts[g.key];
     return a && (a.corfoContributionCLP || a.companyPecuniaryCLP) && (!a.item?.trim() || !a.justification?.trim());
   });
@@ -129,8 +134,8 @@ export const BudgetWizard: React.FC<{
   const applyDistribution = () => {
     let subLeft = calcSub;
     let empLeft = calcEmp;
-    BUDGET_GUIDES.forEach((g, i) => {
-      const last = i === BUDGET_GUIDES.length - 1;
+    GUIDES.forEach((g, i) => {
+      const last = i === GUIDES.length - 1;
       const s = last ? subLeft : round10k(calcSub * g.share);
       const e = last ? empLeft : round10k(calcEmp * g.share);
       subLeft -= s;
@@ -138,7 +143,7 @@ export const BudgetWizard: React.FC<{
       onChange(g.key, 'corfoContributionCLP', Math.max(0, s));
       onChange(g.key, 'companyPecuniaryCLP', Math.max(0, e));
     });
-    setOpenKey(BUDGET_GUIDES[0].key);
+    setOpenKey(GUIDES[0].key);
     setTimeout(() => document.getElementById('budget-accounts')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
   };
 
@@ -150,10 +155,10 @@ export const BudgetWizard: React.FC<{
     const subFactor = totals.sub > 0 ? targetSub / totals.sub : 0;
     const extraEmp = neededEmp - totals.emp;
     let extraLeft = extraEmp;
-    BUDGET_GUIDES.forEach((g, i) => {
+    GUIDES.forEach((g, i) => {
       const a = accounts[g.key];
       if (!a) return;
-      const last = i === BUDGET_GUIDES.length - 1;
+      const last = i === GUIDES.length - 1;
       const newSub = Math.floor((a.corfoContributionCLP || 0) * subFactor / 1000) * 1000;
       const add = last ? extraLeft : Math.ceil(extraEmp * g.share / 1000) * 1000;
       extraLeft -= add;
@@ -184,7 +189,8 @@ export const BudgetWizard: React.FC<{
             </p>
             <ul className="list-disc pl-5 space-y-1">
               <li>Escribe todo <strong>sin IVA</strong> (valor neto). Si tu empresa recupera el IVA, el fondo no lo paga.</li>
-              <li>El gasto se divide en 4 <strong>cuentas</strong> (tipos de gasto). Más abajo te explicamos qué va en cada una.</li>
+              <li>El gasto se divide en {GUIDES.length} <strong>cuentas</strong> (tipos de gasto) según las bases de {fundName}. Más abajo te explicamos qué va en cada una.</li>
+              {coFinanceText && <li><strong>Regla de este fondo:</strong> {coFinanceText}</li>}
               <li>Los nombres de las cuentas y los porcentajes exactos pueden variar según la convocatoria: confírmalos en las bases.{basesUrl ? <> <a href={basesUrl} target="_blank" rel="noopener noreferrer" className="text-cyan-300 underline inline-flex items-center gap-0.5">Ver bases <ExternalLink className="w-3 h-3" /></a></> : null}</li>
             </ul>
           </div>
@@ -213,7 +219,7 @@ export const BudgetWizard: React.FC<{
           <p className="text-xs text-slate-200">
             Con ese total, {agency} puede poner <strong className="text-cyan-300">{clp(calcSub)}</strong> y tu empresa <strong className="text-emerald-300">{clp(calcEmp)}</strong>.
             {hasMax && calcSub >= maxSubsidyCLP && <> Llegaste al máximo del fondo: si el proyecto cuesta más, la diferencia la pone tu empresa.</>}
-            {' '}Al repartir, sugerimos: personas 50%, operación 30%, expertos externos 15% y administración 5%. Luego cambia los montos según tu caso.
+            {' '}Al repartir, sugerimos: {GUIDES.map(g => `${g.plainName.toLowerCase()} ${Math.round(g.share * 100)}%`).join(', ')}. Luego cambia los montos según tu caso.
           </p>
         )}
       </section>
@@ -222,7 +228,7 @@ export const BudgetWizard: React.FC<{
       <section id="budget-accounts" className="scroll-mt-40 space-y-3">
         <p className="text-sm font-bold text-white">Paso 2: revisa cada tipo de gasto</p>
         <p className="text-xs text-slate-400">Abre cada cuenta, revisa los montos y escribe en qué gastarás y por qué. Si no tendrás gastos en una cuenta, déjala en $0.</p>
-        {BUDGET_GUIDES.map((g, i) => {
+        {GUIDES.map((g, i) => {
           const a = accounts[g.key] || { corfoContributionCLP: 0, companyPecuniaryCLP: 0, item: '', justification: '' };
           const sum = (a.corfoContributionCLP || 0) + (a.companyPecuniaryCLP || 0);
           const open = openKey === g.key;
@@ -233,6 +239,7 @@ export const BudgetWizard: React.FC<{
                 <span className="min-w-0">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Cuenta {i + 1} · {g.account}</span>
                   <span className="block text-sm font-bold text-white">{g.plainName}</span>
+                  {g.cap && <span className="block text-[11px] text-amber-300">{g.cap}</span>}
                 </span>
                 <span className="flex items-center gap-3 shrink-0">
                   <span className="text-xs font-mono text-slate-300">{clp(sum)}</span>
@@ -273,9 +280,9 @@ export const BudgetWizard: React.FC<{
                       <input id={`b-${g.key}-just`} value={a.justification} onChange={e => onChange(g.key, 'justification', e.target.value)} placeholder={g.justificationPlaceholder} className="w-full bg-slate-900 border border-slate-700 text-slate-100 text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:border-cyan-500 placeholder:text-slate-600" />
                     </div>
                   </div>
-                  {i < BUDGET_GUIDES.length - 1 && (
-                    <button type="button" onClick={() => setOpenKey(BUDGET_GUIDES[i + 1].key)} className="text-xs font-bold text-cyan-300 hover:text-cyan-200 cursor-pointer">
-                      Siguiente: {BUDGET_GUIDES[i + 1].plainName} →
+                  {i < GUIDES.length - 1 && (
+                    <button type="button" onClick={() => setOpenKey(GUIDES[i + 1].key)} className="text-xs font-bold text-cyan-300 hover:text-cyan-200 cursor-pointer">
+                      Siguiente: {GUIDES[i + 1].plainName} →
                     </button>
                   )}
                 </div>

@@ -16,6 +16,7 @@ import { parseCarpetaTributaria } from './src/utils/carpetaTributaria';
 import { buildTaxDiagnosis, type TaxDiagnosis } from './src/utils/taxDiagnosis';
 import { evaluateChileanGrantMatch, isNonActivityQuery, normalizeText } from './src/utils/grantMatcher';
 import { rankCatalogFunds, rankLiveCalls, type MatchAnswers, type RankedFund } from './src/utils/fundRanking';
+import { getFundRules, FAMILY_BLOCKS } from './src/data/fundStandards';
 import { calculateDaysRemaining } from './src/utils/convocatorias';
 import { validateRut, formatRut } from './src/utils/rutValidator';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
@@ -1129,6 +1130,28 @@ Devuelve una evaluación rigurosa en formato JSON con la siguiente estructura:
 });
 
 // 2. Formulación Técnica Completa para Postulación
+
+/** Fondo desde el catálogo (datos verificados) o, si viene del monitor, el que envía la app. */
+function officialFund(fund: any): any {
+  if (!fund || typeof fund !== 'object') return fund;
+  return CHILEAN_FUNDS.find(f => f.id === fund.id) || fund;
+}
+/** Resumen de las bases del fondo para darle contexto a la IA. */
+function fundRulesForPrompt(fundIn: any): string {
+  const fund = officialFund(fundIn);
+  const r = getFundRules(fund);
+  const crit = (fund.evaluationCriteria || []).map((c: any) => `- ${c.name} (${c.weight}%): ${c.description}`).join('\n');
+  return `BASES OFICIALES DEL FONDO "${fund.name}" (${fund.agency}) — ${r.bases.title}:
+- Requisitos para postular: ${r.requirements.map(q => q.label).join('; ')}
+- Financiamiento: ${r.coFinance.text}${r.partners ? `\n- Con quién se postula: ${r.partners}` : ''}
+- Duración: ${r.duration}
+- Formulario oficial (secciones): ${r.formSections.map(f => f.title + (f.evaluates ? ` [${f.evaluates}]` : '')).join(' | ')}${r.pitch ? `\n- ${r.pitch.label}: ${r.pitch.content}` : ''}
+- Cómo se evalúa (${r.evaluation.scale}): ${r.evaluation.rule}
+- Criterios de evaluación y ponderaciones:
+${crit}
+- Cuentas del presupuesto: ${r.budget.map(b => b.account + (b.cap ? ` (${b.cap})` : '')).join('; ')}`;
+}
+
 app.post('/api/gemini/formulate', requireAuth, requireActivePlan, guardAi('formulate'), async (req, res) => {
   try {
     const user = (req as AuthenticatedRequest).user!;
@@ -1161,11 +1184,9 @@ DATOS DE LA EMPRESA:
 REGLA CRÍTICA OBLIGATORIA:
 Usa SOLO la información entregada por el usuario. PROHIBIDO inventar hechos, clientes, socios, tecnologías, integrantes del equipo, logros, cifras, porcentajes o montos. Si falta información para un punto, escribe [COMPLETAR: qué dato falta] en ese lugar. Es preferible un texto más breve y verdadero que uno extenso con información inventada. La extensión debe depender de la información disponible.
 
-REQUISITOS DEL FONDO ${fund.name}:
-- Subsidio Máximo: ${fund.subsidyFormatted}
-- Co-financiamiento: ${fund.maxCoFinancePct}%
-- Criterios de Evaluación: ${JSON.stringify(fund.evaluationCriteria)}
-- Cuentas Presupuestarias Aprobadas: ${JSON.stringify(fund.corfoAccountsBudget)}
+${fundRulesForPrompt(fund)}
+
+Redacta cada campo pensando en la sección del formulario oficial donde se usará y en los criterios que la evalúan. Usa los nombres de las cuentas del presupuesto de este fondo.
 
 Responde ÚNICAMENTE en formato JSON con la siguiente estructura completa:
 {
@@ -1316,9 +1337,12 @@ DATOS CONFIRMADOS DE CARPETA TRIBUTARIA Y EMPRESA:
 RESPUESTAS INGRESADAS POR EL USUARIO PARA ESTA SECCIÓN:
 ${qaText}
 
-BASES Y REQUISITOS DEL FONDO ${fund.name} (${fund.agency}):
-- Subsidio máximo: ${fund.subsidyFormatted}
-- Co-financiamiento máximo: ${fund.maxCoFinancePct}%
+${fundRulesForPrompt(fund)}
+
+ESTA SECCIÓN EN EL FORMULARIO OFICIAL:
+- Corresponde a: ${(() => { const r = getFundRules(officialFund(fund)); const fs = r.formSections.find(x => x.blocks.includes(sectionKey)); return fs ? `"${fs.title}"${fs.evaluates ? ` (evalúa ${fs.evaluates})` : ''}` : (sectionTitle || sectionKey); })()}
+- Qué debe contener: ${(() => { const r = getFundRules(officialFund(fund)); return (FAMILY_BLOCKS as any)[r.family]?.[sectionKey]?.hint || ''; })()}
+Escribe con el lenguaje y la estructura que espera el evaluador de este fondo (por ejemplo, en Sercotec es un modelo de negocio simple y concreto; en Corfo y FIA, un proyecto técnico con indicadores).
 
 REGLA CRÍTICA OBLIGATORIA CONTRA ALUCINACIONES:
 Usa SOLO la información entregada por el usuario. PROHIBIDO inventar hechos, clientes, socios, tecnologías, integrantes del equipo, logros, cifras, porcentajes o montos. Si falta información para un punto, escribe [COMPLETAR: qué dato falta] en ese lugar. Es preferible un texto más breve y verdadero que uno extenso con información inventada. La extensión debe depender estrictamente de la información disponible.
@@ -1377,7 +1401,7 @@ app.post('/api/gemini/audit', requireAuth, requireActivePlan, guardAi('audit'), 
       annualSalesCLP: profile?.annualSalesCLP
     };
 
-    const prompt = `Actúa como un Evaluador Experto del Comité de Asignación de Fondos de ${fund.agency} (CORFO / SERCOTEC).
+    const prompt = `Actúa como un evaluador experto del comité que asigna el fondo "${fund.name}" de ${fund.agency}, siguiendo estrictamente sus bases.
 Tu misión es realizar una auditoría ciega estricta y sin condescendencia sobre la siguiente postulación para el fondo "${fund.name}".
 
 REGLA CRÍTICA OBLIGATORIA:
@@ -1404,13 +1428,13 @@ TEXTO Y CONTENIDO DE LA POSTULACIÓN:
 ${formulationText || projectSummary}
 """
 
-CRITERIOS OFICIALES DE EVALUACIÓN:
-${JSON.stringify(fund.evaluationCriteria, null, 2)}
+${fundRulesForPrompt(fund)}
 
 INSTRUCCIONES DE AUDITORÍA:
-1. Evalúa de 1.0 a 5.0 (escala estándar CORFO). Recuerda que la nota de corte suele estar sobre 3.8.
-2. Identifica "Red Flags" (alertas rojas que causarían rechazo o admisibilidad fallida, incluyendo cualquier dato pendiente marcado como [COMPLETAR: ...]).
-3. Entrega consejos quirúrgicos prioritarios para subir la nota antes de postular, basándote únicamente en hechos reales.
+1. Evalúa CADA criterio de la lista anterior (usa exactamente esos nombres y ponderaciones en "criteriaScores") con nota de 1.0 a 5.0, y calcula "overallScore" como el promedio ponderado.
+2. Aplica la regla de evaluación de las bases indicada arriba (nota mínima por criterio o nota final, si existe). En "verdict" indica si cumple o no esa regla.
+3. Identifica "Red Flags": requisitos de admisibilidad que podrían no cumplirse según los datos, secciones del formulario oficial que faltan, montos o porcentajes fuera de las bases, y cualquier dato pendiente marcado como [COMPLETAR: ...].
+4. Entrega consejos concretos y prioritarios para subir la nota antes de postular, basándote únicamente en hechos reales.
 
 Responde ÚNICAMENTE en formato JSON con la siguiente estructura:
 {
@@ -1614,8 +1638,9 @@ DATOS CONFIRMADOS DE CARPETA TRIBUTARIA Y EMPRESA:
 - Tipo Societario: ${compProfile.companyType || 'SpA'}
 - Liderazgo Femenino: ${compProfile.isFemaleLed ? 'Sí (califica a bonificación)' : 'No'}
 
-Fondo en consulta:
-${JSON.stringify(currentFund || {}, null, 2)}
+${currentFund && currentFund.id ? fundRulesForPrompt(currentFund) : 'Fondo en consulta: ninguno seleccionado.'}
+
+Cuando respondas sobre requisitos, montos, documentos o evaluación, usa las bases del fondo indicadas arriba; si algo no está ahí, dilo y recomienda revisar las bases de la convocatoria.
 
 Sé conciso, empático, directo y ultra práctico. Habla con terminología chilena natural pero muy profesional (UF, CLP, RUT, SpA, SII, TGR, rendición, contraparte, cofinanciamiento).`;
 

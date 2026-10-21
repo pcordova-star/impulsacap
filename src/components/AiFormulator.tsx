@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { consume, onRequest } from '../utils/navFocus';
 import { BudgetWizard } from './BudgetWizard';
 import { SectionHelper } from './SectionHelpers';
-import { ChileanFund, CompanyProfile, FormulationOutput, ProjectProfile } from '../types/funds';
+import { ChileanFund, CompanyProfile, FormulationOutput, ProjectProfile, FormBlock } from '../types/funds';
+import { getFundRules, blockLabel, budgetAccountsFor, coFinancePctFor, maxSubsidyFor, questionOverride } from '../data/fundStandards';
 import { ExpedienteData } from '../types/expediente';
 import { apiFetch } from '../utils/apiFetch';
 import { usePlan } from '../hooks/usePlan';
@@ -50,6 +51,7 @@ interface SectionDefinition {
   stepNumber: number;
   title: string;
   badge: string;
+  hint?: string;
   questions: {
     key: string;
     label: string;
@@ -363,14 +365,16 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
     const existing = expediente?.formulation?.budgetBreakdown || initialFormulation?.budgetBreakdown;
     const initialMap: Record<string, any> = {};
 
-    STANDARD_BUDGET_ACCOUNTS.forEach(acc => {
+    const legacy = Object.fromEntries(STANDARD_BUDGET_ACCOUNTS.map(a => [a.account, a]));
+    budgetAccountsFor(selectedFund || CHILEAN_FUNDS[0]).forEach(acc => {
       const found = existing?.find(b => b.account === acc.account);
+      const old = found ? legacy[found.account] : undefined;
       initialMap[acc.key] = {
         corfoContributionCLP: found ? found.corfoContributionCLP : 0,
         companyPecuniaryCLP: found ? found.companyPecuniaryCLP : 0,
         // Sin texto genérico: el usuario escribe en qué gastará y por qué (no se inventa nada)
-        item: found?.item && found.item !== acc.defaultItem ? found.item : '',
-        justification: found?.justification && found.justification !== acc.defaultJustification ? found.justification : ''
+        item: found?.item && found.item !== old?.defaultItem ? found.item : '',
+        justification: found?.justification && found.justification !== old?.defaultJustification ? found.justification : ''
       };
     });
     return initialMap;
@@ -405,7 +409,20 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [savedNotice, setSavedNotice] = useState<string | null>(null);
 
-  const currentSection = SECTIONS[currentSectionIndex];
+  // Secciones con los nombres y la ponderación del formulario oficial del fondo elegido
+  const fundRules = useMemo(() => getFundRules(currentFund), [currentFund]);
+  const sectionsView = useMemo<SectionDefinition[]>(() => SECTIONS.map(sec => {
+    const lbl = blockLabel(currentFund, sec.id as FormBlock);
+    const official = fundRules.formSections.find(fs => fs.blocks.includes(sec.id as FormBlock));
+    const questions = sec.id === 'title_pitch' && fundRules.pitch
+      ? sec.questions.map(q => q.key === 'pitchSummary30s'
+          ? { ...q, label: `Guion del ${fundRules.pitch!.label.toLowerCase()}: ${fundRules.pitch!.content}`, helpText: `Se graba o presenta en máximo ${fundRules.pitch!.seconds >= 120 ? `${Math.round(fundRules.pitch!.seconds / 60)} minutos` : `${fundRules.pitch!.seconds} segundos`}. Escríbelo aquí y úsalo para grabar.` }
+          : q)
+      : sec.questions;
+    const adapted = questions.map(q => { const o = questionOverride(currentFund, sec.id as FormBlock, q.key); return o ? { ...q, ...o } : q; });
+    return { ...sec, questions: adapted, title: lbl.title, badge: official?.evaluates ? `Evalúa ${official.evaluates}` : (official?.title || sec.badge), hint: lbl.hint } as SectionDefinition;
+  }), [currentFund, fundRules]);
+  const currentSection = sectionsView[currentSectionIndex];
   // Concurso del monitor (fuera del catálogo): se agrega a la lista para mostrarlo bien
   const fundOptions = CHILEAN_FUNDS.some(x => x.id === currentFund.id) ? CHILEAN_FUNDS : [currentFund, ...CHILEAN_FUNDS];
 
@@ -502,8 +519,8 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
 
   const totalProyecto = totalSubsidio + totalAporteEmpresa;
 
-  const maxAllowedSubsidy = currentFund.maxSubsidyCLP;
-  const maxAllowedPct = profile.isFemaleLed ? 85 : currentFund.maxCoFinancePct;
+  const maxAllowedSubsidy = maxSubsidyFor(currentFund, profile);
+  const maxAllowedPct = coFinancePctFor(currentFund, profile);
   const currentSubsidioPct = totalProyecto > 0 ? (totalSubsidio / totalProjectSafe(totalProyecto)) * 100 : 0;
 
   function totalProjectSafe(tp: number) {
@@ -741,7 +758,7 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
     }
 
     // Presupuesto (Real from entered budget accounts, or empty array)
-    const realBudgetItems = STANDARD_BUDGET_ACCOUNTS.map(acc => {
+    const realBudgetItems = budgetAccountsFor(currentFund).map(acc => {
       const data = budgetAccounts[acc.key];
       return {
         account: acc.account,
@@ -875,7 +892,7 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
               {currentFund.agency}
             </span>
             <span className="text-xs text-slate-400">
-              Tope Subsidio: <strong className="text-emerald-400">{currentFund.subsidyFormatted}</strong> (Hasta {profile.isFemaleLed ? 85 : currentFund.maxCoFinancePct}% Estatal)
+              Tope Subsidio: <strong className="text-emerald-400">{currentFund.subsidyFormatted}</strong> (hasta {maxAllowedPct}% del costo total)
             </span>
           </div>
           <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
@@ -931,7 +948,7 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
       {/* Section Progress Stepper */}
       <div className="bg-slate-900/80 rounded-2xl border border-slate-800 p-3 sm:p-4 shadow-lg overflow-x-auto">
         <div className="flex items-center gap-1.5 sm:gap-2 min-w-[720px]">
-          {SECTIONS.map((sec, idx) => {
+          {sectionsView.map((sec, idx) => {
             const isActive = idx === currentSectionIndex;
             const isFilled = idx === 7 
               ? isBudgetValid 
@@ -991,6 +1008,7 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
             <h2 className="text-xl sm:text-2xl font-black text-white">
               {currentSection.title}
             </h2>
+            {currentSection.hint && <p className="text-xs text-slate-400 mt-1 max-w-2xl">{currentSection.hint}</p>}
           </div>
 
           <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
@@ -1066,9 +1084,11 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
           <BudgetWizard
             agency={currentFund.agency}
             fundName={currentFund.name}
-            basesUrl={(currentFund as any).officialUrl || (currentFund as any).url || null}
+            basesUrl={fundRules.bases.url || (currentFund as any).officialUrl || null}
             maxSubsidyCLP={maxAllowedSubsidy}
             maxPct={maxAllowedPct}
+            guides={budgetAccountsFor(currentFund)}
+            coFinanceText={fundRules.coFinance.text}
             accounts={budgetAccounts}
             onChange={(key, field, value) => handleBudgetAccountChange(key, field, value)}
           />

@@ -4,6 +4,7 @@ import { apiFetch } from '../utils/apiFetch';
 import { usePlan } from '../hooks/usePlan';
 import { PlanPaywallCard } from './PlanPaywallCard';
 import { CHILEAN_FUNDS } from '../data/chileanFunds';
+import { getFundRules, auditThreshold, auditPasses } from '../data/fundStandards';
 import { 
   ShieldAlert, 
   Sparkles, 
@@ -129,7 +130,7 @@ export const BlindAuditor: React.FC<BlindAuditorProps> = ({
       {(showPaywall || !hasActivePlan) && (
         <div className="mb-6 animate-fade-in">
           <PlanPaywallCard
-            highlightText="La Auditoría Ciega oficial con rúbrica de comités CORFO / SERCOTEC requiere el Plan Trimestral ImpulsaCap. Simula evaluaciones reales y detecta alertas rojas antes de enviar tu postulación."
+            highlightText="La auditoría con los criterios oficiales de cada fondo requiere el Plan Trimestral ImpulsaCap. Simula evaluaciones reales y detecta alertas rojas antes de enviar tu postulación."
           />
         </div>
       )}
@@ -155,7 +156,7 @@ export const BlindAuditor: React.FC<BlindAuditorProps> = ({
           <div>
             <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold mb-1">
               <ShieldAlert className="w-3.5 h-3.5" />
-              Simulador de Comité de Evaluación Ciega (CORFO / SERCOTEC)
+              Simulación con los criterios oficiales del fondo
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-white">
               Auditoría y Scoring de Adjudicación
@@ -218,7 +219,7 @@ export const BlindAuditor: React.FC<BlindAuditorProps> = ({
           rows={6}
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
-          placeholder="Pega aquí el texto completo o secciones que vas a postular a CORFO/SERCOTEC..."
+          placeholder="Pega aquí el texto completo o las secciones que vas a postular..."
           className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs font-mono leading-relaxed focus:border-amber-500 focus:outline-none placeholder:text-slate-500 placeholder:italic"
         />
         <p className="text-[11px] text-slate-500">
@@ -235,7 +236,7 @@ export const BlindAuditor: React.FC<BlindAuditorProps> = ({
               {/* Score Circular Badge */}
               <div className="w-24 h-24 rounded-2xl bg-slate-950 border-2 border-emerald-500 flex flex-col items-center justify-center shrink-0 shadow-lg shadow-emerald-500/20">
                 <span className="text-3xl font-black text-emerald-400">{auditResult.overallScore}</span>
-                <span className="text-[10px] font-bold uppercase text-slate-400">Escala 1 a 5</span>
+                <span className="text-[10px] font-bold uppercase text-slate-400">Escala {getFundRules(selectedFund).evaluation.scale.split(' (')[0]}</span>
               </div>
 
               <div>
@@ -246,16 +247,17 @@ export const BlindAuditor: React.FC<BlindAuditorProps> = ({
                   Pronóstico del Comité Evaluador
                 </h3>
                 <p className="text-xs text-slate-300 mt-1 max-w-xl">
-                  {auditResult.overallScore >= 4.3 
-                    ? 'Tu postulación se sitúa por sobre el puntaje de corte histórico en Chile (típicamente 4.2 a 4.4). Con los ajustes sugeridos tienes altísimas probabilidades de adjudicar.'
-                    : 'Tu postulación se encuentra en la zona de riesgo o corte ajustado. Realiza los cambios prioritarios para evitar quedar en lista de espera.'}
+                  {auditPasses(selectedFund, auditResult)
+                    ? 'Tu postulación alcanza lo que piden las bases de este fondo. Aplica los ajustes sugeridos para competir mejor en el ranking.'
+                    : 'Tu postulación aún no alcanza lo que piden las bases de este fondo. Realiza los cambios prioritarios antes de enviarla.'}
+                  {' '}{getFundRules(selectedFund).evaluation.rule}
                 </p>
               </div>
             </div>
 
             <div className="text-right shrink-0">
-              <span className="text-xs text-slate-400 block">Corte Estimado Adjudicación:</span>
-              <span className="text-sm font-bold text-amber-400 font-mono">&ge; 4.25 / 5.0</span>
+              <span className="text-xs text-slate-400 block">{getFundRules(selectedFund).evaluation.passMark !== null ? 'Nota mínima de las bases:' : 'Meta sugerida (se adjudica por ranking):'}</span>
+              <span className="text-sm font-bold text-amber-400 font-mono">&ge; {auditThreshold(selectedFund).value.toFixed(1)}</span>
             </div>
           </div>
 
@@ -306,7 +308,7 @@ export const BlindAuditor: React.FC<BlindAuditorProps> = ({
                 Alertas graves detectadas
               </h4>
               <p className="text-xs text-rose-900/80">
-                Puntos débiles que los evaluadores de CORFO/SERCOTEC suelen castigar con bajas notas o descalificación:
+                Puntos débiles que los evaluadores suelen castigar con bajas notas o descalificación:
               </p>
               <div className="space-y-2">
                 {auditResult.redFlags.map((flag, fIdx) => (

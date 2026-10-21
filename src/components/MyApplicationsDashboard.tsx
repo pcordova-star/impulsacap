@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { usePlan } from '../hooks/usePlan';
 import { resolveFund, fundFromConvocatoria } from '../utils/convocatoriaFund';
+import { computeRoadmap } from '../data/fundStandards';
 import { apiFetch } from '../utils/apiFetch';
 import { announceEarlyAccess, getPaymentsMode } from '../utils/earlyAccess';
 import { ChileanFund, CompanyProfile, getFundVisibleStatus, CompanyUser, calculateProjectProfileCompletion } from '../types/funds';
@@ -163,68 +164,29 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
     return alerts;
   }, [activeApplications, convocatorias, dismissedAlerts]);
 
-  // Compute 6-step progress for an application
+  // Avance de cada postulación: la misma hoja de ruta estándar (según las bases de su fondo)
   function computeApplicationProgress(app: ApplicationItem) {
-    const isTaxFolderDone = Boolean(profile.taxFolderUploaded);
-    const step1 = isRutValid && isTaxFolderDone;
-
-    const step2 = Boolean(
-      app.roadmapConfirmations?.confirmedInicioActividades && 
-      app.roadmapConfirmations?.confirmedEstatutoSocial &&
-      (app.generatedDocs && app.generatedDocs.length > 0)
-    );
-
-    const step3 = Boolean(
-      app.formulation && 
-      app.formulation.problemStatement && 
-      app.formulation.solutionAndInnovation
-    );
-
-    const hasRealBudget = Boolean(
-      app.formulation?.budgetBreakdown && 
-      app.formulation.budgetBreakdown.length > 0 &&
-      app.formulation.budgetBreakdown.some(i => (i.corfoContributionCLP || 0) > 0)
-    );
-    const step4 = hasRealBudget && Boolean(app.roadmapConfirmations?.confirmedGarantia);
-
-    const step5 = Boolean(app.auditResult && (app.auditResult.overallScore >= 3.5));
-    const step6 = app.status === 'enviada';
-
-    const steps = [step1, step2, step3, step4, step5, step6];
-    const completedCount = steps.filter(Boolean).length;
-
-    let nextAction = 'Subir Carpeta Tributaria F29 y validar RUT';
-    if (!step1) {
-      nextAction = !isRutValid ? 'Configurar RUT válido de empresa' : 'Cargar Carpeta Tributaria F29';
-    } else if (!step2) {
-      nextAction = 'Confirmar estatutos y generar cartas de respaldo';
-    } else if (!step3) {
-      nextAction = 'Completar redacción técnica en el Formulador IA';
-    } else if (!step4) {
-      nextAction = 'Estructurar desglose presupuestario en cuentas CORFO';
-    } else if (!step5) {
-      nextAction = 'Ejecutar simulación en Auditor Ciego';
-    } else if (!step6) {
-      nextAction = 'Descargar Dossier Oficial y postular en portal oficial';
-    } else {
-      nextAction = 'Postulación enviada oficialmente';
-    }
-
+    const fund = resolveFund(app, funds);
+    const rm = computeRoadmap({
+      fund,
+      profile,
+      rutValid: isRutValid,
+      formulation: app.formulation,
+      auditResult: app.auditResult,
+      checks: (app.roadmapConfirmations as any)?.checks || {},
+      confirmedGarantia: Boolean(app.roadmapConfirmations?.confirmedGarantia),
+      signedLetters: (app.generatedDocs || []).filter((d: any) => d.status === 'firmada').length,
+      submitted: app.status === 'enviada'
+    });
+    const steps = rm.steps.map(st => st.done);
     const nextIndex = steps.findIndex(x => !x);
-    const NEXT: Record<number, { label: string; target: string }> = {
-      0: !isRutValid ? { label: 'Ingresar RUT', target: 'my-company#company-identity' } : { label: 'Subir carpeta', target: 'sii' },
-      1: (app.generatedDocs && app.generatedDocs.length > 0) ? { label: 'Confirmar estatutos', target: 'my-application' } : { label: 'Generar cartas', target: 'documents#doc-generator' },
-      2: { label: 'Redactar con IA', target: 'formulator#section:next' },
-      3: { label: 'Armar presupuesto', target: 'formulator#section:budget' },
-      4: { label: 'Simular evaluación', target: 'auditor' },
-      5: { label: 'Abrir expediente', target: 'my-application' }
-    };
-    const next = nextIndex >= 0 ? NEXT[nextIndex] : null;
-
+    const nextStep = nextIndex >= 0 ? rm.steps[nextIndex] : null;
+    const pendingItem = nextStep?.items.find(i => !i.done && i.go) || null;
+    const next = pendingItem?.go || nextStep?.action || null;
     return {
-      completedCount,
-      percentage: Math.round((completedCount / 6) * 100),
-      nextAction,
+      completedCount: rm.completed,
+      percentage: rm.percentage,
+      nextAction: rm.nextAction,
       steps,
       nextIndex,
       nextTarget: next?.target || null,
@@ -354,10 +316,12 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
       : [];
   }, [convocatorias, activeApplications, profile.region, dismissedAlerts, newCallAlerts.length]);
 
-  const STEP_NAMES = ['Requisitos SII', 'Legal y cartas', 'Formulación', 'Presupuesto', 'Auditoría', 'Envío'];
+  const STEP_NAMES = ['Requisitos', 'Documentos', 'Formulario', 'Presupuesto', 'Evaluación', 'Envío'];
 
   const goNext = (app: ApplicationItem, target: string) => {
     if (target === 'sii') { onOpenSiiModal(); return; }
+    if (target.startsWith('url:')) { window.open(target.slice(4), '_blank', 'noopener,noreferrer'); return; }
+    if (target === 'dossier' || target === 'guarantees') { onContinueApplication(app.id, 'my-application'); return; }
     onContinueApplication(app.id, target);
   };
 

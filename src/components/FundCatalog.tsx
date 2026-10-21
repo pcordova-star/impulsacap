@@ -362,7 +362,7 @@ export const FundCatalog: React.FC<FundCatalogProps> = ({
                   {/* Bottom Action Footer */}
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-200">
                     <p className="text-xs text-slate-500">
-                      Formula tu proyecto con IA y genera el expediente completo para e-CORFO o SERCOTEC.
+                      Formula tu proyecto con IA y genera el expediente completo para el portal del fondo.
                     </p>
                     <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                       <a

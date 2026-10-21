@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ChileanFund } from '../types/funds';
 import { ExpedienteData } from '../types/expediente';
 import { validateRut } from '../utils/rutValidator';
+import { getFundRules, blockStatus, coFinancePctFor } from '../data/fundStandards';
 import { 
   X, 
   Printer, 
@@ -72,72 +73,25 @@ export const OfficialDossierModal: React.FC<OfficialDossierModalProps> = ({
   const totalCompanyCash = realBudgetItems.reduce((acc, curr) => acc + (curr.companyPecuniaryCLP || 0), 0);
   const totalProject = totalCorfo + totalCompanyCash;
 
-  // 10 Sections Completeness Evaluation
-  const sectionsStatus = [
+  // Completitud según el formulario oficial y los documentos de las bases de este fondo
+  const rules = getFundRules(fund);
+  const sectionsStatus: { id: string; name: string; isComplete: boolean; missingText: string }[] = [
     {
       id: 'profile',
-      name: 'Ficha de Empresa y RUT',
-      isComplete: Boolean(profile.companyName?.trim() && isRutValid),
-      missingText: !profile.companyName?.trim() ? 'Razón Social de la empresa' : (!isRutValid ? 'RUT válido con Módulo 11' : '')
+      name: 'Identificación del postulante',
+      isComplete: Boolean(profile.companyName?.trim() && (isRutValid || profile.companyType === 'sin_iniciar')),
+      missingText: !profile.companyName?.trim() ? 'Nombre o razón social' : 'RUT válido'
     },
-    {
-      id: 'tax_folder',
-      name: 'Antecedentes Tributarios (SII)',
-      isComplete: Boolean(taxFolder.taxFolderUploaded),
-      missingText: 'Cargar Carpeta Tributaria Electrónica SII'
-    },
-    {
-      id: 'legal_statutes',
-      name: 'Estatuto Social y Poderes',
-      isComplete: Boolean(roadmapConfirmations.confirmedEstatutoSocial || docStatuses.estatuto_res),
-      missingText: 'Confirmar estatuto social y vigencia de poderes'
-    },
-    {
-      id: 'title_pitch',
-      name: 'Título y Pitch Ejecutivo',
-      isComplete: Boolean(formulation?.projectTitle?.trim() && formulation?.pitchSummary30s?.trim()),
-      missingText: 'Título del proyecto y pitch de 30s'
-    },
-    {
-      id: 'problem',
-      name: 'Problema u Oportunidad',
-      isComplete: Boolean(formulation?.problemStatement?.trim()),
-      missingText: 'Definición del problema y dolor de mercado'
-    },
-    {
-      id: 'solution',
-      name: 'Solución y Novedad Técnica',
-      isComplete: Boolean(formulation?.solutionAndInnovation?.trim()),
-      missingText: 'Solución innovadora y grado de novedad'
-    },
-    {
-      id: 'market',
-      name: 'Análisis de Mercado',
-      isComplete: Boolean(
-        formulation?.marketAnalysisTAM?.tam?.trim() || 
-        formulation?.marketAnalysisTAM?.clientArchetype?.trim()
-      ),
-      missingText: 'Dimensionamiento de mercado (TAM/SAM/SOM)'
-    },
-    {
-      id: 'workplan',
-      name: 'Plan de Trabajo e Hitos',
-      isComplete: Boolean(formulation?.workPlanMilestones && formulation.workPlanMilestones.length > 0),
-      missingText: 'Hitos clave y entregables verificables'
-    },
-    {
-      id: 'budget',
-      name: 'Presupuesto Oficial',
-      isComplete: hasRealBudget,
-      missingText: 'Desglose de montos por cuentas presupuestarias'
-    },
-    {
-      id: 'letters',
-      name: 'Cartas de Respaldo LOI',
-      isComplete: signedLoiCount > 0,
-      missingText: 'Al menos una Carta de Interés (LOI) firmada'
-    }
+    ...rules.formSections.map(fs => ({
+      id: fs.blocks[0],
+      name: fs.title,
+      isComplete: fs.blocks.every(bk => blockStatus(bk, formulation).done),
+      missingText: `Completar "${fs.title}" en el formulador`
+    })),
+    ...rules.applicationDocs.filter(d => d.link === 'taxFolder').map(d => ({ id: 'tax_folder', name: d.label, isComplete: Boolean(taxFolder.taxFolderUploaded), missingText: 'Subir la carpeta tributaria' })),
+    ...rules.applicationDocs.filter(d => d.link === 'letters').map(d => ({ id: 'letters', name: d.label, isComplete: signedDocs.length > 0, missingText: 'Generar y firmar las cartas' }))
   ];
+  const officialFormMd = rules.formSections.map((fs, i) => `${i + 1}. ${fs.title}${fs.evaluates ? ` (evalúa ${fs.evaluates})` : ''}`).join('\n');
 
   const completedCount = sectionsStatus.filter(s => s.isComplete).length;
   const missingSections = sectionsStatus.filter(s => !s.isComplete);
@@ -165,7 +119,12 @@ export const OfficialDossierModal: React.FC<OfficialDossierModalProps> = ({
 ---
 
 ## RESUMEN DE COMPLETITUD
-- **Estado General:** ${completedCount} de 10 secciones completas (${completionPercentage}%)
+- **Estado General:** ${completedCount} de ${sectionsStatus.length} secciones completas (${completionPercentage}%)
+
+## ORDEN DEL FORMULARIO OFICIAL (${rules.portal.name})
+${officialFormMd}
+
+*Copia cada sección en el portal en este orden. Bases: ${rules.bases.title}.*
 ${missingSections.length > 0 ? `- **Secciones Pendientes:** ${missingSections.map(s => s.name).join(', ')}` : '- **Todas las secciones requeridas han sido completadas.'}
 
 ---
@@ -177,7 +136,7 @@ ${missingSections.length > 0 ? `- **Secciones Pendientes:** ${missingSections.ma
 - **Región:** ${profile.region || 'Sin completar'}
 - **Sector Económico:** ${profile.sector || 'Sin completar'}
 - **Etapa Tecnológica (TRL):** ${profile.trlStage ? profile.trlStage.replace('_', ' ') : 'Sin completar'}
-- **Bonificación de Género:** ${profile.isFemaleLed ? `Aplica (+${(100 - fund.maxCoFinancePct > 15 ? 10 : 5)}% subsidio estatal)` : 'No aplica'}
+- **Liderazgo femenino:** ${profile.isFemaleLed ? 'Sí (revisa el beneficio en las bases del fondo)' : 'No'}
 
 ---
 
@@ -372,10 +331,10 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
           <div className="p-4 sm:p-5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-3 print:border-black print:bg-white">
             <div className="flex items-center justify-between text-xs">
               <span className="font-bold text-slate-200 print:text-black">
-                Expediente: {completedCount} de 10 secciones completas ({completionPercentage}%)
+                Expediente: {completedCount} de {sectionsStatus.length} secciones completas ({completionPercentage}%)
               </span>
               <span className={`font-semibold ${completedCount === 10 ? 'text-emerald-400' : 'text-amber-400'} print:text-black`}>
-                {completedCount === 10 ? '✓ Expediente Listo' : `${missingSections.length} por completar`}
+                {completedCount === sectionsStatus.length ? '✓ Expediente Listo' : `${missingSections.length} por completar`}
               </span>
             </div>
 
@@ -406,6 +365,17 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Orden del formulario oficial del fondo */}
+          <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 text-xs text-slate-300 space-y-2 print:border-black print:text-black print:bg-white">
+            <p className="font-bold text-white print:text-black">Cómo copiar esto en {rules.portal.name}</p>
+            <ol className="list-decimal pl-5 space-y-0.5">
+              {rules.formSections.map(fs => (
+                <li key={fs.title}>{fs.title}{fs.evaluates ? <span className="text-slate-500"> · evalúa {fs.evaluates}</span> : null}</li>
+              ))}
+            </ol>
+            <p className="text-slate-500">El contenido de cada sección está más abajo. Bases: <a href={rules.bases.url} target="_blank" rel="noopener noreferrer" className="underline">{rules.bases.title}</a></p>
           </div>
 
           {/* Expediente Cover / Header (Requirement 9) */}
@@ -442,7 +412,7 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
               <div>
                 <span className="text-[10px] text-slate-400 block print:text-black">Cofinanciamiento</span>
                 <strong className="text-emerald-400 print:text-black">
-                  Hasta {profile.isFemaleLed ? 85 : fund.maxCoFinancePct}% Estatal
+                  Hasta {coFinancePctFor(fund, profile)}% del costo total
                 </strong>
               </div>
               <div>

@@ -19,6 +19,8 @@ export interface RoadmapConfirmations {
   confirmedInicioActividades: boolean;
   confirmedEstatutoSocial: boolean;
   confirmedGarantia: boolean;
+  /** Requisitos y documentos confirmados por el usuario, según las bases del fondo (id → listo) */
+  checks?: Record<string, boolean>;
 }
 
 export interface DocChecklistStatuses {

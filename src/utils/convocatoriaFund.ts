@@ -58,11 +58,12 @@ export function fundFromConvocatoria(conv: Convocatoria): ChileanFund {
     callSchedule: conv.cierre ? `Cierre: ${conv.cierre}` : 'Ventanilla abierta',
     summary: String(conv.resumen || conv.beneficio || conv.titulo || '').slice(0, 600),
     description: String(conv.resumen || conv.beneficio || '').slice(0, 2000),
+    // Pauta general: la app no tiene las bases de este concurso cargadas (ver getFundRules → reglas de monitor)
     evaluationCriteria: [
-      { name: 'Propuesta de valor e innovación', weight: 35, description: 'Problema, solución y qué la diferencia de lo que existe.' },
-      { name: 'Mercado y modelo de negocio', weight: 30, description: 'Tamaño de mercado, clientes, cómo se cobra y estrategia comercial.' },
-      { name: 'Capacidad del equipo', weight: 20, description: 'Experiencia, roles y dedicación del equipo para ejecutar el proyecto.' },
-      { name: 'Plan de trabajo y presupuesto', weight: 15, description: 'Hitos verificables y coherencia de los gastos con los objetivos.' }
+      { name: 'Propuesta de valor e innovación (pauta referencial)', weight: 35, description: 'Problema, solución y qué la diferencia de lo que existe.' },
+      { name: 'Mercado y modelo de negocio (pauta referencial)', weight: 30, description: 'Tamaño de mercado, clientes, cómo se cobra y estrategia comercial.' },
+      { name: 'Capacidad del equipo (pauta referencial)', weight: 20, description: 'Experiencia, roles y dedicación del equipo para ejecutar el proyecto.' },
+      { name: 'Plan de trabajo y presupuesto (pauta referencial)', weight: 15, description: 'Hitos verificables y coherencia de los gastos con los objetivos.' }
     ],
     eligibleExpenses: ['Recursos humanos del proyecto', 'Gastos de operación', 'Asesorías y servicios externos', 'Gastos de administración (según bases)'],
     ineligibleExpenses: ['IVA recuperable', 'Pago de deudas', 'Gastos no relacionados con el proyecto'],

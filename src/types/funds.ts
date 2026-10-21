@@ -60,6 +60,84 @@ export interface ChileanFund {
     description: string;
     maxPct?: number;
   }[];
+  /** Reglas oficiales del concurso (desde sus bases): requisitos, formulario, evaluación, aportes. */
+  rules?: FundRules;
+}
+
+/** Familias de formulario: cada una tiene su propia estructura oficial de postulación. */
+export type FundFamily = 'corfo_emprendimiento' | 'corfo_innovacion' | 'startup_chile' | 'sercotec' | 'anid' | 'fia' | 'monitor';
+
+/** Bloques internos del formulador (cada sección oficial se arma con uno o más). */
+export type FormBlock = 'title_pitch' | 'problem' | 'solution' | 'market' | 'model' | 'workplan' | 'team' | 'budget';
+
+/** Requisito de admisibilidad. `check` permite revisarlo automáticamente con los datos de la empresa. */
+export interface FundRequirement {
+  id: string;
+  label: string;
+  detail?: string;
+  check?:
+    | { kind: 'rut' }
+    | { kind: 'taxFolder' }
+    | { kind: 'firstCategory'; required: boolean }
+    | { kind: 'age'; minMonths?: number; maxMonths?: number }
+    | { kind: 'sales'; minCLP?: number; maxCLP?: number; minUF?: number; maxUF?: number; noSales?: boolean }
+    | { kind: 'companyType'; allowed: CompanyType[] }
+    | { kind: 'female' };
+}
+
+export interface FundBudgetAccount {
+  key: string;
+  account: string;
+  plainName: string;
+  share: number;
+  cap?: string;
+  whatGoes: string[];
+  whatNot: string[];
+  example: string;
+  itemPlaceholder: string;
+  justificationPlaceholder: string;
+}
+
+export interface FundRules {
+  family: FundFamily;
+  bases: { title: string; url: string; verifiedAt: string; note?: string };
+  /** Requisitos excluyentes para postular */
+  requirements: FundRequirement[];
+  /** Lo que se entrega al postular */
+  applicationDocs: { id: string; label: string; detail?: string; link?: 'letters' | 'taxFolder' | 'formulator' | 'pitch' }[];
+  /** Lo que se pide si el proyecto es seleccionado */
+  formalizationDocs: string[];
+  /** Secciones del formulario oficial y con qué bloques del formulador se arman */
+  formSections: { title: string; blocks: FormBlock[]; evaluates?: string }[];
+  pitch?: { label: string; seconds: number; content: string };
+  evaluation: {
+    scale: string;
+    /** Nota mínima global para ser recomendado (null = no hay corte: se adjudica por ranking) */
+    passMark: number | null;
+    /** Nota mínima en cada criterio o capítulo (si las bases la exigen) */
+    minEach?: number | null;
+    /** Meta sugerida cuando no hay nota de corte */
+    target: number;
+    rule: string;
+    stages?: { name: string; weight: number; detail?: string }[];
+  };
+  coFinance: {
+    text: string;
+    /** % máximo de subsidio por tamaño de empresa (si cambia según ventas) */
+    bySizePct?: { micro_pequena: number; mediana: number; grande: number };
+    femalePct?: number;
+    femaleMaxCLP?: number;
+    /** Aporte como % del subsidio (Sercotec): el % máximo del total se calcula con esto */
+    contributionOfSubsidyPct?: number;
+    minCashText?: string;
+  };
+  partners?: string;
+  guarantee: { required: boolean; text: string };
+  portal: { name: string; url: string };
+  duration: string;
+  budget: FundBudgetAccount[];
+  /** Advertencias importantes para el postulante */
+  notes?: string[];
 }
 
 export interface GeneratedDocument {

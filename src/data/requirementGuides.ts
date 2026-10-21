@@ -121,3 +121,19 @@ export const REQUIREMENT_GUIDES: Record<string, RequirementGuide> = {
     tip: 'No dejes el envío para el último día: los portales suelen saturarse cerca del cierre.'
   }
 };
+
+/** Guía para un requisito de cualquier fondo (los textos cambian según las bases, así que se busca por tema). */
+export function guideFor(label: string): RequirementGuide | undefined {
+  if (REQUIREMENT_GUIDES[label]) return REQUIREMENT_GUIDES[label];
+  const l = label.toLowerCase();
+  if (/\brut\b/.test(l)) return REQUIREMENT_GUIDES['RUT de la empresa válido (Módulo 11)'];
+  if (/carpeta tributaria/.test(l)) return REQUIREMENT_GUIDES['Carpeta Tributaria Electrónica F29'];
+  if (/primera categor[ií]a|inicio de actividades/.test(l)) return REQUIREMENT_GUIDES['Inicio de actividades en 1ª Categoría'];
+  if (/estatuto|objeto social|vigencia/.test(l)) return REQUIREMENT_GUIDES['Estatuto social y poderes de representación'];
+  if (/carta/.test(l)) return REQUIREMENT_GUIDES['Cartas de Intención de Compra / LOI'];
+  if (/mujer/.test(l)) return REQUIREMENT_GUIDES['Acreditación de Liderazgo Femenino'];
+  if (/garant[ií]a/.test(l)) return REQUIREMENT_GUIDES['Simulación de póliza de garantía para anticipo'];
+  if (/aporte/.test(l)) return REQUIREMENT_GUIDES['Aporte empresarial pecuniario'];
+  if (/^postular en/.test(l)) return REQUIREMENT_GUIDES['Subida formal a la plataforma oficial'];
+  return undefined;
+}

@@ -169,6 +169,7 @@ interface Ctx {
   ageMonths: number | null;
   last12: number;
   last12UF: number;
+  previous12: number | null;
   bracket: SalesBracket;
   firstCategory: boolean;
   activityCodes: string[];
@@ -180,55 +181,71 @@ function specificChecks(fund: ChileanFund, c: Ctx): Check[] {
   const out: Check[] = [];
   const age = c.ageMonths;
   switch (fund.id) {
+    // Requisitos según las bases oficiales (ver src/data/fundStandards.ts)
     case 'corfo_semilla_inicia':
-      out.push(c.last12 < 60_000_000
-        ? { verdict: 'cumple', reason: `Ventas de 12 meses (${clp(c.last12)}) bajo el tope de $60.000.000` }
-        : { verdict: 'no_cumple', reason: `Ventas de 12 meses (${clp(c.last12)}) superan el tope de $60.000.000` });
+      if (age !== null) out.push(age <= 18
+        ? { verdict: 'cumple', reason: `Antigüedad de ${ageText(age)} (máximo 18 meses para empresas)` }
+        : { verdict: 'no_cumple', reason: `Antigüedad de ${ageText(age)}; las empresas pueden tener máximo 18 meses de inicio de actividades` });
+      out.push(c.last12 <= 0
+        ? { verdict: 'cumple', reason: 'Sin ventas registradas (las empresas deben postular sin ventas)' }
+        : { verdict: 'no_cumple', reason: `Registras ventas por ${clp(c.last12)}; las empresas deben postular sin ventas` });
       break;
     case 'corfo_semilla_expande':
-      out.push(c.last12 >= 100_000 && c.last12 <= 60_000_000
-        ? { verdict: 'cumple', reason: `Ventas de 12 meses (${clp(c.last12)}) dentro del rango de $100.000 a $60.000.000` }
-        : { verdict: 'no_cumple', reason: `Pide ventas de 12 meses entre $100.000 y $60.000.000; tienes ${clp(c.last12)}` });
+      if (age !== null) out.push(age <= 36
+        ? { verdict: 'cumple', reason: `Antigüedad de ${ageText(age)} (máximo 36 meses)` }
+        : { verdict: 'no_cumple', reason: `Antigüedad de ${ageText(age)}; pide máximo 36 meses` });
+      out.push(c.last12 >= 100_000 && c.last12 <= 80_000_000
+        ? { verdict: 'cumple', reason: `Ventas de 12 meses (${clp(c.last12)}) entre $100.000 y $80.000.000` }
+        : { verdict: 'no_cumple', reason: `Pide ventas de 12 meses entre $100.000 y $80.000.000; tienes ${clp(c.last12)}` });
       break;
     case 'corfo_crea_valida':
-      if (age !== null) out.push(age >= 18
-        ? { verdict: 'cumple', reason: `Antigüedad de ${ageText(age)} (pide al menos 18 meses)` }
-        : { verdict: 'no_cumple', reason: `Antigüedad de ${ageText(age)}; pide al menos 18 meses` });
-      out.push(c.last12 > 0
-        ? { verdict: 'cumple', reason: 'Registra ventas en los últimos 12 meses' }
-        : { verdict: 'no_cumple', reason: 'Pide ventas demostradas y no registras ventas en los últimos 12 meses' });
+      if (age !== null) out.push(age >= 24
+        ? { verdict: 'cumple', reason: `Antigüedad de ${ageText(age)} (pide al menos 24 meses)` }
+        : { verdict: 'no_cumple', reason: `Antigüedad de ${ageText(age)}; pide al menos 24 meses` });
+      out.push(c.last12 > 0 || (c.previous12 || 0) > 0
+        ? { verdict: 'cumple', reason: 'Registra ventas en los últimos 24 meses' }
+        : { verdict: 'no_cumple', reason: 'Pide ventas en los últimos 24 meses' });
+      if (!c.firstCategory) out.push({ verdict: 'revisar', reason: 'Pide inicio de actividades en primera categoría vigente' });
       break;
     case 'corfo_sumate_innovar':
-      if (age !== null) out.push(age >= 12
-        ? { verdict: 'cumple', reason: `Antigüedad de ${ageText(age)} (pide al menos 1 año)` }
-        : { verdict: 'no_cumple', reason: `Antigüedad de ${ageText(age)}; pide al menos 1 año` });
-      out.push(c.last12 > 0
-        ? { verdict: 'cumple', reason: 'Registra ventas en el último año' }
-        : { verdict: 'no_cumple', reason: 'Pide ventas en el último año y no registras ventas en los últimos 12 meses' });
+      if (age !== null) out.push(age >= 24
+        ? { verdict: 'cumple', reason: `Antigüedad de ${ageText(age)} (pide al menos 24 meses)` }
+        : { verdict: 'no_cumple', reason: `Antigüedad de ${ageText(age)}; pide al menos 24 meses` });
+      out.push(c.last12 > 0 || (c.previous12 || 0) > 0
+        ? { verdict: 'cumple', reason: 'Registra ventas en los últimos 24 meses' }
+        : { verdict: 'no_cumple', reason: 'Pide ventas en los últimos 24 meses' });
+      out.push({ verdict: 'revisar', reason: 'Debes contratar 1 o 2 entidades colaboradoras (universidad o centro tecnológico)' });
       break;
+    case 'startup_chile_build':
     case 'startup_chile_ignite':
       if (age !== null) out.push(age < 36
-        ? { verdict: 'cumple', reason: `Antigüedad de ${ageText(age)} (menos de 3 años)` }
-        : { verdict: 'no_cumple', reason: `Antigüedad de ${ageText(age)}; está dirigido a startups de menos de 3 años` });
+        ? { verdict: 'cumple', reason: `Antigüedad de ${ageText(age)}: empresa joven` }
+        : { verdict: 'revisar', reason: `Antigüedad de ${ageText(age)}; Start-Up Chile apunta a startups jóvenes, revisa la antigüedad máxima en las bases` });
+      out.push({ verdict: 'revisar', reason: 'Debe ser un emprendimiento de base tecnológica con potencial global' });
       break;
     case 'sercotec_semilla_emprende':
     case 'sercotec_abeja_emprende':
-      out.push({ verdict: 'no_cumple', reason: 'Es solo para personas sin inicio de actividades en primera categoría, y tu empresa ya lo tiene' });
+      out.push(c.firstCategory
+        ? { verdict: 'no_cumple', reason: 'Es solo para personas sin inicio de actividades en primera categoría, y ya lo tienes' }
+        : { verdict: 'revisar', reason: 'Tu carpeta no muestra primera categoría: confirma que no tienes inicio de actividades en esa categoría' });
       break;
     case 'sercotec_crece':
       out.push(c.last12UF >= 200 && c.last12UF <= 25000
         ? { verdict: 'cumple', reason: `Ventas de 12 meses de ${Math.round(c.last12UF).toLocaleString('es-CL')} UF (pide entre 200 y 25.000 UF)` }
         : { verdict: 'no_cumple', reason: `Pide ventas anuales entre 200 y 25.000 UF; tienes ${Math.round(c.last12UF).toLocaleString('es-CL')} UF en 12 meses` });
-      if (!c.firstCategory) out.push({ verdict: 'revisar', reason: 'Pide inicio de actividades en primera categoría' });
+      if (!c.firstCategory) out.push({ verdict: 'no_cumple', reason: 'Pide inicio de actividades en primera categoría' });
       break;
     case 'anid_fondef_idea':
-      out.push({ verdict: 'revisar', reason: 'Pide postular asociado a una universidad o centro de investigación; la carpeta no lo indica' });
+      out.push({ verdict: 'revisar', reason: 'Postula una universidad o centro de I+D; tu empresa participa como asociada y aporta' });
       break;
     case 'fia_innovacion_agro': {
+      out.push(c.last12UF <= 50000
+        ? { verdict: 'cumple', reason: `Ventas de ${Math.round(c.last12UF).toLocaleString('es-CL')} UF (máximo 50.000 UF)` }
+        : { verdict: 'no_cumple', reason: 'Es para micro, pequeñas y medianas empresas (hasta 50.000 UF de ventas)' });
       const agro = c.activityCodes.some(code => /^(01|02|03|10|11)/.test(code));
       out.push(agro
         ? { verdict: 'cumple', reason: 'Tu giro está en el sector silvoagropecuario o alimentario' }
-        : { verdict: 'revisar', reason: 'Está dirigido al sector silvoagroalimentario; tus actividades registradas son de otro rubro' });
+        : { verdict: 'revisar', reason: 'Está dirigido al sector silvoagroalimentario; tus actividades son de otro rubro (puedes postular con una empresa asociada del sector)' });
       break;
     }
   }
@@ -351,6 +368,7 @@ export function buildTaxDiagnosis(
     ageMonths,
     last12: last12Total,
     last12UF,
+    previous12: previous12Total,
     bracket,
     firstCategory,
     activityCodes: cte.activities.map(a => a.code)

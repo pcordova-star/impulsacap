@@ -5,6 +5,7 @@ import { ChileanFund, CompanyProfile, FormulationOutput, BlindAuditResult, Compa
 import { ExpedienteData } from '../types/expediente';
 import { ApplicationItem } from '../types/application';
 import { validateRut } from '../utils/rutValidator';
+import { computeRoadmap } from '../data/fundStandards';
 import { 
   ArrowLeft, 
   ArrowRight,
@@ -96,34 +97,21 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
 }) => {
   const [showDossierModal, setShowDossierModal] = useState<boolean>(false);
 
-  // Compute 6-step progress for the header
+  // Avance: la misma hoja de ruta estándar que se muestra en la postulación (según las bases del fondo)
   const progress = useMemo(() => {
-    const isRutValid = validateRut(profile.rut);
-    const isTaxFolderDone = Boolean(profile.taxFolderUploaded);
-    const step1 = isRutValid && isTaxFolderDone;
-
-    const step2 = Boolean(
-      (application?.roadmapConfirmations?.confirmedEstatutoSocial || expediente?.roadmapConfirmations?.confirmedEstatutoSocial) &&
-      ((expediente?.generatedDocs && expediente.generatedDocs.length > 0) || (profile.customerValidationCount && profile.customerValidationCount > 0))
-    );
-
-    const step3 = Boolean(formulation || expediente?.formulation);
-
-    const hasBudget = Boolean(
-      formulation?.budgetBreakdown && formulation.budgetBreakdown.some(b => (b.corfoContributionCLP || 0) > 0)
-    );
-    const step4 = hasBudget && Boolean(application?.roadmapConfirmations?.confirmedGarantia || expediente?.roadmapConfirmations?.confirmedGarantia);
-
-    const currentAudit = auditResult || expediente?.auditResult;
-    const step5 = Boolean(currentAudit && (currentAudit.overallScore || 0) >= 3.5);
-
-    const step6 = step1 && step2 && step3 && step4 && step5;
-
-    const completedCount = [step1, step2, step3, step4, step5, step6].filter(Boolean).length;
-    const percentage = Math.round((completedCount / 6) * 100);
-
-    return { completedCount, percentage };
-  }, [profile, application, expediente, formulation, auditResult]);
+    const rm = computeRoadmap({
+      fund,
+      profile,
+      rutValid: validateRut(profile.rut),
+      formulation: formulation || expediente?.formulation,
+      auditResult: auditResult || expediente?.auditResult,
+      checks: { ...((application?.roadmapConfirmations as any)?.checks || {}), ...((expediente?.roadmapConfirmations as any)?.checks || {}) },
+      confirmedGarantia: Boolean(application?.roadmapConfirmations?.confirmedGarantia || expediente?.roadmapConfirmations?.confirmedGarantia),
+      signedLetters: (expediente?.generatedDocs || []).filter((d: any) => d.status === 'firmada').length,
+      submitted: (application as any)?.status === 'enviada'
+    });
+    return { completedCount: rm.completed, percentage: rm.percentage };
+  }, [fund, profile, application, expediente, formulation, auditResult]);
 
   // Project profile completion percentage (Requirement A.2)
   const projectCompletion = useMemo(() => {
@@ -394,7 +382,7 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
                   </h2>
                 </div>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Revisa el dossier completo con antecedentes tributarios, formulación técnica y cartas de interés antes de enviar a e-CORFO.
+                  Revisa el dossier completo con antecedentes tributarios, formulación técnica y cartas antes de enviarlo en el portal del fondo.
                 </p>
               </div>
 
