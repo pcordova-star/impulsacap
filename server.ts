@@ -1396,6 +1396,25 @@ Genera el texto completo del documento en formato Markdown:`;
 });
 
 // 5. Asistente Conversacional Experto en Fondos Chilenos
+/**
+ * Gemini exige que la conversación empiece con el usuario y alterne turnos.
+ * Quita saludos iniciales del asistente, une mensajes seguidos del mismo rol y limita el largo.
+ */
+function normalizeChatTurns(turns: { role: 'user' | 'model'; text: string }[], maxTurns = 20) {
+  const out: { role: 'user' | 'model'; parts: { text: string }[] }[] = [];
+  for (const t of turns) {
+    const text = String(t.text || '').trim();
+    if (!text) continue;
+    if (out.length === 0 && t.role !== 'user') continue;
+    const last = out[out.length - 1];
+    if (last && last.role === t.role) last.parts[0].text += `\n\n${text}`;
+    else out.push({ role: t.role, parts: [{ text }] });
+  }
+  let trimmed = out.slice(-maxTurns);
+  while (trimmed.length && trimmed[0].role !== 'user') trimmed = trimmed.slice(1);
+  return trimmed;
+}
+
 app.post('/api/gemini/chat', requireAuth, requireActivePlan, async (req, res) => {
   try {
     const { messages, companyProfile, profile, projectProfile: directProj, taxFolderData, currentFund } = req.body;
@@ -1444,11 +1463,16 @@ ${JSON.stringify(currentFund || {}, null, 2)}
 
 Sé conciso, empático, directo y ultra práctico. Habla con terminología chilena natural pero muy profesional (UF, CLP, RUT, SpA, SII, TGR, rendición, contraparte, cofinanciamiento).`;
 
-    // Convert chat history
-    const formattedContents = messages.map((m: { role: string; content: string }) => ({
-      role: m.role === 'user' ? 'user' : 'model',
-      parts: [{ text: m.content }],
-    }));
+    // Historial válido para Gemini: parte con el usuario (se omite el saludo inicial del asesor)
+    const formattedContents = normalizeChatTurns(
+      (Array.isArray(messages) ? messages : []).map((m: { role: string; content: string }) => ({
+        role: m.role === 'user' ? 'user' : 'model',
+        text: String(m.content || '').slice(0, 4000)
+      }))
+    );
+    if (formattedContents.length === 0 || formattedContents[formattedContents.length - 1].role !== 'user') {
+      return res.status(400).json({ error: 'Escribe tu consulta para el asesor.' });
+    }
 
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
@@ -1463,7 +1487,7 @@ Sé conciso, empático, directo y ultra práctico. Habla con terminología chile
     if (!reply) throw new Error('Respuesta vacía de Gemini');
     return res.json({ reply });
   } catch (error: any) {
-    console.error('Error in /api/gemini/chat:', error?.message);
+    console.error('Error in /api/gemini/chat:', error?.status || '', error?.message);
     return res.status(503).json({ error: 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.' });
   }
 });
@@ -1500,10 +1524,10 @@ REGLAS:
 
 Responde SOLO un JSON: {"reply": "texto", "intent": "plataforma" | "fondos" | "humano", "needsHuman": true | false}`;
 
-    const contents = [
-      ...history.map(m => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.text }] })),
-      { role: 'user', parts: [{ text: message.trim() }] }
-    ];
+    const contents = normalizeChatTurns([
+      ...history.map(m => ({ role: (m.role === 'user' ? 'user' : 'model') as 'user' | 'model', text: m.text })),
+      { role: 'user' as const, text: message.trim() }
+    ]);
 
     const response = await ai.models.generateContent({
       model: MODEL_NAME,

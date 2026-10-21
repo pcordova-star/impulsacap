@@ -1,3 +1,4 @@
+import { REQUIREMENT_GUIDES } from '../data/requirementGuides';
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   CompanyProfile, 
@@ -141,6 +142,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
   };
   const [showDossierModal, setShowDossierModal] = useState<boolean>(false);
   const [expandedStep, setExpandedStep] = useState<number>(1);
+  const [openGuide, setOpenGuide] = useState<string | null>(null);
 
   // Agency official URL
   const agencyUrls: Record<string, string> = {
@@ -889,10 +891,46 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
                               ? 'Haz clic para confirmar que ya cuentas con esto'
                               : item.detail;
 
+                            const guide = REQUIREMENT_GUIDES[item.label];
+                            const guideKey = `${step.id}-${idx}`;
+                            const guideOpen = openGuide === guideKey;
+                            const guideBlock = guide ? (
+                              <div className="mt-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setOpenGuide(guideOpen ? null : guideKey)}
+                                  aria-expanded={guideOpen}
+                                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-300 hover:text-sky-200 underline underline-offset-2 cursor-pointer"
+                                >
+                                  {guideOpen ? 'Ocultar guía' : '¿Qué es y cómo lo consigo?'}
+                                </button>
+                                {guideOpen && (
+                                  <div className="mt-2 rounded-xl bg-slate-900/90 border border-slate-700 p-3 space-y-2 text-[12px] text-slate-200 leading-relaxed">
+                                    <p>{guide.what}</p>
+                                    {guide.why && <p className="text-slate-400"><strong className="text-slate-300">Para qué lo piden:</strong> {guide.why}</p>}
+                                    <ol className="list-decimal pl-4 space-y-1">
+                                      {guide.steps.map((st, i) => <li key={i}>{st}</li>)}
+                                    </ol>
+                                    {guide.cost && <p className="text-slate-400"><strong className="text-slate-300">Costo:</strong> {guide.cost}</p>}
+                                    {guide.tip && <p className="text-amber-200/90">{guide.tip}</p>}
+                                    {guide.links && guide.links.length > 0 && (
+                                      <div className="flex flex-wrap gap-x-3 gap-y-1 pt-1">
+                                        {guide.links.map(l => (
+                                          <a key={l.url} href={l.url} target="_blank" rel="noopener noreferrer" className="text-sky-300 hover:text-sky-200 underline underline-offset-2">
+                                            {l.label}
+                                          </a>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ) : null;
+
                             if (isItemInteractive) {
                               return (
+                                <div key={idx}>
                                 <button
-                                  key={idx}
                                   type="button"
                                   role="checkbox"
                                   aria-checked={item.done}
@@ -937,12 +975,14 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
                                     </p>
                                   </div>
                                 </button>
+                                {guideBlock}
+                                </div>
                               );
                             }
 
                             return (
+                              <div key={idx}>
                               <div
-                                key={idx}
                                 className={`p-3 rounded-xl border flex items-start gap-2.5 text-xs ${
                                   item.done
                                     ? 'bg-emerald-950/20 border-emerald-500/20 text-slate-200'
@@ -962,6 +1002,8 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
                                     {item.detail}
                                   </p>
                                 </div>
+                              </div>
+                              {guideBlock}
                               </div>
                             );
                           })}
