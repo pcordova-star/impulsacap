@@ -145,6 +145,72 @@ const ai = new GoogleGenAI({
 });
 
 const MODEL_NAME = 'gemini-3.8-flash';
+// Modelos de respaldo en caso de sobrecarga temporal de servidores (503 / UNAVAILABLE / High demand)
+const FALLBACK_MODELS = ['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
+
+function isRetryableGeminiError(err: any): boolean {
+  if (!err) return false;
+  const msg = (err.message || String(err)).toLowerCase();
+  const status = err.status;
+  const code = err.code || err.error?.code;
+
+  return (
+    status === 503 ||
+    status === 'UNAVAILABLE' ||
+    code === 503 ||
+    msg.includes('503') ||
+    msg.includes('unavailable') ||
+    msg.includes('high demand') ||
+    msg.includes('spikes in demand') ||
+    msg.includes('overloaded') ||
+    msg.includes('temporarily')
+  );
+}
+
+// Resilient wrapper: Exponential Backoff (2s, 4s) y cambio automático a modelo de respaldo si un modelo está saturado
+const originalGenerateContent = ai.models.generateContent.bind(ai.models);
+ai.models.generateContent = async function resilientGenerateContent(params: any) {
+  const primaryModel = params.model || MODEL_NAME;
+  const modelsToTry = [primaryModel, ...FALLBACK_MODELS.filter(m => m !== primaryModel)];
+
+  let lastError: any = null;
+
+  for (let mIdx = 0; mIdx < modelsToTry.length; mIdx++) {
+    const currentModel = modelsToTry[mIdx];
+    const maxRetries = 2;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const result = await originalGenerateContent({
+          ...params,
+          model: currentModel,
+        });
+        (result as any).usedModel = currentModel;
+        if (mIdx > 0 || attempt > 1) {
+          console.log(`[Gemini Resilient] Éxito con modelo ${currentModel} (intento ${attempt})`);
+        }
+        return result;
+      } catch (err: any) {
+        lastError = err;
+        if (isRetryableGeminiError(err)) {
+          const waitMs = attempt * 2000;
+          console.warn(`[Gemini 503] Modelo ${currentModel} en alta demanda (intento ${attempt}/${maxRetries}). Esperando ${waitMs}ms...`);
+          if (attempt < maxRetries) {
+            await new Promise(r => setTimeout(r, waitMs));
+            continue;
+          } else {
+            console.warn(`[Gemini Fallback] Agotados reintentos para ${currentModel}. Probando modelo alternativo...`);
+            break;
+          }
+        } else {
+          throw err;
+        }
+      }
+    }
+  }
+
+  throw lastError;
+};
 
 // -------------------------------------------------------------
 // FIREBASE ADMIN & MERCADO PAGO SDK INITIALIZATION
@@ -2674,7 +2740,7 @@ app.get('/api/admin/diagnostico-ia', requireAuth, requireAdminUser, async (_req,
       contents: [{ role: 'user', parts: [{ text: 'Responde solo: OK' }] }],
       config: { maxOutputTokens: 20, temperature: 0 }
     });
-    return res.json({ ok: true, model: MODEL_NAME, key: keyInfo, ms: Date.now() - started, sample: (r.text || '').trim().slice(0, 40) });
+    return res.json({ ok: true, model: (r as any)?.usedModel || MODEL_NAME, key: keyInfo, ms: Date.now() - started, sample: (r.text || '').trim().slice(0, 40) });
   } catch (err: any) {
     const message = String(err?.message || err).replace(/AIza[0-9A-Za-z_\-]{20,}/g, '[clave oculta]').slice(0, 600);
     console.error('[diagnostico-ia]', err?.status, message);
