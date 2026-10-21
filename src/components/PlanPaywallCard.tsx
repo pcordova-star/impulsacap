@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Sparkles, 
   ShieldCheck, 
@@ -14,6 +14,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { apiFetch } from '../utils/apiFetch';
+import { announceEarlyAccess, getPaymentsMode } from '../utils/earlyAccess';
 import { usePlan } from '../hooks/usePlan';
 
 interface PlanPaywallCardProps {
@@ -32,6 +33,8 @@ export const PlanPaywallCard: React.FC<PlanPaywallCardProps> = ({
   const { isFirstPurchase, price, hasActivePlan, daysLeft, isExpiringSoon } = usePlan();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [paymentsEnabled, setPaymentsEnabled] = useState(true);
+  useEffect(() => { getPaymentsMode().then(m => setPaymentsEnabled(m.paymentsEnabled)); }, []);
 
   const handleCheckout = async () => {
     setLoading(true);
@@ -64,6 +67,7 @@ export const PlanPaywallCard: React.FC<PlanPaywallCardProps> = ({
         method: 'POST'
       });
       const data = await res.json();
+      if (res.ok && data?.earlyAccess) { announceEarlyAccess(data); setLoading(false); return; }
       if (!res.ok) {
         throw new Error(data.error || 'No se pudo iniciar el proceso de pago.');
       }
@@ -207,12 +211,12 @@ export const PlanPaywallCard: React.FC<PlanPaywallCardProps> = ({
               {loading ? (
                 <>
                   <RefreshCw className="w-5 h-5 animate-spin" />
-                  <span>Conectando con Mercado Pago...</span>
+                  <span>{paymentsEnabled ? 'Conectando con Mercado Pago...' : 'Activando tu acceso...'}</span>
                 </>
               ) : (
                 <>
                   <Lock className="w-5 h-5" />
-                  <span>Pagar con Mercado Pago</span>
+                  <span>{paymentsEnabled ? 'Pagar con Mercado Pago' : 'Activar acceso anticipado'}</span>
                   <ArrowRight className="w-5 h-5" />
                 </>
               )}

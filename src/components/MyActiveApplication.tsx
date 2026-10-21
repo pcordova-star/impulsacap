@@ -43,6 +43,7 @@ import { GuaranteesCalculator } from './GuaranteesCalculator';
 import { usePlan } from '../hooks/usePlan';
 import { PlanPaywallCard } from './PlanPaywallCard';
 import { apiFetch } from '../utils/apiFetch';
+import { announceEarlyAccess } from '../utils/earlyAccess';
 import { auth } from '../firebase';
 import { requestLogin } from '../utils/authEvents';
 import { ExpedienteData, RoadmapConfirmations, DocChecklistStatuses } from '../types/expediente';
@@ -128,6 +129,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
     try {
       const res = await apiFetch('/api/pagos/crear', { method: 'POST' });
       const data = await res.json();
+      if (res.ok && data?.earlyAccess) { announceEarlyAccess(data); return; }
       if (res.ok && data.init_point) {
         window.location.href = data.init_point;
       } else {

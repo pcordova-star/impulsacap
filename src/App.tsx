@@ -17,6 +17,7 @@ import { TermsPage, PrivacyPage } from './components/LegalPages';
 import { ServiceStartModal } from './components/ServiceStartModal';
 import { WelcomeStartModal } from './components/WelcomeStartModal';
 import { ToastCenter } from './components/ToastCenter';
+import { EarlyAccessModal } from './components/EarlyAccessModal';
 import { AdminDashboard } from './components/AdminDashboard';
 import { trackPageview } from './utils/pageviews';
 import { AuthGateView } from './components/AuthGateView';
@@ -347,6 +348,16 @@ export default function App() {
       auditResult: app?.auditResult || null
     };
   }, [activeApplication, activeFund, profile, currentUser]);
+
+  // Enlace del correo "Ya puedes completar tu pago" (/?pagar=1): lleva a "Mi plan"
+  useEffect(() => {
+    if (!currentUser) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('pagar') !== '1') return;
+    window.history.replaceState({}, '', window.location.pathname);
+    setActiveTab('my-company');
+    setTimeout(() => document.getElementById('mi-plan')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 400);
+  }, [currentUser]);
 
   const welcomeKey = (uid?: string) => `impulsacap_welcome_start_done_${uid || 'guest'}`;
   const closeWelcome = useCallback(() => {
@@ -875,6 +886,9 @@ export default function App() {
 
       {/* Avisos emergentes (burbujas con sonido) */}
       <ToastCenter />
+
+      {/* Acceso anticipado (lanzamiento sin pago en línea) */}
+      <EarlyAccessModal onStart={() => setActiveTab('my-applications')} />
 
       {/* Aviso de inicio del servicio del plan (derecho a retracto) */}
       <ServiceStartModal onOpenTerms={() => openLegalPage('terminos')} />

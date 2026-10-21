@@ -37,6 +37,9 @@ import {
   testEmail,
   supportTicketAdminEmail,
   supportTicketUserEmail,
+  earlyAccessUserEmail,
+  earlyAccessAdminEmail,
+  paymentAvailableEmail,
 } from './server/email';
 
 dotenv.config();
@@ -1627,6 +1630,80 @@ app.post('/api/soporte/ticket', ticketLimiter, async (req, res) => {
 // MERCADO PAGO CHECKOUT PRO & SUBSCRIPTION ENDPOINTS
 // -------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Acceso anticipado: mientras PAGOS_MODO=anticipado, contratar da acceso provisional sin cobro
+// y registra la intención de compra. Al habilitar el pago, el admin avisa y hay 7 días para pagar.
+// ---------------------------------------------------------------------------
+const isEarlyAccessMode = () => (process.env.PAGOS_MODO || '').trim().toLowerCase() === 'anticipado';
+const EARLY_ACCESS_DAYS = () => Math.min(90, Math.max(1, Number(process.env.ACCESO_ANTICIPADO_DIAS) || 30));
+const PAYMENT_GRACE_DAYS = 7;
+
+app.get('/api/pagos/modo', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ paymentsEnabled: !isEarlyAccessMode() });
+});
+
+async function isFirstPurchaseFor(uid: string): Promise<boolean> {
+  try {
+    const snap = await adminDb.collection('payments').where('uid', '==', uid).where('status', '==', 'approved').limit(1).get();
+    return snap.empty;
+  } catch {
+    return true;
+  }
+}
+
+async function grantEarlyAccess(uid: string, email: string | undefined) {
+  const entRef = adminDb.collection('entitlements').doc(uid);
+  const intentRef = adminDb.collection('purchase_intents').doc(uid);
+  const [entSnap, intentSnap] = await Promise.all([entRef.get(), intentRef.get()]);
+  const ent = entSnap.exists ? entSnap.data() : null;
+  const entActive = Boolean(ent?.status === 'active' && ent?.expiresAt && new Date(ent.expiresAt).getTime() > Date.now());
+
+  // Ya tiene un plan pagado vigente: no se toca
+  if (entActive && !ent?.provisional) {
+    return { earlyAccess: true, alreadyPaid: true, expiresAt: ent!.expiresAt };
+  }
+  // Ya recibió acceso anticipado antes: no se renueva
+  if (intentSnap.exists) {
+    return { earlyAccess: true, alreadyGranted: true, expiresAt: entActive ? ent!.expiresAt : null };
+  }
+
+  const price = (await isFirstPurchaseFor(uid)) ? 19990 : 39990;
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + EARLY_ACCESS_DAYS() * 864e5).toISOString();
+  await entRef.set({
+    plan: 'semestral',
+    status: 'active',
+    expiresAt,
+    provisional: true,
+    provisionalSince: now.toISOString(),
+    updatedAt: now.toISOString()
+  }, { merge: true });
+  let companyName = '';
+  try { companyName = String((await adminDb.collection('users').doc(uid).get()).data()?.companyName || ''); } catch {}
+  await intentRef.set({
+    uid,
+    email: email || '',
+    companyName,
+    price,
+    createdAt: now.toISOString(),
+    status: 'acceso_anticipado',
+    accessUntil: expiresAt,
+    notifiedAt: null,
+    paidAt: null
+  });
+
+  if (email) {
+    await sendEmail({ to: email, ...earlyAccessUserEmail({ expiresAt, price }), idempotencyKey: `early-user-${uid}` });
+  }
+  const adminEmail = getAdminEmail();
+  if (adminEmail) {
+    await sendEmail({ to: adminEmail, ...earlyAccessAdminEmail({ userEmail: email || uid, companyName, expiresAt, price }), idempotencyKey: `early-admin-${uid}` });
+  }
+  console.log(`[acceso-anticipado] Otorgado a ${uid} hasta ${expiresAt}`);
+  return { earlyAccess: true, expiresAt, price };
+}
+
 // Consulta de estado de precios (determina si es primera compra para cobrar $19.990 o $39.990)
 app.get('/api/pagos/estado', requireAuth, async (req, res) => {
   try {
@@ -1649,7 +1726,7 @@ app.get('/api/pagos/estado', requireAuth, async (req, res) => {
     }
 
     const price = isFirstPurchase ? 19990 : 39990;
-    return res.json({ isFirstPurchase, price });
+    return res.json({ isFirstPurchase, price, paymentsEnabled: !isEarlyAccessMode() });
   } catch {
     return res.json({ isFirstPurchase: true, price: 19990 });
   }
@@ -1698,6 +1775,12 @@ app.get('/api/pagos/historial', requireAuth, async (req, res) => {
 app.post('/api/pagos/crear', requireAuth, async (req, res) => {
   try {
     const user = (req as AuthenticatedRequest).user!;
+    if (isEarlyAccessMode()) {
+      if (!(await ensureFirestoreAdmin())) {
+        return res.status(503).json({ error: 'No pudimos activar tu acceso en este momento. Intenta en unos minutos.' });
+      }
+      return res.json(await grantEarlyAccess(user.uid, user.email));
+    }
     if (!mpAccessToken) {
       return res.status(500).json({ error: 'Mercado Pago no está configurado (MP_ACCESS_TOKEN ausente).' });
     }
@@ -1844,7 +1927,8 @@ app.post('/api/pagos/webhook', async (req, res) => {
     let baseDate = new Date(paymentInfo.date_approved || Date.now());
     if (currentEntDoc.exists) {
       const curData = currentEntDoc.data();
-      if (curData?.status === 'active' && curData?.expiresAt) {
+      // El acceso anticipado no se suma: los 6 meses parten desde el pago
+      if (curData?.status === 'active' && curData?.expiresAt && !curData?.provisional) {
         const curExp = new Date(curData.expiresAt);
         if (!isNaN(curExp.getTime()) && curExp.getTime() > baseDate.getTime()) {
           baseDate = curExp;
@@ -1860,8 +1944,17 @@ app.post('/api/pagos/webhook', async (req, res) => {
       status: 'active',
       expiresAt: expiresAt.toISOString(),
       lastPaymentId: String(paymentId),
+      provisional: false,
       updatedAt: new Date().toISOString()
     }, { merge: true });
+    try {
+      const intentRef = adminDb.collection('purchase_intents').doc(uid);
+      if ((await intentRef.get()).exists) {
+        await intentRef.set({ status: 'pagado', paidAt: new Date().toISOString(), paymentId: String(paymentId) }, { merge: true });
+      }
+    } catch (e: any) {
+      console.warn('[acceso-anticipado] No se pudo marcar la intención como pagada:', e?.message);
+    }
 
     console.log(`Plan semestral activated for user ${uid} until ${expiresAt.toISOString()}`);
 
@@ -2245,7 +2338,7 @@ app.post('/api/admin/recordatorios', requireAdminToken, async (req, res) => {
       const data = docSnap.data() || {};
       const expiresAt: string | undefined = data.expiresAt;
       if (!expiresAt || isNaN(new Date(expiresAt).getTime())) { summary.omitidos++; continue; }
-      if (data.emailRemindersOptOut === true) { summary.omitidos++; continue; }
+      if (data.emailRemindersOptOut === true || data.provisional === true) { summary.omitidos++; continue; }
 
       const daysLeft = calendarDaysBetween(todayKey, chileDateKey(new Date(expiresAt)));
 
@@ -2414,6 +2507,51 @@ app.post('/api/admin/soporte/:id/estado', requireAuth, requireAdminUser, async (
   } catch (err: any) {
     console.error('Error in /api/admin/soporte/:id/estado:', err?.message);
     return res.status(500).json({ error: 'No se pudo actualizar la solicitud.' });
+  }
+});
+
+// Acceso anticipado: listado y aviso de "ya puedes pagar" (solo cuando el pago ya está habilitado)
+app.get('/api/admin/acceso-anticipado', requireAuth, requireAdminUser, async (_req, res) => {
+  try {
+    if (!(await ensureFirestoreAdmin())) return res.status(503).json({ error: 'Firestore Admin no está autorizado.' });
+    const snap = await adminDb.collection('purchase_intents').orderBy('createdAt', 'desc').limit(200).get();
+    res.set('Cache-Control', 'no-store');
+    return res.json({ paymentsEnabled: !isEarlyAccessMode(), intents: snap.docs.map(d => d.data()) });
+  } catch (err: any) {
+    console.error('Error in /api/admin/acceso-anticipado:', err?.message);
+    return res.status(500).json({ error: 'No se pudo cargar el acceso anticipado.' });
+  }
+});
+
+app.post('/api/admin/acceso-anticipado/avisar', requireAuth, requireAdminUser, async (_req, res) => {
+  try {
+    if (isEarlyAccessMode()) {
+      return res.status(409).json({ error: 'El pago sigue en modo anticipado. Primero cambia PAGOS_MODO en AI Studio (déjalo vacío) y vuelve a publicar.' });
+    }
+    if (!(await ensureFirestoreAdmin())) return res.status(503).json({ error: 'Firestore Admin no está autorizado.' });
+    const snap = await adminDb.collection('purchase_intents').where('status', '==', 'acceso_anticipado').get();
+    let avisados = 0;
+    let omitidos = 0;
+    for (const d of snap.docs) {
+      const it = d.data();
+      if (it.notifiedAt || !it.email) { omitidos++; continue; }
+      const deadline = new Date(Date.now() + PAYMENT_GRACE_DAYS * 864e5).toISOString();
+      // El acceso provisional se extiende o acota hasta la fecha límite de pago
+      const entRef = adminDb.collection('entitlements').doc(it.uid);
+      const ent = (await entRef.get()).data();
+      if (ent?.provisional) {
+        await entRef.set({ status: 'active', expiresAt: deadline, updatedAt: new Date().toISOString() }, { merge: true });
+      }
+      const price = (await isFirstPurchaseFor(it.uid)) ? 19990 : 39990;
+      const sent = await sendEmail({ to: it.email, ...paymentAvailableEmail({ deadline, price }), idempotencyKey: `pay-available-${it.uid}` });
+      await d.ref.set({ notifiedAt: new Date().toISOString(), paymentDeadline: deadline, notifyEmailSent: sent }, { merge: true });
+      avisados++;
+    }
+    console.log(`[acceso-anticipado] Aviso de pago: ${avisados} avisados, ${omitidos} omitidos`);
+    return res.json({ avisados, omitidos });
+  } catch (err: any) {
+    console.error('Error in /api/admin/acceso-anticipado/avisar:', err?.message);
+    return res.status(500).json({ error: 'No se pudo enviar el aviso.' });
   }
 });
 

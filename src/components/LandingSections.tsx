@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Search,
   ClipboardCheck,
@@ -13,8 +13,10 @@ import {
 } from 'lucide-react';
 import { usePlan } from '../hooks/usePlan';
 import { apiFetch } from '../utils/apiFetch';
+import { announceEarlyAccess } from '../utils/earlyAccess';
 import { auth } from '../firebase';
 import { requestLogin } from '../utils/authEvents';
+import { getPaymentsMode } from '../utils/earlyAccess';
 
 /* -------------------------------------------------------------------------- */
 /* Cómo funciona: las 3 etapas reales del recorrido en la app                  */
@@ -188,6 +190,8 @@ const formatCLP = (n: number) => `$${n.toLocaleString('es-CL')}`;
 
 export const PlanComparison: React.FC<{ onStartFree: () => void }> = ({ onStartFree }) => {
   const { isFirstPurchase, price, hasActivePlan, expiresAt } = usePlan();
+  const [paymentsEnabled, setPaymentsEnabled] = useState(true);
+  useEffect(() => { getPaymentsMode().then(m => setPaymentsEnabled(m.paymentsEnabled)); }, []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -209,6 +213,7 @@ export const PlanComparison: React.FC<{ onStartFree: () => void }> = ({ onStartF
     try {
       const res = await apiFetch('/api/pagos/crear', { method: 'POST' });
       const data = await res.json();
+      if (res.ok && data?.earlyAccess) { announceEarlyAccess(data); setLoading(false); return; }
       if (!res.ok || !data.init_point) throw new Error(data.error || 'No se pudo iniciar el pago.');
       window.location.href = data.init_point;
     } catch (err: any) {
@@ -298,9 +303,13 @@ export const PlanComparison: React.FC<{ onStartFree: () => void }> = ({ onStartF
                 className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-cyan-400 to-emerald-400 text-[#04131c] font-black text-sm hover:brightness-110 transition cursor-pointer disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F1E3A]"
               >
                 {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                {loading ? 'Abriendo Mercado Pago…' : 'Activar Plan Semestral'}
+                {loading ? (paymentsEnabled ? 'Abriendo Mercado Pago…' : 'Activando tu acceso…') : (paymentsEnabled ? 'Activar Plan Semestral' : 'Activar acceso anticipado')}
               </button>
-              <p className="text-xs text-slate-400 text-center">Pagas de forma segura con Mercado Pago.</p>
+              {paymentsEnabled ? (
+                <p className="text-xs text-slate-400 text-center">Pagas de forma segura con Mercado Pago.</p>
+              ) : (
+                <p className="text-xs text-emerald-200 text-center leading-relaxed">Lanzamiento: mientras habilitamos el pago en línea, te damos acceso sin costo y te avisamos por correo cuando puedas pagar.</p>
+              )}
               <p className="text-xs text-slate-400 text-center leading-relaxed">
                 Al pagar aceptas los{' '}
                 <a href="/terminos" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">Términos y Condiciones</a>. Tienes derecho a retracto dentro de 10 días desde el pago, mientras no comiences a usar el plan.

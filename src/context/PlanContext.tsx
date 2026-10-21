@@ -9,6 +9,8 @@ export interface PlanState {
   expiresAt: string | null;
   /** Id del último pago de Mercado Pago que activó o extendió el plan. */
   lastPaymentId: string | null;
+  /** Acceso anticipado sin cobro (lanzamiento) */
+  provisional: boolean;
   daysLeft: number;
   isFirstPurchase: boolean;
   price: number;
@@ -24,6 +26,7 @@ const defaultPlanState: PlanState = {
   hasActivePlan: false,
   expiresAt: null,
   lastPaymentId: null,
+  provisional: false,
   daysLeft: 0,
   isFirstPurchase: true,
   price: 19990,
@@ -45,6 +48,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode }> = ({ children
     status?: string;
     expiresAt?: string;
     lastPaymentId?: string;
+    provisional?: boolean;
     activeFundIds?: string[];
   } | null>(null);
 
@@ -106,6 +110,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode }> = ({ children
             status: data.status,
             expiresAt: data.expiresAt,
             lastPaymentId: data.lastPaymentId ? String(data.lastPaymentId) : undefined,
+            provisional: data.provisional === true,
             activeFundIds: Array.isArray(data.activeFundIds) ? data.activeFundIds : []
           });
         } else {
@@ -151,6 +156,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode }> = ({ children
     hasActivePlan,
     expiresAt,
     lastPaymentId: entitlementData?.lastPaymentId || null,
+    provisional: Boolean(entitlementData?.provisional),
     daysLeft,
     isFirstPurchase: pricingState.isFirstPurchase,
     price: pricingState.price,

@@ -191,6 +191,77 @@ interface Ticket {
   conversation?: { role: 'user' | 'bot'; text: string }[];
 }
 
+interface Intent {
+  uid: string; email: string; companyName?: string; price: number; createdAt: string;
+  status: 'acceso_anticipado' | 'pagado'; accessUntil?: string; notifiedAt?: string | null; paymentDeadline?: string; paidAt?: string | null;
+}
+
+/** Inscritos en acceso anticipado (contrataron mientras el pago en línea no estaba habilitado). */
+const EarlyAccessPanel: React.FC = () => {
+  const [data, setData] = useState<{ paymentsEnabled: boolean; intents: Intent[] } | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+
+  const loadIntents = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/admin/acceso-anticipado');
+      const body = await res.json().catch(() => ({}));
+      if (res.ok) setData(body);
+    } catch { /* sin efecto */ }
+  }, []);
+  useEffect(() => { loadIntents(); }, [loadIntents]);
+
+  if (!data || (data.intents.length === 0 && data.paymentsEnabled)) return null;
+  const pending = data.intents.filter(i => i.status === 'acceso_anticipado');
+  const toNotify = pending.filter(i => !i.notifiedAt);
+
+  const notify = async () => {
+    if (!confirm(`Se enviará el aviso "Ya puedes completar tu pago" a ${toNotify.length} ${toNotify.length === 1 ? 'persona' : 'personas'}, con 7 días para pagar. ¿Continuar?`)) return;
+    setSending(true);
+    setMsg(null);
+    try {
+      const res = await apiFetch('/api/admin/acceso-anticipado/avisar', { method: 'POST' });
+      const body = await res.json().catch(() => ({}));
+      setMsg(res.ok ? `Aviso enviado a ${body.avisados} ${body.avisados === 1 ? 'persona' : 'personas'}.` : body.error || 'No se pudo enviar el aviso.');
+      await loadIntents();
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <Card
+      title="Acceso anticipado"
+      subtitle={data.paymentsEnabled
+        ? `${pending.length} sin pagar, ${data.intents.length - pending.length} ya pagaron`
+        : `Modo lanzamiento activo: ${data.intents.length} ${data.intents.length === 1 ? 'persona tiene' : 'personas tienen'} acceso sin costo`}
+      right={data.paymentsEnabled && toNotify.length > 0 ? (
+        <button type="button" onClick={notify} disabled={sending} className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer disabled:opacity-60">
+          {sending ? 'Enviando…' : `Avisar que ya pueden pagar (${toNotify.length})`}
+        </button>
+      ) : undefined}
+    >
+      {!data.paymentsEnabled && (
+        <p className="text-sm text-slate-600 mb-3">Cuando Mercado Pago esté aprobado, deja vacío <code className="px-1 rounded bg-slate-100">PAGOS_MODO</code> en AI Studio, publica y vuelve aquí para avisarles.</p>
+      )}
+      {msg && <p className="text-sm text-slate-800 mb-3">{msg}</p>}
+      <Table headers={['Inscripción', 'Cliente', 'Precio', 'Estado', 'Acceso hasta']} empty={data.intents.length === 0}>
+        {data.intents.map(i => (
+          <tr key={i.uid}>
+            <td className="py-2.5 pr-4 whitespace-nowrap text-slate-600">{fmtDate(i.createdAt)}</td>
+            <td className="py-2.5 pr-4"><div className="text-slate-900">{i.companyName || '—'}</div><div className="text-xs text-slate-500">{i.email}</div></td>
+            <td className="py-2.5 pr-4 tabular-nums">{clp(i.price)}</td>
+            <td className="py-2.5 pr-4 whitespace-nowrap">
+              {i.status === 'pagado' ? <span className="text-emerald-700 font-semibold">Pagó</span> : i.notifiedAt ? 'Avisado, sin pagar' : 'Sin avisar'}
+            </td>
+            <td className="py-2.5 pr-4 whitespace-nowrap text-slate-600">{fmtDate(i.paymentDeadline || i.accessUntil || null)}</td>
+          </tr>
+        ))}
+      </Table>
+    </Card>
+  );
+};
+
 /** Bandeja de solicitudes de soporte creadas desde el asistente de ayuda. */
 const SupportInbox: React.FC = () => {
   const [tickets, setTickets] = useState<Ticket[] | null>(null);
@@ -483,6 +554,8 @@ export const AdminDashboard: React.FC = () => {
           </button>
         )}
       </Card>
+
+      <EarlyAccessPanel />
 
       <SupportInbox />
 

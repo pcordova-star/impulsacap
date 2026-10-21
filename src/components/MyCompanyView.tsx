@@ -10,6 +10,7 @@ import {
 import { validateRut, formatRut, formatRutInput, formatPhoneCLInput } from '../utils/rutValidator';
 import { usePlan } from '../hooks/usePlan';
 import { apiFetch } from '../utils/apiFetch';
+import { announceEarlyAccess } from '../utils/earlyAccess';
 import { auth } from '../firebase';
 import { requestLogin } from '../utils/authEvents';
 import { 
@@ -76,6 +77,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
     isExpired,
     price,
     isFirstPurchase,
+    provisional,
     refresh: refreshPlan 
   } = usePlan();
 
@@ -201,6 +203,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
     try {
       const res = await apiFetch('/api/pagos/crear', { method: 'POST' });
       const data = await res.json();
+      if (res.ok && data?.earlyAccess) { announceEarlyAccess(data); return; }
       if (res.ok && data.init_point) {
         window.location.href = data.init_point;
       } else {
@@ -846,10 +849,10 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
           <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
             <span className="text-[10px] uppercase font-bold text-slate-500 block">Plan Actual</span>
             <p className="text-base font-black text-slate-900">
-              {hasActivePlan ? 'Plan Semestral' : 'Plan Gratuito'}
+              {hasActivePlan ? (provisional ? 'Acceso anticipado' : 'Plan Semestral') : 'Plan Gratuito'}
             </p>
             <p className="text-[11px] text-slate-500">
-              {hasActivePlan ? 'Acceso completo a las herramientas' : 'Acceso limitado a diagnóstico'}
+              {hasActivePlan ? (provisional ? 'Sin costo mientras habilitamos el pago; te avisaremos por correo' : 'Acceso completo a las herramientas') : 'Acceso limitado a diagnóstico'}
             </p>
           </div>
 
