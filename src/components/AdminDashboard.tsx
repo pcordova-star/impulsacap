@@ -553,7 +553,10 @@ const AiStatus: React.FC = () => {
   const run = useCallback(async () => {
     setBusy(true);
     try {
-      const res = await apiFetch('/api/admin/diagnostico-ia');
+      const res = await Promise.race([
+        apiFetch('/api/admin/diagnostico-ia'),
+        new Promise<never>((_, rej) => setTimeout(() => rej(new Error('La prueba tardó más de 60 segundos: Gemini está lento o saturado.')), 60000))
+      ]);
       setR(await res.json());
     } catch (e: any) {
       setR({ ok: false, model: '', key: '', ms: 0, error: e?.message || 'No se pudo probar' });
@@ -573,9 +576,11 @@ const AiStatus: React.FC = () => {
           {r.error && <p className="font-mono break-words bg-slate-50 border border-slate-200 rounded p-2">{r.error}</p>}
         </div>
       )}
-      <button type="button" onClick={run} disabled={busy} className="text-xs font-semibold text-blue-700 hover:underline cursor-pointer disabled:opacity-60">
-        {busy ? 'Probando…' : 'Probar de nuevo'}
-      </button>
+      {r && (
+        <button type="button" onClick={run} disabled={busy} className="text-xs font-semibold text-blue-700 hover:underline cursor-pointer disabled:opacity-60">
+          {busy ? 'Probando…' : 'Probar de nuevo'}
+        </button>
+      )}
     </div>
   );
 };
@@ -665,7 +670,18 @@ const AiUsagePanel: React.FC = () => {
 /** Probar todos los correos y ejecutar los recordatorios desde el panel. */
 const EmailTools: React.FC = () => {
   const [busy, setBusy] = useState<'test' | 'rem' | null>(null);
-  const [result, setResult] = useState<{ ok: boolean; text: string; items?: { name: string; sent: boolean }[] } | null>(null);
+  const [result, setResult] = useState<{ ok: boolean; text: string; items?: { name: string; sent: boolean; error?: string | null }[] } | null>(null);
+  const [log, setLog] = useState<{ events: any[]; welcome: any[]; adminEmail?: string | null } | null>(null);
+  const [logErr, setLogErr] = useState<string | null>(null);
+  const loadLog = useCallback(async () => {
+    setLogErr(null);
+    try {
+      const res = await apiFetch('/api/admin/correos');
+      const b = await res.json().catch(() => ({}));
+      if (res.ok) setLog(b); else setLogErr(b.error || 'No se pudo leer el registro de correos.');
+    } catch (e: any) { setLogErr(e?.message || 'No se pudo leer el registro de correos.'); }
+  }, []);
+  useEffect(() => { loadLog(); }, [loadLog]);
   const run = async (kind: 'test' | 'rem') => {
     setBusy(kind);
     setResult(null);
@@ -679,8 +695,10 @@ const EmailTools: React.FC = () => {
       setResult({ ok: false, text: e?.message || 'No se pudo completar.' });
     } finally {
       setBusy(null);
+      loadLog();
     }
   };
+  const fmt = (iso: string) => { const d = new Date(iso); return isNaN(d.getTime()) ? '—' : d.toLocaleString('es-CL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'America/Santiago' }); };
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap gap-2">
@@ -696,12 +714,28 @@ const EmailTools: React.FC = () => {
           <p>{result.text}</p>
           {result.items && (
             <ul className="mt-1 grid gap-0.5 sm:grid-cols-2">
-              {result.items.map(i => <li key={i.name}>{i.sent ? '✓' : '✗'} {i.name}</li>)}
+              {result.items.map(i => <li key={i.name}>{i.sent ? '✓' : '✗'} {i.name}{!i.sent && i.error ? <span className="block font-mono text-[11px] text-rose-800">{i.error}</span> : null}</li>)}
             </ul>
           )}
         </div>
       )}
       <p className="text-[11px] text-slate-500">Los recordatorios salen solos cada día a las 9:00 (7 días antes de vencer y el día que vence).</p>
+      <details className="text-xs" open={Boolean(log?.events?.some((e: any) => !e.ok))}>
+        <summary className="cursor-pointer font-semibold text-slate-700">Últimos correos enviados {log ? `(${log.events.length})` : ''}</summary>
+        {logErr && <p className="text-rose-700 mt-1">{logErr}</p>}
+        {log && log.events.length === 0 && <p className="text-slate-500 mt-1">Aún no hay envíos registrados (el registro empezó con esta versión).</p>}
+        {log && log.events.length > 0 && (
+          <ul className="mt-1 space-y-1 max-h-72 overflow-auto">
+            {log.events.map((e: any, i: number) => (
+              <li key={i} className={e.ok ? 'text-slate-700' : 'text-rose-700'}>
+                {e.ok ? '✓' : '✗'} {fmt(e.at)} · {e.subject} · {e.to}
+                {!e.ok && e.error && <span className="block font-mono text-[11px]">{e.error}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+        <button type="button" onClick={loadLog} className="mt-1 text-xs font-semibold text-blue-700 hover:underline cursor-pointer">Actualizar registro</button>
+      </details>
     </div>
   );
 };

@@ -2,6 +2,9 @@ import { apiFetch } from '../utils/apiFetch';
 import React, { useState, useEffect, useRef } from 'react';
 import { ChileanFund, CompanyProfile, CompanyUser, TRLStage, SalesBracket, CompanyType } from '../types/funds';
 import { CHILEAN_FUNDS } from '../data/chileanFunds';
+import { rankCatalogFunds } from '../utils/fundRanking';
+
+const REGIONES = ['Arica y Parinacota', 'Tarapacá', 'Antofagasta', 'Atacama', 'Coquimbo', 'Valparaíso', 'Metropolitana', "O'Higgins", 'Maule', 'Ñuble', 'Biobío', 'Araucanía', 'Los Ríos', 'Los Lagos', 'Aysén', 'Magallanes'];
 import { 
   Sparkles, 
   ArrowRight, 
@@ -68,6 +71,7 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
   const [constitution, setConstitution] = useState<'Persona natural sin inicio de actividades' | 'Persona natural con inicio' | 'SpA, EIRL, SRL o S.A.' | ''>('');
   const [isFemale, setIsFemale] = useState<'Sí' | 'No' | ''>('');
   const [projectSummary, setProjectSummary] = useState<string>('');
+  const [region, setRegion] = useState<string>('');
 
   const [loading, setLoading] = useState(false);
   const [scanStep, setScanStep] = useState<string>('');
@@ -143,7 +147,8 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
       companyType,
       isFemaleLed,
       femaleEquityPct,
-      projectSummary: ansSummary.trim()
+      projectSummary: ansSummary.trim(),
+      ...(region ? { region } : {})
     };
   };
 
@@ -185,6 +190,7 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
         body: JSON.stringify({
           userPrompt: promptText,
           targetFundHint,
+          profile: { ...built, region },
           availableFunds: CHILEAN_FUNDS.map(f => ({
             id: f.id,
             name: f.name,
@@ -213,60 +219,37 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
       console.warn('Using deterministic matching fallback with official CHILEAN_FUNDS:', err);
       setIsEstimatedWithoutAi(true);
 
-      // Deterministic fallback using actual CHILEAN_FUNDS
-      let matchedFund = CHILEAN_FUNDS[0]; // Semilla Inicia
+      // Respaldo sin conexión: el mismo calce por reglas que usa el servidor
+      const { eligible, near } = rankCatalogFunds(CHILEAN_FUNDS, { ...built, region });
+      let ranked = (eligible.filter(r => r.score >= 45).length ? eligible.filter(r => r.score >= 45) : eligible.length ? eligible.slice(0, 1) : near);
       if (targetFundHint) {
-        const found = CHILEAN_FUNDS.find(f => f.id === targetFundHint);
-        if (found) matchedFund = found;
-      } else if (ansFemale === 'Sí' && ansConst === 'Persona natural sin inicio de actividades') {
-        matchedFund = CHILEAN_FUNDS.find(f => f.id === 'sercotec_abeja_emprende') || matchedFund;
-      } else if (ansSales === 'Menos de $60M' && ansStage === 'Ya vendo') {
-        matchedFund = CHILEAN_FUNDS.find(f => f.id === 'corfo_semilla_expande') || matchedFund;
-      } else if (ansSales === '$60M a $1.000M' || ansSales === 'Más') {
-        matchedFund = CHILEAN_FUNDS.find(f => f.id === 'sercotec_crece') || matchedFund;
-      } else if (ansStage === 'Prototipo' && ansSales === 'Sin ventas') {
-        matchedFund = CHILEAN_FUNDS.find(f => f.id === 'corfo_semilla_inicia') || matchedFund;
+        const i = ranked.findIndex(r => r.fund.id === targetFundHint);
+        if (i > 0) ranked = [ranked[i], ...ranked.filter((_, j) => j !== i)];
       }
-
-      const isFem = ansFemale === 'Sí';
-      const secondary = CHILEAN_FUNDS.filter(f => f.id !== matchedFund.id).slice(0, 2);
-
-      setMatchResult({
-        wowHeadline: `¡Calificas directamente para ${matchedFund.name}!`,
-        primaryFund: {
-          fundId: matchedFund.id,
-          fundName: matchedFund.name,
-          agency: matchedFund.agency,
-          subsidyFormatted: matchedFund.subsidyFormatted,
-          maxSubsidyCLP: matchedFund.maxSubsidyCLP,
-          coFinancePct: matchedFund.maxCoFinancePct,
-          whenToApply: matchedFund.callSchedule || 'Próxima convocatoria por confirmar',
-          status: matchedFund.status,
-          matchScore: 95,
-          whyYouQualify: `Tu perfil cumple con las bases oficiales de ${matchedFund.agency}: nivel de ventas (${ansSales}) y etapa (${ansStage}) plenamente admisibles.`,
-          reasons: [
-            `Etapa compatible: ${ansStage} se ajusta exactamente al rango de madurez exigido.`,
-            `Ventas admisibles: ${ansSales} cumple el tope máximo de bases de ${matchedFund.agency}.`,
-            isFem ? 'Califica a bonificación adicional por liderazgo femenino del 10% en evaluación.' : `Financia hasta el ${matchedFund.maxCoFinancePct}% con subsidio estatal no reembolsable.`
-          ],
-          femaleBonusEligible: isFem,
-          femaleBonusText: isFem && matchedFund.femaleBonusPct ? `+${matchedFund.femaleBonusPct}% adicional por liderazgo femenino` : undefined
-        },
-        secondaryFunds: secondary.map(f => ({
-          fundId: f.id,
-          fundName: f.name,
-          agency: f.agency,
-          subsidyFormatted: f.subsidyFormatted,
-          coFinancePct: f.maxCoFinancePct,
-          whenToApply: f.callSchedule || 'Próxima convocatoria por confirmar',
-          status: f.status,
-          matchScore: 84,
-          reasons: [
-            `Alternativa compatible para proyectos en etapa ${ansStage}.`,
-            `Monto de hasta ${f.subsidyFormatted} con ${f.maxCoFinancePct}% de subsidio estatal.`
-          ]
-        }))
+      const view = (r: typeof ranked[number]) => ({
+        fundId: r.fund.id,
+        fundName: r.fund.name,
+        agency: r.fund.agency,
+        subsidyFormatted: r.fund.subsidyFormatted,
+        maxSubsidyCLP: r.fund.maxSubsidyCLP,
+        coFinancePct: r.fund.maxCoFinancePct,
+        whenToApply: r.fund.callSchedule || 'Próxima convocatoria por confirmar',
+        status: r.fund.status,
+        matchScore: r.score,
+        whyYouQualify: r.reasons[0] || '',
+        reasons: r.reasons,
+        femaleBonusEligible: Boolean(built.isFemaleLed && r.fund.femaleBonusPct),
+        femaleBonusText: built.isFemaleLed && r.fund.femaleBonusPct ? `+${r.fund.femaleBonusPct}% adicional por liderazgo femenino` : undefined
       });
+      setMatchResult(ranked.length === 0
+        ? { isValidProject: true, noFundMatch: true, wowHeadline: 'Con tus respuestas no encontramos un fondo del catálogo que calce hoy', openCalls: [] }
+        : {
+            wowHeadline: `Tu mejor calce: ${ranked[0].fund.name}`,
+            allRequirementsMet: eligible.length > 0,
+            primaryFund: view(ranked[0]),
+            secondaryFunds: ranked.slice(1, 3).map(view),
+            openCalls: []
+          });
     } finally {
       setLoading(false);
       setTimeout(() => {
@@ -880,6 +863,18 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
                   </div>
 
                   <div className="space-y-3 pt-1">
+                    <label className="block space-y-1">
+                      <span className="text-xs font-bold text-slate-700">¿En qué región está tu empresa o proyecto?</span>
+                      <select
+                        value={region}
+                        onChange={e => setRegion(e.target.value)}
+                        className="w-full px-4 py-3 rounded-2xl bg-slate-50 border-2 border-slate-200 focus:border-blue-600 focus:bg-white text-slate-900 text-sm focus:outline-hidden"
+                      >
+                        <option value="">Prefiero no decirlo (solo fondos nacionales)</option>
+                        {REGIONES.map(r => <option key={r} value={r}>{r}</option>)}
+                      </select>
+                      <span className="block text-[11px] text-slate-500">Muchas convocatorias abiertas son regionales: con tu región te mostramos las que te sirven.</span>
+                    </label>
                     <textarea
                       rows={3}
                       value={projectSummary}
@@ -936,6 +931,22 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
                   Resultados calculados con tus respuestas
                 </span>
               </div>
+
+              {matchResult.noFundMatch && (
+                <div className="p-6 rounded-3xl bg-amber-50 border border-amber-200 space-y-2">
+                  <h2 className="text-lg font-black text-slate-900">{matchResult.wowHeadline}</h2>
+                  <p className="text-sm text-slate-700">Ningún fondo del catálogo acepta hoy tu combinación de etapa, ventas y tipo de postulante. Revisa las convocatorias abiertas: cada semana se publican concursos nuevos.</p>
+                  <button type="button" onClick={() => onNavigateTab('convocatorias')} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-bold cursor-pointer">
+                    Ver convocatorias abiertas <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
+              {matchResult.primaryFund && matchResult.allRequirementsMet === false && (
+                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-sm text-amber-900">
+                  Con tus respuestas no cumples todos los requisitos de ningún fondo del catálogo. Te mostramos el más cercano y qué te falta.
+                </div>
+              )}
 
               {/* PRIMARY RECOMMENDED FUND */}
               {matchResult.primaryFund && (
@@ -1031,6 +1042,34 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
                       </p>
                     )}
                   </div>
+                </div>
+              )}
+
+              {/* CONVOCATORIAS ABIERTAS HOY QUE CALZAN (monitor) */}
+              {Array.isArray(matchResult.openCalls) && matchResult.openCalls.length > 0 && (
+                <div className="p-5 rounded-3xl bg-white border-2 border-cyan-300 space-y-3">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900">Convocatorias abiertas hoy que te pueden servir</h3>
+                    <p className="text-xs text-slate-500">Del monitor de CORFO, filtradas por tu región y tu perfil. Revisa las bases antes de postular.</p>
+                  </div>
+                  <ul className="space-y-2">
+                    {matchResult.openCalls.map((c: any) => (
+                      <li key={c.id || c.url} className="rounded-2xl bg-slate-50 border border-slate-200 p-3 space-y-1">
+                        <p className="text-sm font-bold text-slate-900 leading-snug">{c.titulo}</p>
+                        <p className="text-xs text-slate-600">
+                          {c.alcance || 'Todo Chile'}
+                          {c.topeAprox ? ` · ${c.topeAprox}` : ''}
+                          {c.cierre ? ` · cierra el ${c.cierre}${typeof c.diasRestantes === 'number' && c.diasRestantes >= 0 ? ` (${c.diasRestantes === 0 ? 'hoy' : `en ${c.diasRestantes} días`})` : ''}` : ' · ventanilla abierta'}
+                        </p>
+                        {c.url && (
+                          <a href={c.url} target="_blank" rel="noopener noreferrer" className="inline-block text-xs font-bold text-blue-700 hover:underline">Ver bases en CORFO</a>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                  <button type="button" onClick={() => onNavigateTab('convocatorias')} className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 hover:underline cursor-pointer">
+                    Ver todas en el monitor <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               )}
 

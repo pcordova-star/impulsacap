@@ -309,7 +309,7 @@ export default function App() {
               // si falla o pide reintentar, se vuelve a intentar en la próxima carga.
               // Reintenta unas veces: justo después del registro el perfil puede no estar guardado aún
               const requestWelcome = (attempt: number) => {
-                apiFetch('/api/cuenta/bienvenida', { method: 'POST' })
+                apiFetch('/api/cuenta/bienvenida', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ createdAt: fbUser.metadata.creationTime || null }) })
                   .then(r => r.json())
                   .then((r: { sent?: boolean; retry?: boolean }) => {
                     if (r && (r.sent || !r.retry)) { localStorage.setItem(welcomeKey, '1'); return; }

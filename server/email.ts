@@ -122,16 +122,34 @@ interface SendArgs {
   replyTo?: string;
 }
 
+export interface EmailEvent { at: string; to: string; subject: string; ok: boolean; id?: string | null; error?: string | null; }
+type EmailSink = (e: EmailEvent) => void;
+let emailSink: EmailSink | null = null;
+/** Registro de cada intento de envío (el servidor lo guarda en Firestore para verlo en /admin). */
+export function setEmailEventSink(fn: EmailSink) { emailSink = fn; }
+let lastEmailError: string | null = null;
+export function getLastEmailError() { return lastEmailError; }
+
 /** Envía un correo. Nunca lanza errores: devuelve true si Resend lo aceptó. */
-export async function sendEmail({ to, subject, html, text, idempotencyKey, replyTo }: SendArgs): Promise<boolean> {
+export async function sendEmail(args: SendArgs): Promise<boolean> {
+  const r = await sendEmailDetailed(args);
+  return r.ok;
+}
+
+export async function sendEmailDetailed({ to, subject, html, text, idempotencyKey, replyTo }: SendArgs): Promise<{ ok: boolean; id?: string | null; error?: string | null }> {
+  const done = (ok: boolean, id: string | null, error: string | null) => {
+    if (!ok) lastEmailError = error;
+    try { emailSink?.({ at: new Date().toISOString(), to: String(to || ''), subject, ok, id, error }); } catch { /* registro opcional */ }
+    return { ok, id, error };
+  };
   const resend = getClient();
   if (!resend) {
-    console.warn(`[email] RESEND_API_KEY no configurada; no se envió "${subject}" a ${to}`);
-    return false;
+    console.warn(`[email] RESEND_API_KEY no configurada; no se envió "${subject}"`);
+    return done(false, null, 'RESEND_API_KEY no configurada');
   }
   if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
-    console.warn(`[email] Destinatario inválido para "${subject}": ${to}`);
-    return false;
+    console.warn(`[email] Destinatario inválido para "${subject}"`);
+    return done(false, null, 'Destinatario inválido o vacío');
   }
   try {
     const result = await Promise.race([
@@ -142,14 +160,15 @@ export async function sendEmail({ to, subject, html, text, idempotencyKey, reply
       new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), SEND_TIMEOUT_MS)),
     ]);
     if (result.error) {
-      console.error(`[email] Resend rechazó "${subject}" a ${to}:`, result.error.message);
-      return false;
+      const msg = `${(result.error as any).name || 'error'}: ${result.error.message}`;
+      console.error(`[email] Resend rechazó "${subject}" a ${to}:`, msg);
+      return done(false, null, msg);
     }
     console.log(`[email] Enviado "${subject}" a ${to} (id ${result.data?.id})`);
-    return true;
+    return done(true, result.data?.id || null, null);
   } catch (err: any) {
     console.error(`[email] Error enviando "${subject}" a ${to}:`, err?.message || err);
-    return false;
+    return done(false, null, String(err?.message || err));
   }
 }
 

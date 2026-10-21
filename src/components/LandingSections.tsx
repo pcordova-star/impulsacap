@@ -230,20 +230,20 @@ export const PlanComparison: React.FC<{ onStartFree: () => void }> = ({ onStartF
     <section aria-labelledby="planes" className="space-y-8 min-w-0">
       <div className="max-w-2xl space-y-2">
         <h2 id="planes" className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-          Empieza gratis, paga cuando vayas a postular
+          Parte con las herramientas abiertas y activa el plan para postular
         </h2>
         <p className="text-slate-600 text-[15px] sm:text-base leading-relaxed">
-          Encontrar tu fondo y revisar si cumples no cuesta nada. El plan es para preparar la postulación.
+          Encontrar tu fondo y revisar si cumples no tiene costo. El Plan Trimestral es para preparar la postulación completa.
         </p>
       </div>
 
       <div className="grid gap-5 md:grid-cols-2 min-w-0">
-        {/* Gratis */}
+        {/* Herramientas abiertas (sin plan) */}
         <div className="rounded-3xl bg-white border border-slate-200 p-6 sm:p-8 flex flex-col gap-6">
           <div className="space-y-1">
-            <h3 className="text-lg font-black text-slate-900">Gratis</h3>
-            <p className="text-3xl font-black text-slate-900">$0</p>
-            <p className="text-sm text-slate-500">Solo necesitas crear tu cuenta</p>
+            <h3 className="text-lg font-black text-slate-900">Herramientas abiertas</h3>
+            <p className="text-3xl font-black text-slate-900">Sin costo</p>
+            <p className="text-sm text-slate-500">Con tu cuenta, sin plan</p>
           </div>
           <ul className="space-y-2.5 flex-1">
             {FREE_FEATURES.map(f => (
@@ -258,7 +258,7 @@ export const PlanComparison: React.FC<{ onStartFree: () => void }> = ({ onStartF
             onClick={onStartFree}
             className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl border border-slate-300 bg-white text-slate-900 font-bold text-sm hover:bg-slate-50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
           >
-            Hacer el diagnóstico gratis
+            Hacer el diagnóstico
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>
@@ -282,7 +282,7 @@ export const PlanComparison: React.FC<{ onStartFree: () => void }> = ({ onStartF
             </p>
           </div>
           <ul className="space-y-2.5 flex-1">
-            <li className="text-sm text-cyan-200">Todo lo gratis, más:</li>
+            <li className="text-sm text-cyan-200">Todo lo anterior, más:</li>
             {PLAN_FEATURES.map(f => (
               <li key={f} className="flex items-start gap-2.5 text-sm text-slate-100">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" aria-hidden="true" />

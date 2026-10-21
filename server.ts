@@ -14,6 +14,7 @@ import { CHILEAN_FUNDS } from './src/data/chileanFunds';
 import { parseCarpetaTributaria } from './src/utils/carpetaTributaria';
 import { buildTaxDiagnosis, type TaxDiagnosis } from './src/utils/taxDiagnosis';
 import { evaluateChileanGrantMatch, isNonActivityQuery, normalizeText } from './src/utils/grantMatcher';
+import { rankCatalogFunds, rankLiveCalls, type MatchAnswers, type RankedFund } from './src/utils/fundRanking';
 import { calculateDaysRemaining } from './src/utils/convocatorias';
 import { validateRut, formatRut } from './src/utils/rutValidator';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
@@ -28,6 +29,8 @@ import { buildAdminSummary, chileDayKey, TRACKED_PAGES } from './server/adminSta
 import { SUPPORT_KNOWLEDGE } from './server/supportKnowledge';
 import {
   sendEmail,
+  sendEmailDetailed,
+  setEmailEventSink,
   getAdminEmail,
   isEmailConfigured,
   welcomeEmail,
@@ -674,150 +677,137 @@ app.post('/api/gemini/instant-match', guardAi('instant-match'), async (req, res)
       return true;
     });
 
-    if (isNonActivityQuery(userPrompt)) {
+    const hasStructuredProfile = Boolean(userProfile.salesBracket || userProfile.trlStage || userProfile.companyType);
+    if (!hasStructuredProfile && isNonActivityQuery(userPrompt)) {
       const nonAct = evaluateChileanGrantMatch(userPrompt, targetFundHint, filteredCalls, userProfile);
       return res.json({ ...nonAct, analizadoCon: 'reglas' });
     }
 
-    const systemInstruction = `Eres el especialista sénior en fondos públicos y subsidios concursables de Chile (CORFO, SERCOTEC, ANID, Start-Up Chile, FIA).
-Tu misión es recomendar el fondo más adecuado para el usuario basándote EXCLUSIVAMENTE en la lista de fondos oficiales permitidos en 'availableFunds'.
-
-REGLAS ESTRICTAS DE NEGOCIO Y ADMISIBILIDAD:
-1. SOLO puedes recomendar fondos presentes en 'availableFunds'. Usa EXACTAMENTE su 'id' y 'name' oficial tal como aparecen en los datos. Está ESTRICTAMENTE PROHIBIDO inventar nombres de fondos (por ejemplo, NUNCA uses "Semilla Inicia para Empresas Lideradas por Mujeres y Startups" ni variantes no existentes).
-2. NO puedes inventar fechas ni plazos. Para las fechas ('whenToApply') y el estado ('status'), debes usar EXACTAMENTE los valores que vienen en 'callSchedule' y 'status' del fondo en 'availableFunds'. Si no hay fecha o callStatus es 'por_confirmar', responde "Próxima convocatoria por confirmar".
-3. Si existe una convocatoria vigente de CORFO en la lista de 'CONVOCATORIAS VIGENTES', dale prioridad y haz referencia a sus días restantes y fecha oficial de cierre.
-4. 'femaleBonusEligible': debe ser true ÚNICAMENTE si el usuario declaró EXPLÍCITAMENTE en su texto que la empresa está liderada por mujeres, que es una emprendedora mujer o que cuenta con socias mayoritarias. NUNCA lo asumas si el texto no lo dice expresamente.
-5. Si el fondo recomendado es 'sercotec_abeja_emprende', este fondo es exclusivo de mujeres.
-6. Devuelve un JSON estructurado con el match principal y alternativas válidas de 'availableFunds'.`;
-
-    const prompt = `FONDOS OFICIALES DISPONIBLES:
-${JSON.stringify(availableFunds, null, 2)}
-
-CONVOCATORIAS VIGENTES FILTRADAS PARA ESTA EMPRESA:
-${JSON.stringify(filteredCalls.slice(0, 6).map(c => ({
-  id: c.id,
-  titulo: c.titulo,
-  alcance: c.alcance,
-  cierre: c.cierre,
-  fundId: c.fundId,
-  tope_aprox: c.tope_aprox,
-  url: c.url
-})), null, 2)}
-
-DESCRIPCIÓN DEL USUARIO:
-"""${userPrompt}"""
-${targetFundHint ? `(Preferencia indicada: ${targetFundHint})` : ''}
-
-Responde ÚNICAMENTE en JSON con este formato estricto:
-{
-  "isValidProject": true,
-  "wowHeadline": "¡Calificas directamente para [Nombre exacto del fondo en availableFunds]!",
-  "primaryFund": {
-    "fundId": "id_del_fondo_en_availableFunds",
-    "fundName": "Nombre exacto del fondo en availableFunds",
-    "agency": "CORFO | SERCOTEC | ANID | START-UP CHILE | FIA",
-    "subsidyFormatted": "$XX.XXX.XXX CLP",
-    "maxSubsidyCLP": 15000000,
-    "coFinancePct": 75,
-    "whenToApply": "Valor exacto de callSchedule o 'Próxima convocatoria por confirmar'",
-    "status": "Valor exacto de status",
-    "matchScore": 94,
-    "whyYouQualify": "Explicación concreta de calce según rubro y ventas.",
-    "femaleBonusEligible": false,
-    "femaleBonusText": "+10% Bonificación Género CORFO/SERCOTEC (solo si aplica explícitamente)"
-  },
-  "secondaryFunds": [
-    {
-      "fundId": "id_alternativa",
-      "fundName": "Nombre exacto alternativa en availableFunds",
-      "agency": "CORFO",
-      "subsidyFormatted": "$XX.XXX.XXX CLP",
-      "whenToApply": "Valor exacto de callSchedule o 'Próxima convocatoria por confirmar'",
-      "status": "Valor exacto de status",
-      "matchScore": 82
+    // 1. Calce con reglas: solo fondos cuyos requisitos excluyentes cumple (ventas, etapa, tipo, mujeres)
+    const answers: MatchAnswers = {
+      salesBracket: userProfile.salesBracket || '',
+      trlStage: userProfile.trlStage || '',
+      companyType: userProfile.companyType || '',
+      isFemaleLed: typeof userProfile.isFemaleLed === 'boolean' ? userProfile.isFemaleLed : undefined,
+      region: userProfile.region || '',
+      projectSummary: String(userProfile.projectSummary || userPrompt || '')
+    };
+    const openFundIds = new Set<string>(liveCalls.filter(c => c.vigente && c.fundId).map(c => String(c.fundId)));
+    const { eligible, near } = rankCatalogFunds(CHILEAN_FUNDS, answers, openFundIds);
+    // Alternativas con poca afinidad no se muestran (salvo que no haya otra cosa)
+    const strong = eligible.filter(r => r.score >= 45);
+    const pool: RankedFund[] = (strong.length ? strong : eligible.length ? eligible.slice(0, 1) : near).slice(0, 5);
+    if (targetFundHint) {
+      const hinted = [...eligible, ...near].find(r => r.fund.id === targetFundHint);
+      if (hinted && !pool.includes(hinted)) pool.unshift(hinted);
     }
-  ],
-  "actionCallout": "Acción recomendada"
-}`;
+    const liveFor = (id: string) => availableFunds.find((f: any) => f.id === id) || {};
+    const fundView = (r: RankedFund, reasons?: string[], why?: string) => {
+      const lf: any = liveFor(r.fund.id);
+      return {
+        fundId: r.fund.id,
+        fundName: r.fund.name,
+        agency: r.fund.agency,
+        subsidyFormatted: r.fund.subsidyFormatted,
+        maxSubsidyCLP: r.fund.maxSubsidyCLP,
+        coFinancePct: r.fund.maxCoFinancePct,
+        whenToApply: lf.callSchedule || r.fund.callSchedule || 'Próxima convocatoria por confirmar',
+        status: lf.status || r.fund.status,
+        callStatus: lf.callStatus || r.fund.callStatus,
+        matchScore: r.score,
+        whyYouQualify: why || r.reasons[0] || '',
+        reasons: (reasons && reasons.length >= 2 ? reasons : r.reasons).slice(0, 3),
+        femaleBonusEligible: Boolean(answers.isFemaleLed && (r.fund.femaleBonusPct || r.fund.id === 'sercotec_abeja_emprende')),
+        femaleBonusText: answers.isFemaleLed && r.fund.femaleBonusPct ? `+${r.fund.femaleBonusPct}% adicional por liderazgo femenino` : undefined
+      };
+    };
 
-    const response = await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: prompt,
-      config: {
-        systemInstruction,
-        responseMimeType: 'application/json',
-        temperature: 0.1,
-      },
-    });
+    // 2. Convocatorias abiertas hoy (monitor) que calzan con la región y el perfil
+    const rankedCalls = rankLiveCalls(liveCalls, answers, eligible.map(e => e.fund.id)).slice(0, 3);
+    const openCalls = rankedCalls.map(({ call: c }) => ({
+      id: c.id,
+      titulo: c.titulo,
+      alcance: c.alcance,
+      cierre: c.cierre || null,
+      topeAprox: c.tope_aprox || c.topeAprox || null,
+      url: c.url,
+      diasRestantes: calculateDaysRemaining(c.cierre),
+      resumen: c.resumen || c.beneficio || null
+    }));
 
-    const text = response.text || '';
-    if (!text) throw new Error('Respuesta vacía de Gemini');
-    const parsed = JSON.parse(text);
+    const buildResult = (order: RankedFund[], aiText?: { headline?: string; why?: Record<string, string>; reasons?: Record<string, string[]>; action?: string }) => {
+      const [first, ...rest] = order;
+      const primaryFund = fundView(first, aiText?.reasons?.[first.fund.id], aiText?.why?.[first.fund.id]);
+      return {
+        isValidProject: true,
+        wowHeadline: aiText?.headline || (eligible.length ? `Tu mejor calce: ${first.fund.name}` : `El fondo más cercano a tu perfil: ${first.fund.name}`),
+        allRequirementsMet: eligible.length > 0,
+        primaryFund,
+        secondaryFunds: rest.slice(0, 2).map(r => fundView(r, aiText?.reasons?.[r.fund.id], aiText?.why?.[r.fund.id])),
+        openCalls,
+        liveRegionalCallMatch: openCalls[0] ? { ...openCalls[0], vigente: true, beneficioResumen: openCalls[0].resumen } : undefined,
+        actionCallout: aiText?.action || (first.open
+          ? 'Hay una convocatoria abierta: crea tu hoja de ruta y empieza hoy.'
+          : 'La convocatoria aún no abre: prepara la postulación ahora para llegar con todo listo.')
+      };
+    };
 
-    // Ensure 2 or 3 solid qualification reasons for primary fund
-    if (parsed.primaryFund) {
-      const fundMatch = availableFunds.find((f: any) => f.id === parsed.primaryFund.fundId);
-      if (!Array.isArray(parsed.primaryFund.reasons) || parsed.primaryFund.reasons.length < 2) {
-        parsed.primaryFund.reasons = [
-          parsed.primaryFund.whyYouQualify || 'Cumple con el nivel de ventas y etapa técnica exigidos por las bases.',
-          `Cofinancia hasta el ${parsed.primaryFund.coFinancePct || fundMatch?.maxCoFinancePct || 75}% del proyecto con subsidio estatal.`,
-          `Estado de la convocatoria: ${parsed.primaryFund.whenToApply || fundMatch?.callSchedule || 'Próxima convocatoria por confirmar'}.`
-        ];
-      }
-    }
-
-    // Ensure secondary funds have subsidy, cofinancing, status and 2-3 reasons
-    if (Array.isArray(parsed.secondaryFunds)) {
-      parsed.secondaryFunds = parsed.secondaryFunds.slice(0, 2).map((sec: any) => {
-        const matchingDb = availableFunds.find((f: any) => f.id === sec.fundId);
-        const coFin = sec.coFinancePct || matchingDb?.maxCoFinancePct || 75;
-        const sub = sec.subsidyFormatted || matchingDb?.subsidyFormatted || '$15.000.000 CLP';
-        const st = matchingDb?.status || sec.status || 'Convocatoria 2026';
-        const sch = matchingDb?.callSchedule || sec.whenToApply || 'Próxima convocatoria por confirmar';
-        const reasonsList = Array.isArray(sec.reasons) && sec.reasons.length >= 2
-          ? sec.reasons
-          : [
-              `Alternativa complementaria con subsidio de hasta ${sub} (${coFin}% de cofinanciamiento).`,
-              `Convocatoria oficial: ${sch} según bases de ${matchingDb?.agency || sec.agency || 'la agencia'}.`
-            ];
-        return {
-          ...sec,
-          subsidyFormatted: sub,
-          coFinancePct: coFin,
-          status: st,
-          whenToApply: sch,
-          reasons: reasonsList
-        };
+    if (pool.length === 0) {
+      return res.json({
+        isValidProject: true,
+        noFundMatch: true,
+        wowHeadline: 'Con tus respuestas no encontramos un fondo del catálogo que calce hoy',
+        openCalls,
+        liveRegionalCallMatch: openCalls[0] ? { ...openCalls[0], vigente: true } : undefined,
+        actionCallout: 'Revisa el monitor de convocatorias: cada semana se abren concursos nuevos.',
+        analizadoCon: 'reglas'
       });
     }
 
-    // Resolver convocatoria regional oficial desde Firestore si calza con el perfil o consulta
-    let liveRegionalCallMatch: any = undefined;
-    if (filteredCalls.length > 0) {
-      // Priorizar la convocatoria que corresponde al fondo recomendado por Gemini
-      const directMatch = filteredCalls.find(c => c.fundId === parsed.primaryFund?.fundId);
-      const chosenCall = directMatch || filteredCalls[0];
+    // 3. La IA solo ordena y explica entre los fondos que ya cumplen (no puede elegir otros)
+    try {
+      const prompt = `PERFIL DECLARADO: ${JSON.stringify({ ventas: answers.salesBracket, etapa: answers.trlStage, tipo: answers.companyType, liderazgoFemenino: answers.isFemaleLed ?? null, region: answers.region || null })}
+DESCRIPCIÓN DEL PROYECTO: «${String(answers.projectSummary).slice(0, 1500)}»
 
-      if (chosenCall) {
-        liveRegionalCallMatch = {
-          id: chosenCall.id,
-          titulo: chosenCall.titulo,
-          alcance: chosenCall.alcance,
-          cierre: chosenCall.cierre,
-          topeAprox: chosenCall.tope_aprox || chosenCall.topeAprox,
-          url: chosenCall.url,
-          vigente: chosenCall.vigente,
-          diasRestantes: calculateDaysRemaining(chosenCall.cierre),
-          beneficioResumen: chosenCall.resumen || chosenCall.beneficio,
-        };
+FONDOS QUE CUMPLEN LOS REQUISITOS EXCLUYENTES (elige y ordena SOLO entre estos ids):
+${JSON.stringify(pool.map(r => ({ id: r.fund.id, nombre: r.fund.name, agencia: r.fund.agency, categoria: r.fund.category, resumen: String(r.fund.summary || '').slice(0, 300), requiereInnovacion: r.fund.requiresInnovation, convocatoriaAbierta: r.open, puntajeReglas: r.score })), null, 1)}
+
+Responde SOLO este JSON:
+{"orden":["id1","id2","id3"],"titular":"frase corta","porQue":{"id1":"1 frase concreta según el proyecto"},"razones":{"id1":["razón 1","razón 2","razón 3"],"id2":["razón 1","razón 2"]},"accion":"siguiente paso concreto"}`;
+      const response = await ai.models.generateContent({
+        model: MODEL_NAME,
+        contents: prompt,
+        config: {
+          systemInstruction: 'Eres especialista en fondos concursables de Chile. Ordena los fondos según qué tan bien calzan con el PROYECTO descrito (rubro, grado de innovación, objetivo), no por monto. No inventes requisitos, montos ni fechas. Escribe en español de Chile, claro y breve.',
+          responseMimeType: 'application/json',
+          temperature: 0.2,
+        },
+      });
+      const parsed = JSON.parse(response.text || '{}');
+      const order: RankedFund[] = [];
+      for (const id of Array.isArray(parsed.orden) ? parsed.orden : []) {
+        const r = pool.find(x => x.fund.id === id);
+        if (r && !order.includes(r)) order.push(r);
       }
+      for (const r of pool) if (!order.includes(r)) order.push(r);
+      // Si pidió un fondo concreto y lo cumple, va primero
+      if (targetFundHint) {
+        const i = order.findIndex(r => r.fund.id === targetFundHint);
+        if (i > 0) order.unshift(...order.splice(i, 1));
+      }
+      const clean = (v: any) => (typeof v === 'string' ? v.trim().slice(0, 400) : '');
+      const why: Record<string, string> = {};
+      const reasons: Record<string, string[]> = {};
+      for (const r of pool) {
+        const id = r.fund.id;
+        if (clean(parsed.porQue?.[id])) why[id] = clean(parsed.porQue[id]);
+        if (Array.isArray(parsed.razones?.[id])) reasons[id] = parsed.razones[id].map(clean).filter(Boolean).slice(0, 3);
+      }
+      return res.json({ ...buildResult(order, { headline: clean(parsed.titular) || undefined, why, reasons, action: clean(parsed.accion) || undefined }), analizadoCon: 'ia' });
+    } catch (aiErr: any) {
+      console.warn('[instant-match] IA no disponible, se usa el calce por reglas:', aiErr?.message);
+      return res.json({ ...buildResult(pool), analizadoCon: 'reglas' });
     }
-
-    return res.json({ 
-      ...parsed, 
-      liveRegionalCallMatch: liveRegionalCallMatch || parsed.liveRegionalCallMatch,
-      analizadoCon: 'ia' 
-    });
   } catch (err: any) {
     console.error('Error in /api/gemini/instant-match:', err?.message);
     return res.status(503).json({ error: 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.' });
@@ -909,20 +899,7 @@ app.post('/api/gemini/parse-tax-folder', requireAuth, guardAi('parse-tax-folder'
     const deterministicData = extractTaxFolderData(extractedText || rawText || '', fileName);
     let finalResult: any = { ...deterministicData, analizadoCon: 'sii-parser' };
 
-    // La IA de respaldo (documentos que no son la carpeta oficial) es solo para el plan pagado
-    const taxUser = (req as AuthenticatedRequest).user!;
-    let paidForAi = false;
-    try {
-      const ent = isFirestoreAdminAuthorized ? (await adminDb.collection('entitlements').doc(taxUser.uid).get()).data() : null;
-      paidForAi = Boolean(ent?.status === 'active' && !ent?.provisional && ent?.expiresAt && new Date(ent.expiresAt).getTime() > Date.now());
-    } catch { paidForAi = false; }
-    if (!paidForAi) {
-      return res.json({
-        ...finalResult,
-        aviso: 'No reconocimos este archivo como la Carpeta Tributaria Electrónica del SII. Descárgala en sii.cl (Servicios online > Situación tributaria > Carpeta tributaria electrónica) y súbela en PDF original para ver tu diagnóstico completo.'
-      });
-    }
-
+    // IA de respaldo para todos los usuarios con cuenta: la lectura de la carpeta es crítica
     // Try Gemini AI enhancement if available
     try {
       let contents: any;
@@ -2616,12 +2593,13 @@ app.post('/api/cuenta/bienvenida', requireAuth, async (req, res) => {
       authName = record.displayName || '';
     } catch (e: any) {
       console.warn('[email] getUser sin permiso; bienvenida con datos de users/{uid}:', e?.code || e?.message);
+      // El correo sale del token verificado; la fecha, del perfil o de la que informa la app al registrarse
       const profileSnap = await adminDb.collection('users').doc(user.uid).get();
-      if (!profileSnap.exists) {
-        return res.json({ sent: false, reason: 'perfil_pendiente', retry: true });
-      }
-      createdAt = profileSnap.createTime ? profileSnap.createTime.toMillis() : 0;
-      toEmail = String(profileSnap.data()?.email || user.email || '');
+      const clientCreated = Date.parse(String(req.body?.createdAt || ''));
+      createdAt = profileSnap.exists && profileSnap.createTime
+        ? profileSnap.createTime.toMillis()
+        : (Number.isFinite(clientCreated) && clientCreated <= Date.now() ? clientCreated : Date.now());
+      toEmail = String(user.email || profileSnap.data()?.email || '');
     }
     if (!createdAt || Date.now() - createdAt > 7 * 86400000) {
       return res.json({ sent: false, reason: 'cuenta_antigua' });
@@ -2758,13 +2736,34 @@ async function sendAllTestEmails(to: string) {
     ['Soporte: confirmación al cliente', supportTicketUserEmail(ticket)],
     ['Invitación a contratar', paymentAvailableEmail({ deadline: new Date().toISOString(), price: 19990 })],
   ];
-  const results: { name: string; sent: boolean }[] = [];
+  const results: { name: string; sent: boolean; error?: string | null }[] = [];
   for (const [name, t] of templates) {
-    const sent = await sendEmail({ to, subject: `[PRUEBA] ${t.subject}`, html: t.html, text: t.text });
-    results.push({ name, sent });
+    const r = await sendEmailDetailed({ to, subject: `[PRUEBA] ${t.subject}`, html: t.html, text: t.text });
+    results.push({ name, sent: r.ok, error: r.error || null });
   }
   return results;
 }
+
+// Cada intento de envío queda registrado (colección solo del servidor) para revisarlo en /admin
+setEmailEventSink((e) => {
+  if (!isFirestoreAdminAuthorized) return;
+  adminDb.collection('email_events').add(e).catch(() => {});
+});
+
+// Últimos envíos de correo, con el error exacto de Resend si falló
+app.get('/api/admin/correos', requireAuth, requireAdminUser, async (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    if (!(await ensureFirestoreAdmin())) return res.status(503).json({ error: 'Firestore Admin no está autorizado.' });
+    const snap = await adminDb.collection('email_events').orderBy('at', 'desc').limit(40).get();
+    const events = snap.docs.map(d => d.data());
+    const welcomeSnap = await adminDb.collection('email_log').orderBy('requestedAt', 'desc').limit(15).get().catch(() => null);
+    const welcome = welcomeSnap ? welcomeSnap.docs.map(d => d.data()) : [];
+    return res.json({ configured: isEmailConfigured(), from: 'notificaciones@impulsacap.cl', adminEmail: getAdminEmail(), events, welcome });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'No se pudo leer el registro.' });
+  }
+});
 
 // Desde /admin: todas las plantillas a tu correo
 app.post('/api/admin/probar-correos', requireAuth, requireAdminUser, async (req, res) => {
