@@ -54,7 +54,7 @@ export const PlanPaywallCard: React.FC<PlanPaywallCardProps> = ({
     if (!auth.currentUser) {
       setLoading(false);
       requestLogin({
-        message: 'Inicia sesión para continuar con el pago del Plan Semestral.',
+        message: 'Inicia sesión o crea tu cuenta para continuar con el Plan Semestral.',
         mode: 'login',
         onSuccess: async () => {
           await handleCheckout();

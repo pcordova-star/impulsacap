@@ -118,7 +118,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
     // 2. Si no hay sesión, abre el modal de inicio de sesión en vez de mostrar error, y continúa con el pago
     if (!auth.currentUser) {
       requestLogin({
-        message: 'Inicia sesión para continuar con el pago del Plan Semestral.',
+        message: 'Inicia sesión o crea tu cuenta para continuar con el Plan Semestral.',
         mode: 'login',
         onSuccess: async () => {
           await handleRenewPlan();

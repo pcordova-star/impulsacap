@@ -204,7 +204,7 @@ export const PlanComparison: React.FC<{ onStartFree: () => void }> = ({ onStartF
     if (!auth.currentUser) {
       setLoading(false);
       requestLogin({
-        message: 'Crea tu cuenta o inicia sesión para activar el Plan Semestral.',
+        message: 'Crea tu cuenta o inicia sesión para continuar con el Plan Semestral.',
         mode: 'login',
         onSuccess: async () => { await handleCheckout(); }
       });

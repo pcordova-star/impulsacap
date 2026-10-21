@@ -12,7 +12,8 @@ import {
   AlertCircle, 
   ShieldCheck,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  Info
 } from 'lucide-react';
 import { CompanyUser } from '../types/funds';
 import { validateRut, formatRutInput, rutStatus, formatPhoneCLInput } from '../utils/rutValidator';
@@ -47,7 +48,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 }) => {
   const [mode, setMode] = useState<'login' | 'register'>(initialMode);
   const [showPassword, setShowPassword] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(initialMessage || null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // Aviso informativo de por qué se pide iniciar sesión (no es un error)
+  const [infoMsg, setInfoMsg] = useState<string | null>(initialMessage || null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
@@ -57,11 +60,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   React.useEffect(() => {
     if (isOpen) {
       if (initialMode) setMode(initialMode);
-      if (initialMessage) {
-        setErrorMsg(initialMessage);
-      } else {
-        setErrorMsg(null);
-      }
+      setInfoMsg(initialMessage || null);
+      setErrorMsg(null);
       setSuccessMsg(null);
     }
   }, [isOpen, initialMode, initialMessage]);
@@ -382,6 +382,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         </div>
 
         {/* Alert Feedback */}
+        {infoMsg && !errorMsg && !successMsg && (
+          <div className="p-3.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-xs flex items-center gap-2.5">
+            <Info className="w-4 h-4 shrink-0 text-blue-600" />
+            <span>{infoMsg}</span>
+          </div>
+        )}
         {errorMsg && (
           <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2.5 animate-shake">
             <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
