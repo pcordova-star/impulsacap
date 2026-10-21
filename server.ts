@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
 import { initializeApp as initAdminApp, getApps as getAdminApps } from 'firebase-admin/app';
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
@@ -2573,6 +2574,100 @@ function calendarDaysBetween(fromKey: string, toKey: string): number {
 }
 
 // Bienvenida: la app la solicita al detectar una cuenta nueva. Se envía una sola vez por usuario.
+// ---------------------------------------------------------------------------
+// Pase libre: cuentas con el Plan Trimestral completo sin pagar (socios, aliados, pruebas)
+// El repo es público: los correos van como huella SHA-256, nunca en texto. Se suman los que
+// el administrador agrega en /admin (colección free_passes, solo servidor) y PASE_LIBRE_EMAILS.
+// ---------------------------------------------------------------------------
+const FREE_PASS_HASHES = new Set<string>([
+  '906f9b8d0e1fc71ba825b83396b8a06d9a0235821e519d93ca4445eb2a30c9ba',
+  '6a58ad25da50827a3616c2a11add7c417efcae4c4f01f38f9e051edcf43e9df9',
+  'c190cad0556ab565f395d055ae9cb26c6f982e876af23236ad6b0228f9a41cf0',
+  '6f9b2544c30faad0243f4f23f8da61f25ff6e7dde9ca7e0e6aafa15a9f52a82e',
+]);
+const emailHash = (email: string) => createHash('sha256').update(String(email || '').trim().toLowerCase()).digest('hex');
+const FREE_PASS_DAYS = 365;
+
+async function hasFreePass(email?: string | null): Promise<boolean> {
+  const e = String(email || '').trim().toLowerCase();
+  if (!e) return false;
+  const h = emailHash(e);
+  if (FREE_PASS_HASHES.has(h)) return true;
+  if ((process.env.PASE_LIBRE_EMAILS || '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean).includes(e)) return true;
+  try {
+    const d = await adminDb.collection('free_passes').doc(h).get();
+    return d.exists && d.data()?.active !== false;
+  } catch {
+    return false;
+  }
+}
+
+/** Activa (o extiende) el pase libre de la cuenta si su correo está en la lista. */
+app.post('/api/cuenta/pase-libre', requireAuth, async (req, res) => {
+  const user = (req as AuthenticatedRequest).user!;
+  try {
+    if (!(await ensureFirestoreAdmin())) return res.json({ active: false });
+    if (!(await hasFreePass(user.email))) return res.json({ active: false });
+    const entRef = adminDb.collection('entitlements').doc(user.uid);
+    const ent = (await entRef.get()).data() || null;
+    const now = Date.now();
+    const currentExp = ent?.expiresAt ? new Date(ent.expiresAt).getTime() : 0;
+    // Se renueva solo cuando le quedan menos de 300 días (no se reescribe en cada visita)
+    if (ent?.status === 'active' && !ent?.provisional && currentExp - now > 300 * 864e5) {
+      return res.json({ active: true, expiresAt: ent.expiresAt });
+    }
+    const expiresAt = new Date(Math.max(now, currentExp) + FREE_PASS_DAYS * 864e5).toISOString();
+    await entRef.set({
+      plan: 'trimestral',
+      status: 'active',
+      expiresAt,
+      provisional: false,
+      freePass: true,
+      freePassSince: ent?.freePassSince || new Date().toISOString(),
+      emailRemindersOptOut: true,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+    console.log(`[pase-libre] Activado para ${user.uid} hasta ${expiresAt}`);
+    return res.json({ active: true, expiresAt });
+  } catch (err: any) {
+    console.error('[pase-libre]', err?.message);
+    return res.json({ active: false });
+  }
+});
+
+// Administración del pase libre desde /admin
+app.get('/api/admin/pase-libre', requireAuth, requireAdminUser, async (_req, res) => {
+  try {
+    const snap = await adminDb.collection('free_passes').get();
+    return res.json({
+      fixedCount: FREE_PASS_HASHES.size,
+      items: snap.docs.map(d => ({ id: d.id, email: d.data().email || '', active: d.data().active !== false, addedAt: d.data().addedAt || null }))
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'No se pudo leer.' });
+  }
+});
+app.post('/api/admin/pase-libre', requireAuth, requireAdminUser, async (req, res) => {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Correo inválido.' });
+  const active = req.body?.active !== false;
+  try {
+    await adminDb.collection('free_passes').doc(emailHash(email)).set({ email, active, addedAt: new Date().toISOString() }, { merge: true });
+    if (!active) {
+      // Quitar el pase: si la cuenta existe y su plan venía del pase, se termina
+      const users = await adminDb.collection('users').where('email', '==', email).limit(5).get().catch(() => null);
+      for (const u of users?.docs || []) {
+        const ref = adminDb.collection('entitlements').doc(u.id);
+        const ent = (await ref.get()).data();
+        if (ent?.freePass && !ent?.lastPaymentId) await ref.set({ status: 'expired', freePass: false, expiresAt: new Date().toISOString() }, { merge: true });
+      }
+    }
+    return res.json({ ok: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'No se pudo guardar.' });
+  }
+});
+
 app.post('/api/cuenta/bienvenida', requireAuth, async (req, res) => {
   const user = (req as AuthenticatedRequest).user!;
   try {

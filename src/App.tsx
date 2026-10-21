@@ -321,6 +321,15 @@ export default function App() {
             }
           } catch {}
 
+          // Pase libre (cuentas invitadas): el servidor activa el plan si el correo está habilitado
+          try {
+            const passKey = `impulsacap_pase_checked_${fbUser.uid}`;
+            if (!sessionStorage.getItem(passKey)) {
+              sessionStorage.setItem(passKey, '1');
+              apiFetch('/api/cuenta/pase-libre', { method: 'POST' }).catch(() => sessionStorage.removeItem(passKey));
+            }
+          } catch {}
+
           activeUserIdRef.current = user.id;
           setCurrentUser(user);
           // Perfil: primero el del navegador y luego el de Firestore si es más reciente.

@@ -18,7 +18,7 @@ interface Summary {
   series30d: SeriesPoint[];
   topPages30d: { page: string; label: string; views: number }[];
   payments: { id: string; email: string; companyName: string; amount: number; status: string; kind: string; date: string | null; serviceStarted: boolean }[];
-  activePlans: { uid: string; email: string; companyName: string; expiresAt: string; daysLeft: number; serviceStarted: boolean }[];
+  activePlans: { uid: string; email: string; companyName: string; expiresAt: string; daysLeft: number; serviceStarted: boolean; freePass?: boolean }[];
   users: { uid: string; email: string; companyName: string; displayName: string; createdAt: string | null; lastSignInAt: string | null; provider: string; hasActivePlan: boolean; applications: number }[];
   fundsTop: { fundName: string; count: number }[];
   system: { lastConvocatoriasSyncAt: string | null; convocatoriasVigentes: number | null; emailConfigured: boolean; mercadoPagoConfigured: boolean; authListAvailable?: boolean };
@@ -668,6 +668,54 @@ const AiUsagePanel: React.FC = () => {
 
 
 /** Probar todos los correos y ejecutar los recordatorios desde el panel. */
+/** Pase libre: cuentas con el plan completo sin pagar. */
+const FreePassPanel: React.FC = () => {
+  const [d, setD] = useState<{ fixedCount: number; items: { id: string; email: string; active: boolean; addedAt: string | null }[] } | null>(null);
+  const [email, setEmail] = useState('');
+  const [msg, setMsg] = useState<string | null>(null);
+  const load = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/admin/pase-libre');
+      const b = await res.json().catch(() => ({}));
+      if (res.ok) setD(b); else setMsg(b.error || 'No se pudo cargar.');
+    } catch (e: any) { setMsg(e?.message || 'No se pudo cargar.'); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  const save = async (mail: string, active: boolean) => {
+    setMsg(null);
+    const res = await apiFetch('/api/admin/pase-libre', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: mail, active }) });
+    const b = await res.json().catch(() => ({}));
+    if (!res.ok) { setMsg(b.error || 'No se pudo guardar.'); return; }
+    if (active) setEmail('');
+    setMsg(active ? `Listo: ${mail} tendrá el plan completo al iniciar sesión.` : `Pase libre quitado a ${mail}.`);
+    load();
+  };
+  return (
+    <Card title="Pase libre" subtitle="Cuentas con el Plan Trimestral completo sin pagar. Se activa solo cuando la persona inicia sesión con ese correo (dura 1 año y se renueva).">
+      <form className="flex flex-wrap gap-2 mb-3" onSubmit={e => { e.preventDefault(); if (email.trim()) save(email.trim(), true); }}>
+        <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="correo@empresa.cl" className="flex-1 min-w-[220px] px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+        <button type="submit" className="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-bold cursor-pointer">Dar pase libre</button>
+      </form>
+      {msg && <p className="text-xs text-slate-700 mb-2">{msg}</p>}
+      {d && (
+        <>
+          <p className="text-xs text-slate-500 mb-2">{d.fixedCount} correos con pase libre fijo (configurados en el código).</p>
+          {d.items.length > 0 && (
+            <ul className="divide-y divide-slate-100 text-sm">
+              {d.items.map(i => (
+                <li key={i.id} className="flex items-center justify-between gap-2 py-2">
+                  <span className={i.active ? 'text-slate-900' : 'text-slate-400 line-through'}>{i.email}</span>
+                  <button type="button" onClick={() => save(i.email, !i.active)} className="text-xs font-bold text-blue-700 hover:underline cursor-pointer">{i.active ? 'Quitar' : 'Reactivar'}</button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </Card>
+  );
+};
+
 const EmailTools: React.FC = () => {
   const [busy, setBusy] = useState<'test' | 'rem' | null>(null);
   const [result, setResult] = useState<{ ok: boolean; text: string; items?: { name: string; sent: boolean; error?: string | null }[] } | null>(null);
@@ -940,7 +988,7 @@ export const AdminDashboard: React.FC = () => {
                 <td className="py-2.5 pr-4"><div className="text-slate-900">{p.companyName || '—'}</div><div className="text-xs text-slate-500">{p.email}</div></td>
                 <td className="py-2.5 pr-4 whitespace-nowrap">{fmtDate(p.expiresAt)}</td>
                 <td className={`py-2.5 pr-4 tabular-nums ${p.daysLeft <= 7 ? 'text-amber-700 font-semibold' : ''}`}>{p.daysLeft}</td>
-                <td className="py-2.5 pr-4">{p.serviceStarted ? 'Sí' : 'No'}</td>
+                <td className="py-2.5 pr-4">{p.freePass ? <span className="px-2 py-0.5 rounded-full bg-violet-50 border border-violet-200 text-violet-800 text-xs font-bold">Pase libre</span> : p.serviceStarted ? 'Sí' : 'No'}</td>
               </tr>
             ))}
           </Table>
@@ -972,6 +1020,7 @@ export const AdminDashboard: React.FC = () => {
 
       <AiUsagePanel />
 
+      <FreePassPanel />
       <SellersPanel />
 
       <EarlyAccessPanel />

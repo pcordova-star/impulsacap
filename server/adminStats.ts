@@ -130,7 +130,8 @@ export async function buildAdminSummary(
         companyName: profileByUid.get(d.id)?.companyName || '',
         expiresAt: exp.toISOString(),
         daysLeft: Math.ceil((exp.getTime() - now.getTime()) / 864e5),
-        serviceStarted: Boolean(e.lastPaymentId && e.serviceStartedForPaymentId === String(e.lastPaymentId))
+        serviceStarted: Boolean(e.lastPaymentId && e.serviceStartedForPaymentId === String(e.lastPaymentId)),
+        freePass: e.freePass === true
       });
     }
   });
