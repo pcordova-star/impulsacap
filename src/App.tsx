@@ -307,12 +307,17 @@ export default function App() {
             if (createdMs && Date.now() - createdMs < 7 * 24 * 3600 * 1000 && !localStorage.getItem(welcomeKey)) {
               // Se marca como resuelto solo cuando el servidor confirma (enviado o no corresponde);
               // si falla o pide reintentar, se vuelve a intentar en la próxima carga.
-              apiFetch('/api/cuenta/bienvenida', { method: 'POST' })
-                .then(r => r.json())
-                .then((r: { sent?: boolean; retry?: boolean }) => {
-                  if (r && (r.sent || !r.retry)) localStorage.setItem(welcomeKey, '1');
-                })
-                .catch(() => {});
+              // Reintenta unas veces: justo después del registro el perfil puede no estar guardado aún
+              const requestWelcome = (attempt: number) => {
+                apiFetch('/api/cuenta/bienvenida', { method: 'POST' })
+                  .then(r => r.json())
+                  .then((r: { sent?: boolean; retry?: boolean }) => {
+                    if (r && (r.sent || !r.retry)) { localStorage.setItem(welcomeKey, '1'); return; }
+                    if (attempt < 4) setTimeout(() => requestWelcome(attempt + 1), 20000 * attempt);
+                  })
+                  .catch(() => { if (attempt < 4) setTimeout(() => requestWelcome(attempt + 1), 20000 * attempt); });
+              };
+              setTimeout(() => requestWelcome(1), 4000);
             }
           } catch {}
 

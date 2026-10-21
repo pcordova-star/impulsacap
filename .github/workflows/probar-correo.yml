@@ -4,6 +4,10 @@ name: Probar correo
 # Se ejecuta solo a mano: Actions > Probar correo > Run workflow.
 on:
   workflow_dispatch:
+    inputs:
+      todos:
+        description: 'Enviar todas las plantillas (1) o solo un correo simple (0)'
+        default: '1'
 
 jobs:
   probar:
@@ -16,8 +20,9 @@ jobs:
         run: |
           status=$(curl -sS -o respuesta.json -w "%{http_code}" \
             -H "x-import-token: ${IMPORT_TOKEN}" \
-            "${APP_URL%/}/api/admin/test-email")
+            "${APP_URL%/}/api/admin/test-email?todos=${{ github.event.inputs.todos || '1' }}")
           # El repo es público: no imprimimos la respuesta completa (incluye el correo destino).
           echo "HTTP ${status}"
           jq -r '"Enviado: \(.sent)" + (if .error then " — \(.error)" else "" end)' respuesta.json || true
+          jq -r '(.results // [])[] | "  \(if .sent then "OK " else "FALLÓ" end) \(.name)"' respuesta.json || true
           if [ "$status" != "200" ]; then exit 1; fi

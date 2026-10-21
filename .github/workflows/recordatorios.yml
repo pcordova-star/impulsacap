@@ -1,0 +1,25 @@
+name: Recordatorios de vencimiento
+
+# Todos los días a las 12:00 UTC (9:00 en Chile): avisa por correo a quienes su plan vence en 7 días
+# o venció hoy. También se puede ejecutar a mano: Actions > Recordatorios de vencimiento > Run workflow.
+on:
+  schedule:
+    - cron: '0 12 * * *'
+  workflow_dispatch:
+
+jobs:
+  recordatorios:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enviar recordatorios
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          IMPORT_TOKEN: ${{ secrets.CONVOCATORIAS_IMPORT_TOKEN }}
+        run: |
+          status=$(curl -sS -o respuesta.json -w "%{http_code}" -X POST \
+            -H "x-import-token: ${IMPORT_TOKEN}" \
+            "${APP_URL%/}/api/admin/recordatorios")
+          echo "HTTP ${status}"
+          # El repo es público: solo se imprimen los totales
+          jq -r '"Revisados: \(.revisados // 0) · aviso 7 días: \(.aviso7d // 0) · aviso vencido: \(.avisoVencido // 0) · errores: \(.errores // 0)"' respuesta.json || true
+          if [ "$status" != "200" ]; then exit 1; fi

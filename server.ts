@@ -2666,14 +2666,14 @@ app.post('/api/cuenta/bienvenida', requireAuth, async (req, res) => {
 });
 
 // Recordatorios de vencimiento del Plan Trimestral (llamado a diario por GitHub Actions)
-app.post('/api/admin/recordatorios', requireAdminToken, async (req, res) => {
-  if (!isFirestoreAdminAuthorized) {
-    return res.status(503).json({ error: 'Firestore Admin no está autorizado.' });
+/** Recordatorios de vencimiento (7 días antes y el día que vence). Lo llama la tarea diaria y /admin. */
+async function runReminders(): Promise<{ status: number; body: any }> {
+  if (!(await ensureFirestoreAdmin())) {
+    return { status: 503, body: { error: 'Firestore Admin no está autorizado.' } };
   }
   if (!isEmailConfigured()) {
-    return res.status(503).json({ error: 'RESEND_API_KEY no está configurada.' });
+    return { status: 503, body: { error: 'RESEND_API_KEY no está configurada.' } };
   }
-
   const todayKey = chileDateKey(new Date());
   const summary = { revisados: 0, aviso7d: 0, avisoVencido: 0, omitidos: 0, errores: 0 };
 
@@ -2725,11 +2725,54 @@ app.post('/api/admin/recordatorios', requireAdminToken, async (req, res) => {
     }
 
     console.log('[email] Recordatorios:', JSON.stringify(summary));
-    return res.json({ ok: true, ...summary });
+    return { status: 200, body: { ok: true, ...summary } };
   } catch (err: any) {
     console.error('[email] Error en /api/admin/recordatorios:', err?.message);
-    return res.status(500).json({ error: 'Error al procesar recordatorios', ...summary });
+    return { status: 500, body: { error: 'Error al procesar recordatorios', ...summary } };
   }
+}
+
+app.post('/api/admin/recordatorios', requireAdminToken, async (_req, res) => {
+  const r = await runReminders();
+  return res.status(r.status).json(r.body);
+});
+
+// Desde /admin: ejecutar los recordatorios ahora
+app.post('/api/admin/recordatorios/ahora', requireAuth, requireAdminUser, async (_req, res) => {
+  const r = await runReminders();
+  return res.status(r.status).json(r.body);
+});
+
+/** Envía todas las plantillas de correo (marcadas [PRUEBA]) a un destinatario. */
+async function sendAllTestEmails(to: string) {
+  const exp = new Date(Date.now() + 90 * 864e5).toISOString();
+  const ticket: any = { ticketId: 'PRUEBA', email: to, name: 'Cliente de prueba', message: 'Este es un mensaje de prueba del soporte.', page: 'my-company', hasPlan: true, conversation: [{ role: 'user', text: 'Hola' }, { role: 'bot', text: 'Hola, ¿en qué te ayudo?' }] };
+  const templates: [string, { subject: string; html: string; text: string }][] = [
+    ['Bienvenida', welcomeEmail('Cliente')],
+    ['Compra confirmada (cliente)', purchaseEmail({ amount: 19990, paymentId: 'PRUEBA-123', expiresAt: exp })],
+    ['Nueva venta (administrador)', adminSaleEmail({ userEmail: 'cliente@ejemplo.cl', companyName: 'Empresa de prueba SpA', amount: 19990, isFirstPurchase: true, paymentId: 'PRUEBA-123', expiresAt: exp })],
+    ['Venta con código (vendedor)', sellerSaleEmail({ sellerName: 'Vendedor Prueba', code: 'PRUEBA', amount: 15990, commission: 3198, companyName: 'Empresa de prueba SpA' })],
+    ['Recordatorio: vence en 7 días', reminderEmail('7d', new Date(Date.now() + 7 * 864e5).toISOString())],
+    ['Recordatorio: venció hoy', reminderEmail('expired', new Date().toISOString())],
+    ['Soporte: aviso al administrador', supportTicketAdminEmail(ticket)],
+    ['Soporte: confirmación al cliente', supportTicketUserEmail(ticket)],
+    ['Invitación a contratar', paymentAvailableEmail({ deadline: new Date().toISOString(), price: 19990 })],
+  ];
+  const results: { name: string; sent: boolean }[] = [];
+  for (const [name, t] of templates) {
+    const sent = await sendEmail({ to, subject: `[PRUEBA] ${t.subject}`, html: t.html, text: t.text });
+    results.push({ name, sent });
+  }
+  return results;
+}
+
+// Desde /admin: todas las plantillas a tu correo
+app.post('/api/admin/probar-correos', requireAuth, requireAdminUser, async (req, res) => {
+  if (!isEmailConfigured()) return res.status(503).json({ error: 'RESEND_API_KEY no está configurada en AI Studio.' });
+  const to = (req as AuthenticatedRequest).user?.email || getAdminEmail();
+  if (!to) return res.status(400).json({ error: 'Tu cuenta no tiene correo.' });
+  const results = await sendAllTestEmails(to);
+  return res.json({ to, results, ok: results.every(r => r.sent) });
 });
 
 // Correo de prueba al administrador, para verificar la configuración de Resend
@@ -2737,6 +2780,11 @@ app.get('/api/admin/test-email', requireAdminToken, async (req, res) => {
   const to = getAdminEmail();
   if (!isEmailConfigured()) return res.status(503).json({ sent: false, error: 'RESEND_API_KEY no está configurada.' });
   if (!to) return res.status(503).json({ sent: false, error: 'ADMIN_EMAIL no está configurado.' });
+  if (req.query.todos === '1') {
+    const results = await sendAllTestEmails(to);
+    const sent = results.every(r => r.sent);
+    return res.status(sent ? 200 : 502).json({ sent, results });
+  }
   const sent = await sendEmail({ to, ...testEmail() });
   return res.status(sent ? 200 : 502).json({ sent, to });
 });
@@ -2817,7 +2865,7 @@ function getAdminDashboardEmails(): string[] {
     .filter(Boolean);
 }
 
-const requireAdminUser = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+function requireAdminUser(req: express.Request, res: express.Response, next: express.NextFunction) {
   const user = (req as AuthenticatedRequest).user;
   const email = (user?.email || '').toLowerCase();
   if (!email || !user?.emailVerified || !getAdminDashboardEmails().includes(email)) {
@@ -2828,7 +2876,7 @@ const requireAdminUser = (req: express.Request, res: express.Response, next: exp
     });
   }
   return next();
-};
+}
 
 app.get('/api/admin/soporte', requireAuth, requireAdminUser, async (req, res) => {
   try {

@@ -266,11 +266,11 @@ export function reminderEmail(kind: '7d' | 'expired', expiresAt: string) {
       p(intro) +
       p('El Plan Trimestral cuesta $39.990 CLP por 3 meses, en un pago único sin renovación automática.') +
       `<p style="margin:16px 0 0;font-size:12px;color:#94a3b8">Recibes este aviso porque tienes una cuenta con Plan Trimestral en ImpulsaCap. Si no quieres recibir más recordatorios, responde este correo con la palabra "BAJA".</p>`,
-    cta: { label: 'Renovar mi plan', url: app },
+    cta: { label: 'Renovar mi plan', url: `${app}/?pagar=1` },
   });
   const text = `${isExpired ? `Tu Plan Trimestral venció hoy (${vence}).` : `Tu Plan Trimestral vence el ${vence}, en 7 días.`}
 
-Renovar mi plan: ${app}
+Renovar mi plan: ${app}/?pagar=1
 
 Si no quieres recibir más recordatorios, responde este correo con la palabra "BAJA".
 ImpulsaCap es operado por Tresna SpA.`;

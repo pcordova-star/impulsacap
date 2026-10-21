@@ -661,6 +661,51 @@ const AiUsagePanel: React.FC = () => {
   );
 };
 
+
+/** Probar todos los correos y ejecutar los recordatorios desde el panel. */
+const EmailTools: React.FC = () => {
+  const [busy, setBusy] = useState<'test' | 'rem' | null>(null);
+  const [result, setResult] = useState<{ ok: boolean; text: string; items?: { name: string; sent: boolean }[] } | null>(null);
+  const run = async (kind: 'test' | 'rem') => {
+    setBusy(kind);
+    setResult(null);
+    try {
+      const res = await apiFetch(kind === 'test' ? '/api/admin/probar-correos' : '/api/admin/recordatorios/ahora', { method: 'POST' });
+      const b = await res.json().catch(() => ({}));
+      if (!res.ok) setResult({ ok: false, text: b.error || 'No se pudo completar.' });
+      else if (kind === 'test') setResult({ ok: b.ok, text: b.ok ? `Enviados a ${b.to}. Revisa tu bandeja (y spam): deben llegar ${b.results.length} correos que empiezan con [PRUEBA].` : `Algunos correos no salieron (enviados a ${b.to}):`, items: b.results });
+      else setResult({ ok: true, text: `Recordatorios: ${b.revisados} planes revisados · ${b.aviso7d} avisos de 7 días · ${b.avisoVencido} avisos de vencimiento · ${b.errores} errores.` });
+    } catch (e: any) {
+      setResult({ ok: false, text: e?.message || 'No se pudo completar.' });
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-2">
+        <button type="button" disabled={busy !== null} onClick={() => run('test')} className="px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-bold cursor-pointer disabled:opacity-60">
+          {busy === 'test' ? 'Enviando…' : 'Enviarme todos los correos de prueba'}
+        </button>
+        <button type="button" disabled={busy !== null} onClick={() => run('rem')} className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-bold text-slate-700 cursor-pointer disabled:opacity-60">
+          {busy === 'rem' ? 'Revisando…' : 'Enviar recordatorios ahora'}
+        </button>
+      </div>
+      {result && (
+        <div className={`text-xs ${result.ok ? 'text-emerald-700' : 'text-rose-700'}`}>
+          <p>{result.text}</p>
+          {result.items && (
+            <ul className="mt-1 grid gap-0.5 sm:grid-cols-2">
+              {result.items.map(i => <li key={i.name}>{i.sent ? '✓' : '✗'} {i.name}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
+      <p className="text-[11px] text-slate-500">Los recordatorios salen solos cada día a las 9:00 (7 días antes de vencer y el día que vence).</p>
+    </div>
+  );
+};
+
 export const AdminDashboard: React.FC = () => {
   const [data, setData] = useState<Summary | null>(null);
   const [showAllUsers, setShowAllUsers] = useState(false);
@@ -776,6 +821,7 @@ export const AdminDashboard: React.FC = () => {
           <li className="space-y-0.5">
             <p className="text-slate-500">Correos (Resend)</p>
             <Status ok={data.system.emailConfigured} okText="Configurado" badText="Falta RESEND_API_KEY" />
+            <EmailTools />
           </li>
           <li className="space-y-0.5">
             <p className="text-slate-500">Mercado Pago</p>
