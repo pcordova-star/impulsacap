@@ -21,6 +21,8 @@ import { EarlyAccessModal } from './components/EarlyAccessModal';
 import { AdminDashboard } from './components/AdminDashboard';
 import { SellerPanel } from './components/SellerPanel';
 import { showToast } from './utils/toast';
+import { splitTarget, goToTarget, setReturnContext } from './utils/navFocus';
+import { ReturnBar } from './components/ReturnBar';
 import { captureRefFromUrl, previewCode, clearStoredRef, notifyReferralChanged } from './utils/referral';
 import { trackPageview } from './utils/pageviews';
 import { AuthGateView } from './components/AuthGateView';
@@ -524,7 +526,9 @@ export default function App() {
   };
 
   // Generalized tab navigation mapper
-  const handleNavigateTab = (tab: string) => {
+  const handleNavigateTab = (rawTab: string) => {
+    const { base: tab, target } = splitTarget(rawTab);
+    if (tab !== 'my-company' && tab !== 'profile') setReturnContext(null);
     if (tab === 'catalog') {
       setActiveTab('search-funds');
     } else if (tab === 'convocatorias') {
@@ -554,6 +558,7 @@ export default function App() {
       setActiveTab(tab);
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    goToTarget(target);
   };
 
   // Loading state while Firebase verifies initial session (Requirement 2)
@@ -913,7 +918,16 @@ export default function App() {
       <ToastCenter />
 
       {/* Acceso anticipado (lanzamiento sin pago en línea) */}
-      <EarlyAccessModal onStart={() => setActiveTab('my-applications')} />
+      <EarlyAccessModal onStart={() => { if (activeTab !== 'postulation') setActiveTab('my-applications'); }} />
+      <ReturnBar
+        activeTab={activeTab}
+        onReturn={(ctx) => {
+          setActiveTab('postulation');
+          setPostulationSubTab(ctx.subTab as any);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          if (ctx.target) goToTarget(ctx.target);
+        }}
+      />
 
       {/* Aviso de inicio del servicio del plan (derecho a retracto) */}
       <ServiceStartModal onOpenTerms={() => openLegalPage('terminos')} />

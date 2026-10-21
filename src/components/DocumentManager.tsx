@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { consume, onRequest } from '../utils/navFocus';
 import { REQUIRED_DOCUMENTS_GUIDE, CHILEAN_FUNDS } from '../data/chileanFunds';
 import { CompanyProfile, ChileanFund, FormulationOutput, CompanyUser, GeneratedDocument } from '../types/funds';
 import { ExpedienteData, DocChecklistStatuses } from '../types/expediente';
@@ -75,7 +76,9 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
   const [showPaywall, setShowPaywall] = useState<boolean>(false);
 
   // Form fields for AI Document Generator - initialized cleanly without sample data
-  const [genDocType, setGenDocType] = useState<string>('Carta de Manifestación de Interés Comercial (LOI)');
+  const [genDocType, setGenDocType] = useState<string>(() => consume('docType') || 'Carta de Manifestación de Interés Comercial (LOI)');
+  // "Generar carta" desde la Hoja de Ruta: abre el formulario con el tipo de documento elegido
+  useEffect(() => onRequest('docType', (t) => { setGenDocType(t); setGeneratedDocText(null); setDocError(null); }), []);
   const [clientName, setClientName] = useState<string>('');
   const [clientContactName, setClientContactName] = useState<string>('');
   const [fundTarget, setFundTarget] = useState<string>(activeFund?.name || CHILEAN_FUNDS[0].name);
@@ -449,7 +452,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
       </div>
 
       {/* SECTION 1: AI Legal Document Generator Form */}
-      <div className="p-6 rounded-2xl bg-gradient-to-br from-slate-900 to-blue-950/40 border border-slate-800 space-y-6">
+      <div id="doc-generator" className="scroll-mt-40 p-6 rounded-2xl bg-gradient-to-br from-slate-900 to-blue-950/40 border border-slate-800 space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-cyan-500/20 border border-cyan-400/30 flex items-center justify-center text-cyan-300">

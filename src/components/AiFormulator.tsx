@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { consume, onRequest } from '../utils/navFocus';
 import { ChileanFund, CompanyProfile, FormulationOutput, ProjectProfile } from '../types/funds';
 import { ExpedienteData } from '../types/expediente';
 import { apiFetch } from '../utils/apiFetch';
@@ -436,6 +437,24 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
     const fromApi = missingDataBySection[currentSection.id] || [];
     return Array.from(new Set([...fromApi, ...extracted])).filter(Boolean);
   }, [currentGenerated, missingDataBySection, currentSection.id]);
+
+  // Pedido de sección desde otra pantalla (p. ej. "Configurar presupuesto" en la Hoja de Ruta)
+  useEffect(() => {
+    const openSection = (id: string) => {
+      let idx = SECTIONS.findIndex(sec => sec.id === id);
+      if (id === 'next') {
+        idx = SECTIONS.findIndex((sec, i) => i === 7
+          ? !isBudgetValid
+          : !(generatedTexts[sec.id]?.trim() || Object.values(answersBySection[sec.id] || {}).some(v => String(v).trim().length > 0)));
+        if (idx === -1) idx = 0;
+      }
+      if (idx >= 0) setCurrentSectionIndex(idx);
+    };
+    const initial = consume('formulatorSection');
+    if (initial) openSection(initial);
+    return onRequest('formulatorSection', openSection);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Sync when selectedFund prop changes
   useEffect(() => {
@@ -936,7 +955,7 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
       )}
 
       {/* Main Section Content Area */}
-      <div className="bg-slate-900/90 rounded-3xl border border-slate-800 p-5 sm:p-8 space-y-6 shadow-2xl">
+      <div id="formulator-main" className="scroll-mt-40 bg-slate-900/90 rounded-3xl border border-slate-800 p-5 sm:p-8 space-y-6 shadow-2xl">
         
         {/* Section Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-slate-800">
@@ -1011,7 +1030,7 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
             <div className="pl-8">
               <button
                 type="button"
-                onClick={() => onNavigateTab?.('my-company')}
+                onClick={() => onNavigateTab?.('my-company#project-profile')}
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs cursor-pointer"
               >
                 Completar mi perfil

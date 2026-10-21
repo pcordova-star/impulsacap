@@ -977,7 +977,7 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
               </h2>
               {onNavigateTab && (
                 <button
-                  onClick={() => { onClose(); onNavigateTab('documents'); }}
+                  onClick={() => { onClose(); onNavigateTab('documents#doc-generator'); }}
                   className="text-xs px-2.5 py-1 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-medium inline-flex items-center gap-1 cursor-pointer print:hidden"
                 >
                   <span>Gestionar Cartas</span>
@@ -1023,7 +1023,7 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
                 </div>
                 {onNavigateTab && (
                   <button
-                    onClick={() => { onClose(); onNavigateTab('documents'); }}
+                    onClick={() => { onClose(); onNavigateTab('documents#doc-generator'); }}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 text-xs font-semibold border border-cyan-500/30 transition-colors cursor-pointer print:hidden shrink-0"
                   >
                     <span>Ir a Generador de Cartas</span>

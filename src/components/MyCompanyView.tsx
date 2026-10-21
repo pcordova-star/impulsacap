@@ -293,7 +293,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
         {/* ========================================================================= */}
         {/* SECCIÓN A: PERFIL DEL PROYECTO (Requirement A.1) */}
         {/* ========================================================================= */}
-        <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-5">
+        <div id="project-profile" className="scroll-mt-28 p-6 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-9 h-9 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center shrink-0">
@@ -467,7 +467,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
         {/* ========================================================================= */}
         {/* SECCIÓN B: CARPETA TRIBUTARIA ELECTRÓNICA SII */}
         {/* ========================================================================= */}
-        <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-4">
+        <div id="tax-folder" className="scroll-mt-28 p-6 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2.5">
               <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
@@ -566,7 +566,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
         {/* ========================================================================= */}
         {/* SECCIÓN C: IDENTIFICACIÓN Y PERFIL DE LA EMPRESA */}
         {/* ========================================================================= */}
-        <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-4">
+        <div id="company-identity" className="scroll-mt-28 p-6 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-4">
           <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
             <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
               <Building2 className="w-5 h-5" />
@@ -705,7 +705,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
         {/* ========================================================================= */}
         {/* SECCIÓN D: DATOS DEL REPRESENTANTE LEGAL */}
         {/* ========================================================================= */}
-        <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-4">
+        <div id="legal-rep" className="scroll-mt-28 p-6 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-4">
           <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
             <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
               <User className="w-5 h-5" />

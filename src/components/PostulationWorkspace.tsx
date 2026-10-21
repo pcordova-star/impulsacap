@@ -1,3 +1,4 @@
+import { splitTarget, goToTarget, setReturnContext } from '../utils/navFocus';
 import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { showToast } from '../utils/toast';
 import { ChileanFund, CompanyProfile, FormulationOutput, BlindAuditResult, CompanyUser, calculateProjectProfileCompletion } from '../types/funds';
@@ -139,10 +140,30 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
       level: 'warning',
       title: `Tu perfil de proyecto está al ${projectCompletion}%`,
       message: 'Complétalo para que la IA redacte con tus datos reales y no deje marcas [COMPLETAR].',
-      action: { label: 'Completar perfil', onClick: () => onNavigateTab('my-company') }
+      action: { label: 'Completar perfil', onClick: () => routeTab('my-company#project-profile') }
     }), 600);
     return () => clearTimeout(t);
   }, [activeSubTab, projectCompletion, fund.id]);
+
+  // Navegación con destino ("pestaña#destino"): pestañas de la postulación o el resto de la app.
+  // Al salir hacia Mi empresa se recuerda a dónde volver.
+  const routeTab = (tab: string) => {
+    const { base, target } = splitTarget(tab);
+    if (base === 'sii') { onOpenSiiModal(); return; }
+    const sub: PostulationSubTab | null =
+      base === 'my-application' || base === 'roadmap' ? 'roadmap'
+      : (['formulator', 'documents', 'auditor', 'advisor', 'expediente'] as const).includes(base as any) ? (base as PostulationSubTab)
+      : null;
+    if (sub) {
+      onChangeSubTab(sub);
+      goToTarget(target);
+      return;
+    }
+    if (base === 'my-company' || base === 'profile') {
+      setReturnContext({ label: fund.name, subTab: activeSubTab });
+    }
+    onNavigateTab(tab);
+  };
 
   // Al cambiar de pestaña, volver al inicio para no quedar a mitad de página
   const firstTabRender = useRef(true);
@@ -281,13 +302,7 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
               expediente={expediente}
               onUpdateRoadmapConfirmations={onUpdateRoadmapConfirmations}
               onUpdateDocStatuses={onUpdateDocStatuses}
-              onNavigateTab={(tab) => {
-                if (tab === 'formulator') onChangeSubTab('formulator');
-                else if (tab === 'documents') onChangeSubTab('documents');
-                else if (tab === 'auditor') onChangeSubTab('auditor');
-                else if (tab === 'advisor') onChangeSubTab('advisor');
-                else onNavigateTab(tab);
-              }}
+              onNavigateTab={routeTab}
               onOpenSiiModal={onOpenSiiModal}
               onOpenAuthModal={() => onOpenAuthModal('login')}
               onSelectFund={onSelectFund}
@@ -311,13 +326,7 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
               onSaveSectionAnswers={onSaveSectionAnswers}
               onSaveFormulation={onSaveFormulation}
               onSendToAudit={onSendToAudit}
-              onNavigateTab={(tab) => {
-                if (tab === 'auditor') onChangeSubTab('auditor');
-                else if (tab === 'documents') onChangeSubTab('documents');
-                else if (tab === 'advisor') onChangeSubTab('advisor');
-                else if (tab === 'my-application') onChangeSubTab('roadmap');
-                else onNavigateTab(tab);
-              }}
+              onNavigateTab={routeTab}
             />
           </Suspense>
         )}
@@ -339,12 +348,7 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
               onAddGeneratedDoc={onAddGeneratedDoc}
               onUpdateGeneratedDocStatus={onUpdateGeneratedDocStatus}
               onDeleteGeneratedDoc={onDeleteGeneratedDoc}
-              onNavigateTab={(tab) => {
-                if (tab === 'formulator') onChangeSubTab('formulator');
-                else if (tab === 'advisor') onChangeSubTab('advisor');
-                else if (tab === 'my-application') onChangeSubTab('roadmap');
-                else onNavigateTab(tab);
-              }}
+              onNavigateTab={routeTab}
               onOpenSiiModal={onOpenSiiModal}
               onUpdateValidationCount={(count: number) => {
                 onUpdateProfile({ ...profile, customerValidationCount: count });
@@ -364,12 +368,7 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
               initialFund={fund}
               initialFormulation={formulation}
               onSaveAudit={onSaveAudit}
-              onNavigateTab={(tab) => {
-                if (tab === 'formulator') onChangeSubTab('formulator');
-                else if (tab === 'advisor') onChangeSubTab('advisor');
-                else if (tab === 'my-application') onChangeSubTab('roadmap');
-                else onNavigateTab(tab);
-              }}
+              onNavigateTab={routeTab}
             />
           </Suspense>
         )}
@@ -414,6 +413,9 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
                 <span className="text-[10px] font-bold text-slate-400 uppercase">1. Ficha de Empresa</span>
                 <p className="font-bold text-xs text-slate-900 mt-1">{profile.companyName}</p>
                 <p className="text-[11px] text-slate-500">RUT: {profile.rut || 'Pendiente'}</p>
+                <button type="button" onClick={() => routeTab('my-company#company-identity')} className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:underline cursor-pointer">
+                  Editar datos →
+                </button>
               </div>
 
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
@@ -424,6 +426,9 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
                 <p className="text-[11px] text-slate-500">
                   {profile.taxFolderUploaded ? `${profile.taxFolderF29Periods || 12} meses declarados` : 'Sube tu PDF F29'}
                 </p>
+                <button type="button" onClick={() => routeTab('sii')} className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:underline cursor-pointer">
+                  {profile.taxFolderUploaded ? 'Ver carpeta' : 'Subir carpeta'} →
+                </button>
               </div>
 
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
@@ -434,6 +439,9 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
                 <p className="text-[11px] text-slate-500">
                   {formulation ? `${formulation.projectTitle}` : 'Ve a la pestaña Formulador'}
                 </p>
+                <button type="button" onClick={() => routeTab('formulator#section:next')} className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:underline cursor-pointer">
+                  {formulation ? 'Editar formulación' : 'Redactar con IA'} →
+                </button>
               </div>
 
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
@@ -444,6 +452,9 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
                 <p className="text-[11px] text-slate-500">
                   Validadas comercialmente
                 </p>
+                <button type="button" onClick={() => routeTab('documents#doc-generator')} className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:underline cursor-pointer">
+                  Generar carta →
+                </button>
               </div>
 
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
@@ -454,6 +465,9 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
                 <p className="text-[11px] text-slate-500">
                   {auditResult ? (auditResult.overallScore >= 3.5 ? 'Aprobada' : 'Observada') : 'Simula antes de postular'}
                 </p>
+                <button type="button" onClick={() => routeTab('auditor')} className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:underline cursor-pointer">
+                  {auditResult ? 'Ver auditoría' : 'Simular evaluación'} →
+                </button>
               </div>
 
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
@@ -505,13 +519,7 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
             onClose={() => setShowDossierModal(false)}
             expediente={expediente}
             fund={fund}
-            onNavigateTab={(tab) => {
-              if (tab === 'formulator') onChangeSubTab('formulator');
-              else if (tab === 'documents') onChangeSubTab('documents');
-              else if (tab === 'auditor') onChangeSubTab('auditor');
-              else if (tab === 'advisor') onChangeSubTab('advisor');
-              else onNavigateTab(tab);
-            }}
+            onNavigateTab={routeTab}
             onOpenSiiModal={onOpenSiiModal}
           />
         </Suspense>

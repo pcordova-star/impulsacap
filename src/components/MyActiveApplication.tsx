@@ -1,4 +1,5 @@
 import { REQUIREMENT_GUIDES } from '../data/requirementGuides';
+import { consume, onRequest } from '../utils/navFocus';
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   CompanyProfile, 
@@ -78,7 +79,8 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
   onOpenAuthModal,
   onSelectFund
 }) => {
-  const [activeView, setActiveView] = useState<'timeline' | 'admissibility' | 'guarantees'>('timeline');
+  const [activeView, setActiveView] = useState<'timeline' | 'admissibility' | 'guarantees'>(() => (consume('roadmapView') as any) || 'timeline');
+  useEffect(() => onRequest('roadmapView', v => setActiveView(v as any)), []);
   const { hasActivePlan, expiresAt, daysLeft, isExpiringSoon, isExpired, refresh } = usePlan();
   const [archiving, setArchiving] = useState<boolean>(false);
 
@@ -290,14 +292,15 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
       badge: 'Requisito Excluyente',
       status: (isRutValid && confirmedInicioActividades && hasTaxFolder) ? ('completed' as const) : ('in_progress' as const),
       items: [
-        { label: 'RUT de la empresa válido (Módulo 11)', done: isRutValid, detail: isRutValid ? activeRut : 'Ingresa un RUT válido' },
+        { label: 'RUT de la empresa válido (Módulo 11)', done: isRutValid, detail: isRutValid ? activeRut : 'Ingresa un RUT válido', go: isRutValid ? undefined : { label: 'Ingresar RUT en Mi empresa', run: () => onNavigateTab('my-company#company-identity') } },
         { label: 'Inicio de actividades en 1ª Categoría', done: confirmedInicioActividades, interactive: true, onToggle: toggleInicioActividades, detail: confirmedInicioActividades ? 'Confirmado por la empresa' : 'Haz clic para confirmar que ya cuentas con esto' },
         { 
           label: 'Carpeta Tributaria Electrónica F29', 
           done: hasTaxFolder, 
           detail: hasTaxFolder 
             ? `Archivo oficial subido: ${profile.taxFolderFileName || 'Carpeta_Tributaria_SII.pdf'} (Validada)` 
-            : 'Sube tu archivo PDF o XML del SII para adjuntarlo a tu expediente' 
+            : 'Sube tu archivo PDF o XML del SII para adjuntarlo a tu expediente',
+          go: { label: hasTaxFolder ? 'Ver o cambiar carpeta' : 'Subir carpeta tributaria', run: () => onOpenSiiModal() }
         },
       ],
       actionLabel: hasTaxFolder ? 'Revisar / Cambiar Carpeta F29' : 'Subir Carpeta Tributaria (PDF/XML)',
@@ -312,11 +315,11 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
       status: (confirmedEstatutoSocial && hasLetters) ? ('completed' as const) : ('in_progress' as const),
       items: [
         { label: 'Estatuto social y poderes de representación', done: confirmedEstatutoSocial, interactive: true, onToggle: toggleEstatutoSocial, detail: confirmedEstatutoSocial ? 'Confirmado por la empresa' : 'Haz clic para confirmar que ya cuentas con esto' },
-        { label: 'Cartas de Intención de Compra / LOI', done: hasLetters, detail: hasLetters ? `${profile.customerValidationCount} cartas registradas` : 'Mínimo 2 cartas recomendadas' },
-        { label: 'Acreditación de Liderazgo Femenino', done: profile.isFemaleLed, detail: profile.isFemaleLed ? `+${selectedFund.femaleBonusPct || 10}% cofinanciamiento adicional` : 'No postulado con bono de género' }
+        { label: 'Cartas de Intención de Compra / LOI', done: hasLetters, detail: hasLetters ? `${profile.customerValidationCount} cartas registradas` : 'Mínimo 2 cartas recomendadas', go: { label: hasLetters ? 'Generar otra carta' : 'Generar carta LOI', run: () => onNavigateTab('documents#doc-generator') } },
+        { label: 'Acreditación de Liderazgo Femenino', done: profile.isFemaleLed, detail: profile.isFemaleLed ? `+${selectedFund.femaleBonusPct || 10}% cofinanciamiento adicional` : 'No postulado con bono de género', go: { label: 'Indicarlo en Mi empresa', run: () => onNavigateTab('my-company#company-identity') } }
       ],
       actionLabel: hasLetters ? 'Ver / Agregar Más Cartas LOI' : 'Generar Carta de Intención (LOI) Oficial',
-      onAction: () => onNavigateTab('documents')
+      onAction: () => onNavigateTab('documents#doc-generator')
     },
     {
       stepNumber: 3,
@@ -326,13 +329,13 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
       badge: 'Criterio 40% Ponderación',
       status: hasFormulation ? ('completed' as const) : (isRutValid ? ('in_progress' as const) : ('pending' as const)),
       items: [
-        { label: 'Problema / Oportunidad de mercado', done: hasFormulation, detail: hasFormulation ? 'Estructurado según rúbrica CORFO' : 'Pendiente redactar' },
-        { label: 'Solución innovadora y grado de novedad', done: hasFormulation, detail: hasFormulation ? 'Diferenciación competitiva definida' : 'Pendiente redactar' },
-        { label: 'Plan de trabajo y hitos a 12 meses', done: hasFormulation, detail: hasFormulation ? 'Objetivos técnicos y comerciales listos' : 'Pendiente estructurar' },
-        { label: 'Elevator Pitch de 30 segundos', done: !!formulation?.pitchSummary30s, detail: formulation?.pitchSummary30s ? 'Pitch de alto impacto listo' : 'Requerido en formulario oficial' }
+        { label: 'Problema / Oportunidad de mercado', done: hasFormulation, detail: hasFormulation ? 'Estructurado según rúbrica CORFO' : 'Pendiente redactar', go: { label: 'Redactar problema', run: () => onNavigateTab('formulator#section:problem') } },
+        { label: 'Solución innovadora y grado de novedad', done: hasFormulation, detail: hasFormulation ? 'Diferenciación competitiva definida' : 'Pendiente redactar', go: { label: 'Redactar solución', run: () => onNavigateTab('formulator#section:solution') } },
+        { label: 'Plan de trabajo y hitos a 12 meses', done: hasFormulation, detail: hasFormulation ? 'Objetivos técnicos y comerciales listos' : 'Pendiente estructurar', go: { label: 'Armar plan de trabajo', run: () => onNavigateTab('formulator#section:workplan') } },
+        { label: 'Elevator Pitch de 30 segundos', done: !!formulation?.pitchSummary30s, detail: formulation?.pitchSummary30s ? 'Pitch de alto impacto listo' : 'Requerido en formulario oficial', go: { label: 'Redactar título y pitch', run: () => onNavigateTab('formulator#section:title_pitch') } }
       ],
       actionLabel: hasFormulation ? 'Editar Formulación Técnica' : 'Redactar Propuesta con Formulador IA',
-      onAction: () => onNavigateTab('formulator')
+      onAction: () => onNavigateTab('formulator#section:next')
     },
     {
       stepNumber: 4,
@@ -342,13 +345,13 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
       badge: 'Financiero',
       status: (hasBudget && confirmedGarantia) ? ('completed' as const) : (hasFormulation ? ('in_progress' as const) : ('pending' as const)),
       items: [
-        { label: 'Desglose en Cuentas Oficiales CORFO', done: hasBudget, detail: hasBudget ? `${formulation?.budgetBreakdown?.length} ítems presupuestados` : 'Recursos humanos, operaciones, difusión' },
+        { label: 'Desglose en Cuentas Oficiales CORFO', done: hasBudget, detail: hasBudget ? `${formulation?.budgetBreakdown?.length} ítems presupuestados` : 'Recursos humanos, operaciones, difusión', go: { label: 'Ir al presupuesto', run: () => onNavigateTab('formulator#section:budget') } },
         { label: 'Verificación de IVA no imputado al subsidio', done: hasBudget, detail: 'El subsidio fiscal no subsidia IVA recuperable' },
         { label: 'Aporte empresarial pecuniario', done: hasBudget, detail: `Hasta ${selectedFund.maxCoFinancePct}% subsidio / ${(100 - selectedFund.maxCoFinancePct)}% aporte privado` },
-        { label: 'Simulación de póliza de garantía para anticipo', done: confirmedGarantia, interactive: true, onToggle: toggleGarantia, detail: confirmedGarantia ? 'Simulación realizada y confirmada' : 'Haz clic para confirmar que ya cuentas con esto' }
+        { label: 'Simulación de póliza de garantía para anticipo', done: confirmedGarantia, interactive: true, onToggle: toggleGarantia, detail: confirmedGarantia ? 'Simulación realizada y confirmada' : 'Haz clic para confirmar que ya cuentas con esto', go: { label: 'Abrir simulador de garantías', run: () => { setActiveView('guarantees'); setTimeout(() => document.getElementById('roadmap-views')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); } } }
       ],
       actionLabel: hasBudget ? 'Revisar Presupuesto & Garantías' : 'Configurar Presupuesto en Formulador',
-      onAction: () => onNavigateTab('formulator')
+      onAction: () => onNavigateTab('formulator#section:budget')
     },
     {
       stepNumber: 5,
@@ -358,7 +361,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
       badge: 'Filtro de Éxito',
       status: isAuditApproved ? ('completed' as const) : (hasAudit ? ('in_progress' as const) : (hasFormulation ? ('in_progress' as const) : ('pending' as const))),
       items: [
-        { label: 'Simulación de evaluador ciego oficial', done: hasAudit, detail: hasAudit ? `Nota obtenida: ${auditResult?.overallScore || 0}/5.0 (Escala CORFO)` : 'Aún no has ejecutado la simulación' },
+        { label: 'Simulación de evaluador ciego oficial', done: hasAudit, detail: hasAudit ? `Nota obtenida: ${auditResult?.overallScore || 0}/5.0 (Escala CORFO)` : 'Aún no has ejecutado la simulación', go: { label: hasAudit ? 'Ver auditoría' : 'Simular evaluación', run: () => onNavigateTab('auditor') } },
         { label: 'Umbral mínimo de aprobación (>= 3.5 / 70%)', done: isAuditApproved, detail: isAuditApproved ? 'Cumple umbral de corte de adjudicación' : 'Requiere optimización de brechas' },
         { label: 'Revisión de alertas críticas de rechazo (Red Flags)', done: hasAudit && (auditResult?.redFlags?.length || 0) === 0, detail: hasAudit ? `${auditResult?.redFlags?.length || 0} alertas de rechazo detectadas` : 'Pendiente' }
       ],
@@ -373,7 +376,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
       badge: 'Postulación Final',
       status: (isAuditApproved && hasBudget) ? ('in_progress' as const) : ('pending' as const),
       items: [
-        { label: 'Dossier Consolidado Oficial en PDF listo', done: isRutValid && hasFormulation, detail: 'Incluye memoria técnica, balances y anexos' },
+        { label: 'Dossier Consolidado Oficial en PDF listo', done: isRutValid && hasFormulation, detail: 'Incluye memoria técnica, balances y anexos', go: { label: 'Abrir expediente PDF', run: () => setShowDossierModal(true) } },
         { label: 'Checklist de documentación de admisibilidad', done: isRutValid && hasFormulation && hasBudget, detail: 'Listo para copiar respuestas al portal' },
         { label: 'Subida formal a la plataforma oficial', done: false, detail: `Portal oficial ${selectedFund.agency} (e-CORFO o Sercotec)` }
       ],
@@ -680,7 +683,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
       </div>
 
       {/* 4. NAVIGATION VIEW SELECTOR: TIMELINE VS DEEP DIVE TOOLS */}
-      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+      <div id="roadmap-views" className="scroll-mt-40 flex items-center justify-between border-b border-slate-800 pb-2">
         <div className="flex items-center gap-2">
           <button
             onClick={() => setActiveView('timeline')}
@@ -904,8 +907,21 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
                             const guide = REQUIREMENT_GUIDES[item.label];
                             const guideKey = `${step.id}-${idx}`;
                             const guideOpen = openGuide === guideKey;
-                            const guideBlock = guide ? (
+                            const go = (item as any).go as { label: string; run: () => void } | undefined;
+                            const guideBlock = (guide || go) ? (
                               <div className="mt-1.5">
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                                {go && (
+                                  <button
+                                    type="button"
+                                    onClick={go.run}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600/90 hover:bg-emerald-500 text-white text-[11px] font-bold cursor-pointer"
+                                  >
+                                    {go.label}
+                                    <ArrowRight className="w-3 h-3" />
+                                  </button>
+                                )}
+                                {guide && (
                                 <button
                                   type="button"
                                   onClick={() => setOpenGuide(guideOpen ? null : guideKey)}
@@ -914,7 +930,9 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
                                 >
                                   {guideOpen ? 'Ocultar guía' : '¿Qué es y cómo lo consigo?'}
                                 </button>
-                                {guideOpen && (
+                                )}
+                                </div>
+                                {guide && guideOpen && (
                                   <div className="mt-2 rounded-xl bg-slate-900/90 border border-slate-700 p-3 space-y-2 text-[12px] text-slate-200 leading-relaxed">
                                     <p>{guide.what}</p>
                                     {guide.why && <p className="text-slate-400"><strong className="text-slate-300">Para qué lo piden:</strong> {guide.why}</p>}
