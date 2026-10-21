@@ -121,7 +121,8 @@ export async function buildAdminSummary(
   entSnap.docs.forEach(d => {
     const e = d.data();
     const exp = e.expiresAt ? new Date(e.expiresAt) : null;
-    if (e.status === 'active' && exp && !isNaN(exp.getTime()) && exp.getTime() > now.getTime()) {
+    // Solo planes pagados: el acceso temporal de la prueba de lanzamiento no cuenta
+    if (e.status === 'active' && !e.provisional && exp && !isNaN(exp.getTime()) && exp.getTime() > now.getTime()) {
       activeUids.add(d.id);
       activePlans.push({
         uid: d.id,
@@ -147,7 +148,7 @@ export async function buildAdminSummary(
       companyName: profileByUid.get(p.uid)?.companyName || '',
       amount,
       status: p.status || 'desconocido',
-      kind: amount === 19990 ? 'Primera compra' : amount === 39990 ? 'Renovación' : '—',
+      kind: p.sellerCode ? `Primera compra · código ${p.sellerCode}` : amount === 19990 ? 'Primera compra' : amount === 39990 ? 'Renovación' : 'Otro monto',
       date,
       day: date ? chileDayKey(new Date(date)) : null,
       serviceStarted: Boolean(p.serviceStartedAt)

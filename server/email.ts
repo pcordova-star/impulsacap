@@ -390,15 +390,15 @@ export function paymentAvailableEmail(args: { deadline: string; price: number })
     preheader: 'Activa tu Plan Trimestral a precio de lanzamiento',
     heading: 'Activa tu Plan Trimestral',
     bodyHtml:
-      p('Gracias por probar ImpulsaCap. Ya puedes activar tu Plan Trimestral a precio de lanzamiento y seguir con tu postulación.') +
+      p('Gracias por probar ImpulsaCap. Tus datos y postulaciones siguen guardados: activa tu Plan Trimestral para seguir preparando tu postulación con todas las herramientas.') +
       detailTable([
-        ['Precio de lanzamiento', `${formatCLP(args.price)} por 3 meses (IVA incluido)`],
-        ['Activa antes del', formatDateCL(args.deadline)],
+        ['Tu precio', `${formatCLP(args.price)} por 3 meses (IVA incluido)`],
+        ['Incluye', 'Redacción con IA, cartas, presupuesto guiado, auditoría simulada, expediente PDF y asesor experto'],
       ]) +
-      p('Hasta esa fecha mantienes el acceso completo. Al activar el plan comienzan tus 3 meses; si no lo activas, el acceso a las herramientas termina en esa fecha, pero tus datos y postulaciones quedan guardados.'),
+      p('Es un pago único: no se renueva solo. Los 3 meses parten cuando pagas.'),
     cta: { label: 'Activar mi plan', url: `${getAppUrl()}/?pagar=1` }
   });
-  const text = `Ya puedes activar tu Plan Trimestral a ${formatCLP(args.price)} (precio de lanzamiento) antes del ${formatDateCL(args.deadline)}: ${getAppUrl()}/?pagar=1`;
+  const text = `Tus datos en ImpulsaCap siguen guardados. Activa tu Plan Trimestral a ${formatCLP(args.price)} (3 meses, IVA incluido) para seguir: ${getAppUrl()}/?pagar=1`;
   return { subject: 'Activa tu Plan Trimestral a precio de lanzamiento', html, text };
 }
 

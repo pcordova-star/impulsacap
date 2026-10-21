@@ -211,18 +211,18 @@ const EarlyAccessPanel: React.FC = () => {
   }, []);
   useEffect(() => { loadIntents(); }, [loadIntents]);
 
-  if (!data || (data.intents.length === 0 && data.paymentsEnabled)) return null;
+  if (!data || data.intents.length === 0) return null;
   const pending = data.intents.filter(i => i.status === 'acceso_anticipado');
   const toNotify = pending.filter(i => !i.notifiedAt);
 
   const notify = async () => {
-    if (!confirm(`Se enviará el aviso "Ya puedes completar tu pago" a ${toNotify.length} ${toNotify.length === 1 ? 'persona' : 'personas'}, con 7 días para pagar. ¿Continuar?`)) return;
+    if (!confirm(`Se enviará un correo invitando a contratar el Plan Trimestral a ${toNotify.length} ${toNotify.length === 1 ? 'persona' : 'personas'}. ¿Continuar?`)) return;
     setSending(true);
     setMsg(null);
     try {
       const res = await apiFetch('/api/admin/acceso-anticipado/avisar', { method: 'POST' });
       const body = await res.json().catch(() => ({}));
-      setMsg(res.ok ? `Aviso enviado a ${body.avisados} ${body.avisados === 1 ? 'persona' : 'personas'}.` : body.error || 'No se pudo enviar el aviso.');
+      setMsg(res.ok ? `Invitación enviada a ${body.avisados} ${body.avisados === 1 ? 'persona' : 'personas'}.` : body.error || 'No se pudo enviar el aviso.');
       await loadIntents();
     } finally {
       setSending(false);
@@ -231,30 +231,25 @@ const EarlyAccessPanel: React.FC = () => {
 
   return (
     <Card
-      title="Acceso anticipado"
-      subtitle={data.paymentsEnabled
-        ? `${pending.length} sin pagar, ${data.intents.length - pending.length} ya pagaron`
-        : `Modo lanzamiento activo: ${data.intents.length} ${data.intents.length === 1 ? 'persona tiene' : 'personas tienen'} acceso sin costo`}
-      right={data.paymentsEnabled && toNotify.length > 0 ? (
+      title="Usuarios de la prueba de lanzamiento"
+      subtitle={`La prueba gratis ya no existe y su acceso no habilita herramientas. ${pending.length} no han contratado · ${data.intents.length - pending.length} contrataron.`}
+      right={toNotify.length > 0 ? (
         <button type="button" onClick={notify} disabled={sending} className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer disabled:opacity-60">
-          {sending ? 'Enviando…' : `Avisar que ya pueden pagar (${toNotify.length})`}
+          {sending ? 'Enviando…' : `Invitar a contratar (${toNotify.length})`}
         </button>
       ) : undefined}
     >
-      {!data.paymentsEnabled && (
-        <p className="text-sm text-slate-600 mb-3">Cuando Mercado Pago esté aprobado, deja vacío <code className="px-1 rounded bg-slate-100">PAGOS_MODO</code> en AI Studio, publica y vuelve aquí para avisarles.</p>
-      )}
       {msg && <p className="text-sm text-slate-800 mb-3">{msg}</p>}
-      <Table headers={['Inscripción', 'Cliente', 'Precio', 'Estado', 'Acceso hasta']} empty={data.intents.length === 0}>
+      <Table headers={['Usó la prueba', 'Cliente', 'Su precio', 'Estado', 'Invitado el']} empty={data.intents.length === 0}>
         {data.intents.map(i => (
           <tr key={i.uid}>
             <td className="py-2.5 pr-4 whitespace-nowrap text-slate-600">{fmtDate(i.createdAt)}</td>
             <td className="py-2.5 pr-4"><div className="text-slate-900">{i.companyName || '—'}</div><div className="text-xs text-slate-500">{i.email}</div></td>
             <td className="py-2.5 pr-4 tabular-nums">{clp(i.price)}</td>
             <td className="py-2.5 pr-4 whitespace-nowrap">
-              {i.status === 'pagado' ? <span className="text-emerald-700 font-semibold">Pagó</span> : i.notifiedAt ? 'Avisado, sin pagar' : 'Sin avisar'}
+              {i.status === 'pagado' ? <span className="text-emerald-700 font-semibold">Contrató</span> : i.notifiedAt ? 'Invitado, sin contratar' : 'Sin invitar'}
             </td>
-            <td className="py-2.5 pr-4 whitespace-nowrap text-slate-600">{fmtDate(i.paymentDeadline || i.accessUntil || null)}</td>
+            <td className="py-2.5 pr-4 whitespace-nowrap text-slate-600">{fmtDate(i.notifiedAt || null)}</td>
           </tr>
         ))}
       </Table>
@@ -495,7 +490,7 @@ const SellersPanel: React.FC = () => {
 
       {msg && <p role="status" className={`mb-4 text-sm ${msg.ok ? 'text-emerald-700' : 'text-rose-700'}`}>{msg.text}</p>}
 
-      <Table headers={['Vendedor', 'Código', 'Precio cliente', 'Comisión', 'Ventas', 'Pruebas', 'Por pagar', 'Pagado', '']} empty={!data || data.sellers.length === 0}>
+      <Table headers={['Vendedor', 'Código', 'Precio cliente', 'Comisión', 'Ventas', 'Por pagar', 'Pagado', '']} empty={!data || data.sellers.length === 0}>
         {data?.sellers.map(s => (
           <tr key={s.code} className="align-top">
             <td className="py-2.5 pr-4"><div className="text-slate-900">{s.name}</div><div className="text-xs text-slate-500">{s.email}</div></td>
@@ -503,7 +498,6 @@ const SellersPanel: React.FC = () => {
             <td className="py-2.5 pr-4 tabular-nums whitespace-nowrap">{clp(s.price)} <span className="text-xs text-slate-500">({s.discountPct}%)</span></td>
             <td className="py-2.5 pr-4 tabular-nums">{s.commissionPct}%</td>
             <td className="py-2.5 pr-4 tabular-nums">{s.salesCount}<div className="text-xs text-slate-500">{clp(s.revenue)}</div></td>
-            <td className="py-2.5 pr-4 tabular-nums">{s.trialsCount}</td>
             <td className="py-2.5 pr-4 tabular-nums">
               <div className="font-semibold text-amber-700">{clp(s.commissionPayable || 0)}</div>
               {(s.commissionInRetracto || 0) > 0 && <div className="text-[11px] text-slate-500">+{clp(s.commissionInRetracto || 0)} en retracto</div>}
@@ -626,11 +620,11 @@ const AiUsagePanel: React.FC = () => {
         <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
           <p className="text-xs text-slate-500">Costo promedio por usuario (mes)</p>
           <p className="text-xl font-black text-slate-900 tabular-nums">{usd(d.month.activeUsers ? d.month.costUsd / d.month.activeUsers : 0)}</p>
-          <p className="text-xs text-slate-500">Tope por plan {usd(L.maxCostPerPeriodUsd.plan)} · prueba {usd(L.maxCostPerPeriodUsd.prueba)}</p>
+          <p className="text-xs text-slate-500">Tope de IA por plan: {usd(L.maxCostPerPeriodUsd.plan)}</p>
         </div>
         <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
           <p className="text-xs text-slate-500">Créditos diarios por usuario</p>
-          <p className="text-sm font-bold text-slate-900">Plan {L.creditsPerDay.plan} · Prueba {L.creditsPerDay.prueba} · Gratis {L.creditsPerDay.gratis}</p>
+          <p className="text-sm font-bold text-slate-900">{L.creditsPerDay.plan} por día con plan · sin plan no hay IA de pago</p>
           <p className="text-xs text-slate-500">Asesor 1 · Sección 2 · Documento 2 · Auditoría 4 · Formulación completa 5</p>
         </div>
       </div>
@@ -884,7 +878,7 @@ export const AdminDashboard: React.FC = () => {
               <td className="py-2.5 pr-4"><div className="text-slate-900">{u.companyName || u.displayName || '—'}</div><div className="text-xs text-slate-500">{u.email}</div></td>
               <td className="py-2.5 pr-4">{u.provider}</td>
               <td className="py-2.5 pr-4 whitespace-nowrap text-slate-600">{fmtDate(u.lastSignInAt)}</td>
-              <td className="py-2.5 pr-4">{u.hasActivePlan ? <span className="text-emerald-700 font-semibold">Activo</span> : <span className="text-slate-500">Gratis</span>}</td>
+              <td className="py-2.5 pr-4">{u.hasActivePlan ? <span className="text-emerald-700 font-semibold">Activo</span> : <span className="text-slate-500">Sin plan</span>}</td>
               <td className="py-2.5 pr-4 tabular-nums">{u.applications}</td>
             </tr>
           ))}

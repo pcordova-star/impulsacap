@@ -254,7 +254,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
-                  <span>Plan Gratuito</span>
+                  <span>Sin plan</span>
                 </span>
               )}
               {currentUser && (

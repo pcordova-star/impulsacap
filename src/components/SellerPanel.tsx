@@ -15,6 +15,7 @@ interface PanelData {
   totals: { salesCount: number; revenue: number; commissionPending: number; commissionPaid: number; trialsCount: number; commissionInRetracto?: number };
   sales: { date: string; code: string; client: string; amount: number; commission: number; status: string; paidAt: string | null }[];
   trials: { date: string; code: string; client: string; until: string | null }[];
+  referredPending?: number;
 }
 
 const clp = (n: number) => `$${Math.round(n || 0).toLocaleString('es-CL')}`;
@@ -136,7 +137,7 @@ export const SellerPanel: React.FC = () => {
         <Kpi label="Comisión por pagar" value={clp(t.commissionPending)} detail={(t.commissionInRetracto || 0) > 0 ? `${clp(t.commissionInRetracto || 0)} aún en plazo de retracto (10 días)` : undefined} />
         <Kpi label="Comisión pagada" value={clp(t.commissionPaid)} />
         <Kpi label="Ventas" value={String(t.salesCount)} detail={`${clp(t.revenue)} vendidos (IVA incluido)`} />
-        <Kpi label="Probando gratis" value={String(t.trialsCount)} detail="Clientes con tu código que aún no pagan" />
+        <Kpi label="Registrados con tu código" value={String(data.referredPending || 0)} detail="Aún no compran: vale la pena hacerles seguimiento" />
       </div>
 
       {data.codes.map(c => (
@@ -197,20 +198,6 @@ export const SellerPanel: React.FC = () => {
         )}
       </section>
 
-      {data.trials.length > 0 && (
-        <section className="rounded-2xl bg-white border border-slate-200 p-5 sm:p-6">
-          <h2 className="text-base font-bold text-slate-900">Probando gratis</h2>
-          <p className="text-xs text-slate-500 mb-4">Activaron la prueba con tu código. Si pagan, la venta y tu comisión aparecen arriba.</p>
-          <ul className="divide-y divide-slate-100 text-sm">
-            {data.trials.map((t, i) => (
-              <li key={i} className="py-2.5 flex flex-wrap justify-between gap-2">
-                <span className="text-slate-900">{t.client || '—'}</span>
-                <span className="text-slate-500">Desde {fmtDate(t.date)}{t.until ? ` · prueba hasta ${fmtDate(t.until)}` : ''}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
 
       <p className="text-xs text-slate-500">
         La comisión se calcula sobre el monto pagado (IVA incluido), se registra cuando Mercado Pago aprueba el pago y se paga pasados 10 días (plazo de retracto del cliente). Si el cliente pide devolución, la comisión se anula. ¿Dudas sobre tus pagos? Escribe a contacto@impulsacap.cl.

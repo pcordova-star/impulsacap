@@ -2873,29 +2873,20 @@ app.get('/api/admin/acceso-anticipado', requireAuth, requireAdminUser, async (_r
 
 app.post('/api/admin/acceso-anticipado/avisar', requireAuth, requireAdminUser, async (_req, res) => {
   try {
-    if (isEarlyAccessMode()) {
-      return res.status(409).json({ error: 'El pago sigue en modo anticipado. Primero cambia PAGOS_MODO en AI Studio (déjalo vacío) y vuelve a publicar.' });
-    }
     if (!(await ensureFirestoreAdmin())) return res.status(503).json({ error: 'Firestore Admin no está autorizado.' });
+    // Invita a contratar a quienes usaron la prueba de lanzamiento (ya no existe). No extiende ningún acceso.
     const snap = await adminDb.collection('purchase_intents').where('status', '==', 'acceso_anticipado').get();
     let avisados = 0;
     let omitidos = 0;
     for (const d of snap.docs) {
       const it = d.data();
       if (it.notifiedAt || !it.email) { omitidos++; continue; }
-      const deadline = new Date(Date.now() + PAYMENT_GRACE_DAYS * 864e5).toISOString();
-      // El acceso provisional se extiende o acota hasta la fecha límite de pago
-      const entRef = adminDb.collection('entitlements').doc(it.uid);
-      const ent = (await entRef.get()).data();
-      if (ent?.provisional) {
-        await entRef.set({ status: 'active', expiresAt: deadline, updatedAt: new Date().toISOString() }, { merge: true });
-      }
       const price = (await resolvePricing(adminDb, it.uid)).price;
-      const sent = await sendEmail({ to: it.email, ...paymentAvailableEmail({ deadline, price }), idempotencyKey: `pay-available-${it.uid}` });
-      await d.ref.set({ notifiedAt: new Date().toISOString(), paymentDeadline: deadline, notifyEmailSent: sent }, { merge: true });
+      const sent = await sendEmail({ to: it.email, ...paymentAvailableEmail({ deadline: new Date().toISOString(), price }), idempotencyKey: `pay-available-${it.uid}` });
+      await d.ref.set({ notifiedAt: new Date().toISOString(), notifyEmailSent: sent }, { merge: true });
       avisados++;
     }
-    console.log(`[acceso-anticipado] Aviso de pago: ${avisados} avisados, ${omitidos} omitidos`);
+    console.log(`[acceso-anticipado] Invitación a contratar: ${avisados} avisados, ${omitidos} omitidos`);
     return res.json({ avisados, omitidos });
   } catch (err: any) {
     console.error('Error in /api/admin/acceso-anticipado/avisar:', err?.message);
@@ -3102,8 +3093,17 @@ app.get('/api/vendedor/panel', requireAuth, async (req, res) => {
     const snap = await adminDb.collection('sellers').where('email', '==', email).get();
     if (snap.empty) return res.status(404).json({ error: 'Tu cuenta no tiene un código de vendedor.', email });
     const sellers = snap.docs.map(d => ({ ...(d.data() as Seller), code: d.id }));
-    const { sales, trials, totals } = await sellerActivity(sellers.map(s => s.code));
+    const codesList = sellers.map(s => s.code);
+    const { sales, trials, totals } = await sellerActivity(codesList);
+    // Registrados con el código que aún no compran (el código se borra de referrals al no aplicar más)
+    const buyers = new Set(sales.map((x: any) => x.uid));
+    let referredPending = 0;
+    for (let i = 0; i < codesList.length; i += 10) {
+      const rs = await adminDb.collection('referrals').where('code', 'in', codesList.slice(i, i + 10)).get();
+      rs.forEach(d => { if (!buyers.has(d.id)) referredPending++; });
+    }
     return res.json({
+      referredPending,
       name: sellers[0].name,
       email,
       codes: sellers.map(s => ({
