@@ -898,7 +898,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
           </div>
         </div>
 
-        {isFirstPurchase && !(hasActivePlan && !provisional) && (
+        {isFirstPurchase && (
           <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <p className="text-xs text-slate-700">
               Precio de tu primer semestre: <strong className="text-slate-900">${price.toLocaleString('es-CL')}</strong> (IVA incluido)
