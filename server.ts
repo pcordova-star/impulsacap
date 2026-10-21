@@ -1632,10 +1632,10 @@ app.post('/api/soporte/ticket', ticketLimiter, async (req, res) => {
 
 // ---------------------------------------------------------------------------
 // Acceso anticipado: mientras PAGOS_MODO=anticipado, contratar da acceso provisional sin cobro
-// y registra la intención de compra. Al habilitar el pago, el admin avisa y hay 7 días para pagar.
+// y registra la intención de compra (5 días por defecto). Al habilitar el pago, el admin avisa y hay 7 días para pagar.
 // ---------------------------------------------------------------------------
 const isEarlyAccessMode = () => (process.env.PAGOS_MODO || '').trim().toLowerCase() === 'anticipado';
-const EARLY_ACCESS_DAYS = () => Math.min(90, Math.max(1, Number(process.env.ACCESO_ANTICIPADO_DIAS) || 30));
+const EARLY_ACCESS_DAYS = () => Math.min(90, Math.max(1, Number(process.env.ACCESO_ANTICIPADO_DIAS) || 5));
 const PAYMENT_GRACE_DAYS = 7;
 
 app.get('/api/pagos/modo', (_req, res) => {
