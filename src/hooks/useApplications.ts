@@ -281,12 +281,12 @@ export function useApplications(profile: CompanyProfile) {
       };
     }
 
-    // Requirement 11: Límite de 3 postulaciones simultáneas del Plan Semestral
+    // Requirement 11: Límite de 3 postulaciones simultáneas del Plan Trimestral
     if (activeApplications.length >= 3) {
       return {
         ok: false,
         limitReached: true,
-        error: 'Has alcanzado el límite de 3 postulaciones simultáneas del Plan Semestral. Puedes archivar una postulación activa para liberar cupo e iniciar una nueva.'
+        error: 'Has alcanzado el límite de 3 postulaciones simultáneas del Plan Trimestral. Puedes archivar una postulación activa para liberar cupo e iniciar una nueva.'
       };
     }
 

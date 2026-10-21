@@ -193,7 +193,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
 
     if (!auth.currentUser) {
       requestLogin({
-        message: 'Inicia sesión o crea tu cuenta para continuar con el Plan Semestral.',
+        message: 'Inicia sesión o crea tu cuenta para continuar con el Plan Trimestral.',
         mode: 'login',
         onSuccess: async () => {
           await handleRenewPlan();
@@ -231,7 +231,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
     if (!expiresAt) return null;
     const expDate = new Date(expiresAt);
     const startDate = new Date(expDate);
-    startDate.setMonth(startDate.getMonth() - 6);
+    startDate.setMonth(startDate.getMonth() - 3);
     return startDate.toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' });
   }, [expiresAt]);
 
@@ -250,7 +250,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
               {hasActivePlan ? (
                 <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300">
                   <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Plan Semestral Activo</span>
+                  <span>Plan Trimestral Activo</span>
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
@@ -825,7 +825,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
                 <span>Mi Plan y Suscripción</span>
                 {hasActivePlan && (
                   <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-                    Semestral Activo
+                    Trimestral Activo
                   </span>
                 )}
               </h3>
@@ -842,7 +842,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
             className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all cursor-pointer disabled:opacity-50 shrink-0"
           >
             <Sparkles className="w-4 h-4" />
-            <span>{hasActivePlan ? 'Renovar Plan Semestral' : 'Activar Plan Semestral'}</span>
+            <span>{hasActivePlan ? 'Renovar Plan Trimestral' : 'Activar Plan Trimestral'}</span>
           </button>
         </div>
 
@@ -852,10 +852,10 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
           <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
             <span className="text-[10px] uppercase font-bold text-slate-500 block">Plan Actual</span>
             <p className="text-base font-black text-slate-900">
-              {hasActivePlan ? (provisional ? 'Prueba gratis' : 'Plan Semestral') : 'Plan Gratuito'}
+              {hasActivePlan ? (provisional ? 'Acceso temporal' : 'Plan Trimestral') : 'Sin plan'}
             </p>
             <p className="text-[11px] text-slate-500">
-              {hasActivePlan ? (provisional ? 'Beneficio de lanzamiento: Plan Semestral completo sin costo' : 'Acceso completo a las herramientas') : 'Acceso limitado a diagnóstico'}
+              {hasActivePlan ? (provisional ? 'Activa tu plan para seguir usando las herramientas' : 'Acceso completo a las herramientas') : 'Diagnóstico, monitor y carpeta tributaria'}
             </p>
           </div>
 
@@ -901,7 +901,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
         {isFirstPurchase && (
           <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <p className="text-xs text-slate-700">
-              Precio de tu primer semestre: <strong className="text-slate-900">${price.toLocaleString('es-CL')}</strong> (IVA incluido)
+              Precio de tu primer trimestre: <strong className="text-slate-900">${price.toLocaleString('es-CL')}</strong> (IVA incluido)
               {referralCode && typeof referralDiscountPct === 'number' ? <>, {referralDiscountPct}% de descuento con el código <strong>{referralCode}</strong></> : <>, 50% de descuento de primera compra</>}.
             </p>
             <ReferralCodeField tone="light" />
@@ -928,7 +928,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
             <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 text-center space-y-1 text-xs text-slate-500">
               <p className="font-semibold text-slate-700">No registras pagos previos</p>
               <p className="text-[11px]">
-                Cuando adquieras o renueves el Plan Semestral, tus comprobantes oficiales de Mercado Pago aparecerán aquí.
+                Cuando adquieras o renueves el Plan Trimestral, tus comprobantes oficiales de Mercado Pago aparecerán aquí.
               </p>
             </div>
           ) : (

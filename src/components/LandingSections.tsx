@@ -163,7 +163,7 @@ export const HowItWorks: React.FC = () => (
 );
 
 /* -------------------------------------------------------------------------- */
-/* Gratis vs. Plan Semestral                                                   */
+/* Gratis vs. Plan Trimestral                                                   */
 /* -------------------------------------------------------------------------- */
 
 const FREE_FEATURES = [
@@ -204,7 +204,7 @@ export const PlanComparison: React.FC<{ onStartFree: () => void }> = ({ onStartF
     if (!auth.currentUser) {
       setLoading(false);
       requestLogin({
-        message: 'Crea tu cuenta o inicia sesión para continuar con el Plan Semestral.',
+        message: 'Crea tu cuenta o inicia sesión para continuar con el Plan Trimestral.',
         mode: 'login',
         onSuccess: async () => { await handleCheckout(); }
       });
@@ -263,22 +263,22 @@ export const PlanComparison: React.FC<{ onStartFree: () => void }> = ({ onStartF
           </button>
         </div>
 
-        {/* Plan Semestral */}
+        {/* Plan Trimestral */}
         <div className="rounded-3xl bg-gradient-to-br from-[#0B1220] to-[#0F1E3A] text-white border border-cyan-400/30 p-6 sm:p-8 flex flex-col gap-6 shadow-xl shadow-cyan-950/20">
           <div className="space-y-1">
-            <h3 className="text-lg font-black">Plan Semestral</h3>
+            <h3 className="text-lg font-black">Plan Trimestral</h3>
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
               <p className="text-3xl font-black">{formatCLP(price)}</p>
               {isFirstPurchase && price < 39990 && (
                 <p className="text-sm text-slate-400"><s>{formatCLP(39990)}</s> 50% en tu primera compra</p>
               )}
             </div>
-            <p className="text-sm text-slate-300">Pago único por 6 meses, IVA incluido. No se renueva solo.</p>
+            <p className="text-sm text-slate-300">Pago único por 3 meses, IVA incluido. No se renueva solo.</p>
           </div>
           <div className="rounded-2xl bg-white/5 border border-white/10 px-4 py-3 space-y-1">
             <p className="text-sm font-bold text-white">Para 1 empresa, hasta 3 postulaciones activas a la vez</p>
             <p className="text-xs text-slate-300 leading-relaxed">
-              Cuando terminas una postulación o la archivas, se libera el cupo y puedes empezar otra dentro de los 6 meses.
+              Cuando terminas una postulación o la archivas, se libera el cupo y puedes empezar otra dentro de los 3 meses.
             </p>
           </div>
           <ul className="space-y-2.5 flex-1">
@@ -292,7 +292,7 @@ export const PlanComparison: React.FC<{ onStartFree: () => void }> = ({ onStartF
           </ul>
           {hasActivePlan ? (
             <p className="rounded-2xl bg-emerald-400/10 border border-emerald-400/30 px-4 py-3 text-sm text-emerald-200">
-              Tu Plan Semestral está activo{expiryText ? ` hasta el ${expiryText}` : ''}.
+              Tu Plan Trimestral está activo{expiryText ? ` hasta el ${expiryText}` : ''}.
             </p>
           ) : (
             <div className="space-y-2">
@@ -303,13 +303,9 @@ export const PlanComparison: React.FC<{ onStartFree: () => void }> = ({ onStartF
                 className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-cyan-400 to-emerald-400 text-[#04131c] font-black text-sm hover:brightness-110 transition cursor-pointer disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F1E3A]"
               >
                 {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                {loading ? (paymentsEnabled ? 'Abriendo Mercado Pago…' : 'Activando tu prueba…') : (paymentsEnabled ? 'Activar Plan Semestral' : 'Probar gratis 5 días')}
+                {loading ? 'Abriendo Mercado Pago…' : 'Activar Plan Trimestral'}
               </button>
-              {paymentsEnabled ? (
-                <p className="text-xs text-slate-400 text-center">Pagas de forma segura con Mercado Pago.</p>
-              ) : (
-                <p className="text-xs text-emerald-200 text-center leading-relaxed">Beneficio de lanzamiento para pymes: usa el Plan Semestral completo gratis por 5 días, sin tarjeta. Después te enviamos tu enlace para activarlo a precio de lanzamiento.</p>
-              )}
+              <p className="text-xs text-slate-400 text-center">Pagas de forma segura con Mercado Pago.</p>
               <p className="text-xs text-slate-400 text-center leading-relaxed">
                 Al pagar aceptas los{' '}
                 <a href="/terminos" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">Términos y Condiciones</a>. Tienes derecho a retracto dentro de 10 días desde el pago, mientras no comiences a usar el plan.
@@ -358,11 +354,11 @@ const FAQS = [
   },
   {
     q: '¿Cuántas postulaciones puedo preparar con el plan?',
-    a: 'El Plan Semestral es para una empresa y permite tener hasta 3 postulaciones activas a la vez. Cuando terminas una o la archivas, liberas el cupo y puedes empezar otra dentro de los 6 meses. Si eres consultora y trabajas con varias empresas, escríbenos a contacto@impulsacap.cl y armamos un plan a tu medida.'
+    a: 'El Plan Trimestral es para una empresa y permite tener hasta 3 postulaciones activas a la vez. Cuando terminas una o la archivas, liberas el cupo y puedes empezar otra dentro de los 3 meses. Si eres consultora y trabajas con varias empresas, escríbenos a contacto@impulsacap.cl y armamos un plan a tu medida.'
   },
   {
     q: '¿El plan se renueva automáticamente?',
-    a: 'No. Es un pago único que te da 6 meses de acceso. Te avisamos por correo 7 días antes de que venza, y si quieres seguir, renuevas tú.'
+    a: 'No. Es un pago único que te da 3 meses de acceso. Te avisamos por correo 7 días antes de que venza, y si quieres seguir, renuevas tú.'
   },
   {
     q: '¿Me aseguran que voy a ganar el fondo?',

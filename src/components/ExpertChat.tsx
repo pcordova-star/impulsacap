@@ -276,7 +276,7 @@ export const ExpertChat: React.FC<ExpertChatProps> = ({ profile, currentFund }) 
         <div className="p-4 sm:p-5 bg-white border-t border-slate-200">
           <PlanPaywallCard 
             compact 
-            highlightText="El Asesor Experto está disponible exclusivamente para usuarios con el Plan Semestral activo."
+            highlightText="El Asesor Experto está disponible exclusivamente para usuarios con el Plan Trimestral activo."
           />
         </div>
       ) : (

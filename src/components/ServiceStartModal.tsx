@@ -3,7 +3,7 @@ import { Sparkles, Info } from 'lucide-react';
 import { setServiceStartConfirmationHandler } from '../utils/serviceStartEvents';
 
 /**
- * Aviso previo al primer uso del Plan Semestral tras cada compra.
+ * Aviso previo al primer uso del Plan Trimestral tras cada compra.
  * Con la confirmación, el servicio se entiende iniciado y termina la posibilidad de retracto
  * (Ley 19.496, art. 3 bis; sección 5 de los Términos y Condiciones).
  */
@@ -54,7 +54,7 @@ export const ServiceStartModal: React.FC<{ onOpenTerms: () => void }> = ({ onOpe
         </div>
         <div className="space-y-3">
           <h2 id="service-start-title" className="text-xl font-black text-slate-900">
-            Vas a comenzar a usar tu Plan Semestral
+            Vas a comenzar a usar tu Plan Trimestral
           </h2>
           <p className="text-[15px] text-slate-700 leading-relaxed">
             Esta es la primera vez que usas una herramienta del plan con esta compra. Al continuar, el servicio se considera iniciado y <strong>ya no podrás ejercer el derecho a retracto</strong> de esta compra.

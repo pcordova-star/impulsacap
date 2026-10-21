@@ -352,7 +352,7 @@ async function getEntitlementsWithUserToken(uid: string, token: string) {
   }
 }
 
-// Middleware: verifica plan semestral activo
+// Middleware: verifica plan trimestral activo
 // Middleware: tareas administrativas automáticas (GitHub Actions), protegidas con x-import-token
 const requireAdminToken = (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const expected = process.env.CONVOCATORIAS_IMPORT_TOKEN;
@@ -461,12 +461,12 @@ const requireActivePlan = async (req: express.Request, res: express.Response, ne
     }
 
     if (!data || data.status !== 'active' || !data.expiresAt) {
-      return res.status(402).json({ error: 'Necesitas el Plan Semestral para usar esta herramienta' });
+      return res.status(402).json({ error: 'Necesitas el Plan Trimestral para usar esta herramienta' });
     }
 
     const expiresAt = new Date(data.expiresAt);
     if (isNaN(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()) {
-      return res.status(402).json({ error: 'Necesitas el Plan Semestral para usar esta herramienta' });
+      return res.status(402).json({ error: 'Necesitas el Plan Trimestral para usar esta herramienta' });
     }
 
     // Derecho a retracto (Ley 19.496, art. 3 bis): antes del primer uso de cada compra, el usuario
@@ -475,14 +475,14 @@ const requireActivePlan = async (req: express.Request, res: express.Response, ne
     if (lastPaymentId && data.serviceStartedForPaymentId !== lastPaymentId) {
       return res.status(409).json({
         code: 'SERVICE_START_CONFIRMATION_REQUIRED',
-        error: 'Antes de usar esta herramienta, confirma que comienzas a usar tu Plan Semestral.'
+        error: 'Antes de usar esta herramienta, confirma que comienzas a usar tu Plan Trimestral.'
       });
     }
 
     return next();
   } catch (err: any) {
     console.error('Error in requireActivePlan:', err?.message);
-    return res.status(402).json({ error: 'Necesitas el Plan Semestral para usar esta herramienta' });
+    return res.status(402).json({ error: 'Necesitas el Plan Trimestral para usar esta herramienta' });
   }
 };
 
@@ -509,7 +509,7 @@ const checkAndRegisterPostulationSlot = async (uid: string, fundId: string): Pro
       return { ok: true };
     }
 
-    // Validar el límite de 3 postulaciones simultáneas del Plan Semestral
+    // Validar el límite de 3 postulaciones simultáneas del Plan Trimestral
     if (activeFundIds.size >= 3) {
       return { 
         ok: false, 
@@ -1656,7 +1656,7 @@ function supportKnowledgeForMode(): string {
   if (isEarlyAccessMode()) return SUPPORT_KNOWLEDGE;
   return SUPPORT_KNOWLEDGE.replace(
     /- Beneficio de lanzamiento para pymes:[^\n]*/,
-    '- Prueba gratis de lanzamiento: ya terminó; hoy el Plan Semestral se activa pagando. Quienes la usaron reciben un correo con el enlace para activar el plan a precio de lanzamiento y tienen 7 días desde ese aviso; sus datos y postulaciones quedan guardados.'
+    '- Prueba gratis de lanzamiento: ya terminó; hoy el Plan Trimestral se activa pagando. Quienes la usaron reciben un correo con el enlace para activar el plan a precio de lanzamiento y tienen 7 días desde ese aviso; sus datos y postulaciones quedan guardados.'
   );
 }
 
@@ -1685,7 +1685,7 @@ ${supportKnowledgeForMode()}
 REGLAS:
 - Responde en español de Chile, tuteando, claro y breve (máximo 110 palabras). Si es un procedimiento, da los pasos numerados.
 - Usa SOLO la base de conocimiento. Si la respuesta no está ahí, no la inventes: dilo y ofrece hablar con una persona (needsHuman = true).
-- Preguntas sobre fondos específicos, requisitos de un concurso, bases, montos, fechas de cierre, cómo redactar o cómo ganar un fondo: intent = "fondos". En ese caso responde que eso lo resuelve el Asesor Experto, disponible dentro de cada postulación con el Plan Semestral, y que el monitor de convocatorias muestra los cierres.
+- Preguntas sobre fondos específicos, requisitos de un concurso, bases, montos, fechas de cierre, cómo redactar o cómo ganar un fondo: intent = "fondos". En ese caso responde que eso lo resuelve el Asesor Experto, disponible dentro de cada postulación con el Plan Trimestral, y que el monitor de convocatorias muestra los cierres.
 - needsHuman = true cuando: el usuario pide hablar con una persona; reporta un pago cobrado sin plan activo, un cobro duplicado o quiere ejercer el retracto o pedir devolución; reporta un error que los pasos de la base no resuelven; está molesto; o no sabes la respuesta.
 - Nunca pidas contraseñas ni datos de tarjetas.
 
@@ -1825,7 +1825,8 @@ app.post('/api/soporte/ticket', ticketLimiter, async (req, res) => {
 // Acceso anticipado: mientras PAGOS_MODO=anticipado, contratar da acceso provisional sin cobro
 // y registra la intención de compra (5 días por defecto). Al habilitar el pago, el admin avisa y hay 7 días para pagar.
 // ---------------------------------------------------------------------------
-const isEarlyAccessMode = () => (process.env.PAGOS_MODO || '').trim().toLowerCase() === 'anticipado';
+// La prueba gratis de lanzamiento se eliminó: el plan solo se activa pagando (se ignora PAGOS_MODO).
+const isEarlyAccessMode = () => false;
 const EARLY_ACCESS_DAYS = () => Math.min(90, Math.max(1, Number(process.env.ACCESO_ANTICIPADO_DIAS) || 5));
 const PAYMENT_GRACE_DAYS = 7;
 
@@ -2008,8 +2009,8 @@ app.post('/api/pagos/crear', requireAuth, async (req, res) => {
       items: [
         {
           id: 'plan_semestral_impulsacap',
-          title: 'Plan Semestral ImpulsaCap',
-          description: 'Acceso completo por 6 meses a todas las herramientas de formulación, auditoría y dossier oficial (pago único no renovable).',
+          title: 'Plan Trimestral ImpulsaCap',
+          description: 'Acceso completo por 3 meses a todas las herramientas de formulación, auditoría y dossier oficial (pago único no renovable).',
           quantity: 1,
           unit_price: price,
           currency_id: 'CLP',
@@ -2188,13 +2189,13 @@ app.post('/api/pagos/webhook', async (req, res) => {
     });
 
     // Escribir entitlements/{uid}: { plan: "semestral", status: "active", expiresAt, lastPaymentId }
-    // expiresAt = 6 meses desde aprobación; si ya tenía plan vigente, suma 6 meses al expiresAt actual
+    // expiresAt = 3 meses desde aprobación; si ya tenía plan vigente, suma 3 meses al expiresAt actual
     const entRef = adminDb.collection('entitlements').doc(uid);
     const currentEntDoc = await entRef.get();
     let baseDate = new Date(paymentInfo.date_approved || Date.now());
     if (currentEntDoc.exists) {
       const curData = currentEntDoc.data();
-      // El acceso anticipado no se suma: los 6 meses parten desde el pago
+      // El acceso anticipado no se suma: los 3 meses parten desde el pago
       if (curData?.status === 'active' && curData?.expiresAt && !curData?.provisional) {
         const curExp = new Date(curData.expiresAt);
         if (!isNaN(curExp.getTime()) && curExp.getTime() > baseDate.getTime()) {
@@ -2204,7 +2205,7 @@ app.post('/api/pagos/webhook', async (req, res) => {
     }
 
     const expiresAt = new Date(baseDate);
-    expiresAt.setMonth(expiresAt.getMonth() + 6);
+    expiresAt.setMonth(expiresAt.getMonth() + 3);
 
     await entRef.set({
       plan: 'semestral',
@@ -2223,7 +2224,7 @@ app.post('/api/pagos/webhook', async (req, res) => {
       console.warn('[acceso-anticipado] No se pudo marcar la intención como pagada:', e?.message);
     }
 
-    console.log(`Plan semestral activated for user ${uid} until ${expiresAt.toISOString()}`);
+    console.log(`Plan trimestral activated for user ${uid} until ${expiresAt.toISOString()}`);
 
     // Venta con código de vendedor: registra la comisión (una por pago) y avisa al vendedor
     let commission: number | null = null;
@@ -2644,7 +2645,7 @@ app.post('/api/cuenta/bienvenida', requireAuth, async (req, res) => {
   }
 });
 
-// Recordatorios de vencimiento del Plan Semestral (llamado a diario por GitHub Actions)
+// Recordatorios de vencimiento del Plan Trimestral (llamado a diario por GitHub Actions)
 app.post('/api/admin/recordatorios', requireAdminToken, async (req, res) => {
   if (!isFirestoreAdminAuthorized) {
     return res.status(503).json({ error: 'Firestore Admin no está autorizado.' });
@@ -2732,7 +2733,7 @@ app.post('/api/plan/iniciar-servicio', requireAuth, async (req, res) => {
     const ent = entSnap.exists ? entSnap.data() : null;
     const expTime = ent?.expiresAt ? new Date(ent.expiresAt).getTime() : NaN;
     if (!ent || ent.status !== 'active' || isNaN(expTime) || expTime <= Date.now()) {
-      return res.status(402).json({ error: 'Necesitas el Plan Semestral para usar esta herramienta' });
+      return res.status(402).json({ error: 'Necesitas el Plan Trimestral para usar esta herramienta' });
     }
     const lastPaymentId = ent.lastPaymentId ? String(ent.lastPaymentId) : '';
     if (!lastPaymentId || ent.serviceStartedForPaymentId === lastPaymentId) {

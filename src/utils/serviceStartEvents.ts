@@ -1,5 +1,5 @@
 /**
- * Confirmación de inicio del servicio del Plan Semestral (derecho a retracto, Ley 19.496 art. 3 bis).
+ * Confirmación de inicio del servicio del Plan Trimestral (derecho a retracto, Ley 19.496 art. 3 bis).
  * apiFetch la pide cuando el servidor responde 409 SERVICE_START_CONFIRMATION_REQUIRED;
  * App monta el modal que la responde.
  */

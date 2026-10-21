@@ -129,7 +129,7 @@ export const BlindAuditor: React.FC<BlindAuditorProps> = ({
       {(showPaywall || !hasActivePlan) && (
         <div className="mb-6 animate-fade-in">
           <PlanPaywallCard
-            highlightText="La Auditoría Ciega oficial con rúbrica de comités CORFO / SERCOTEC requiere el Plan Semestral ImpulsaCap. Simula evaluaciones reales y detecta alertas rojas antes de enviar tu postulación."
+            highlightText="La Auditoría Ciega oficial con rúbrica de comités CORFO / SERCOTEC requiere el Plan Trimestral ImpulsaCap. Simula evaluaciones reales y detecta alertas rojas antes de enviar tu postulación."
           />
         </div>
       )}

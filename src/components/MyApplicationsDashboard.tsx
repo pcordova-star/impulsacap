@@ -534,7 +534,7 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
           <div className="rounded-3xl p-5 bg-gradient-to-br from-emerald-600 to-teal-700 text-white shadow-md flex flex-col justify-between gap-4">
             <div className="space-y-1.5">
               <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-100 flex items-center gap-1.5"><ShieldCheck className="w-4 h-4" /> Tu plan</p>
-              <p className="text-xl font-black">{provisional ? 'Prueba gratis activa' : 'Plan Semestral activo'}</p>
+              <p className="text-xl font-black">{provisional ? 'Acceso temporal' : 'Plan Trimestral activo'}</p>
               <p className="text-sm text-emerald-50">Quedan <strong>{daysLeft} {daysLeft === 1 ? 'día' : 'días'}</strong>{expiresAt ? ` · hasta el ${fmtDate(expiresAt)}` : ''}.</p>
             </div>
             <button onClick={() => onNavigateTab?.('my-company#mi-plan')} className="self-start px-4 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-bold cursor-pointer inline-flex items-center gap-1.5">
@@ -544,12 +544,12 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
         ) : (
           <div className="rounded-3xl p-5 bg-gradient-to-br from-blue-700 via-indigo-700 to-slate-900 text-white shadow-lg flex flex-col justify-between gap-4 ring-2 ring-amber-300/70">
             <div className="space-y-2">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-amber-200 flex items-center gap-1.5"><Sparkles className="w-4 h-4" /> Plan Semestral</p>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-amber-200 flex items-center gap-1.5"><Sparkles className="w-4 h-4" /> Plan Trimestral</p>
               <p className="text-xl font-black leading-tight">Prepara tu postulación completa con IA</p>
               <ul className="text-xs text-blue-50 space-y-1">
                 <li>✓ Redacción por secciones y cartas</li>
                 <li>✓ Auditoría simulada y expediente PDF</li>
-                <li>✓ Asesor experto · 3 postulaciones · 6 meses</li>
+                <li>✓ Asesor experto · 3 postulaciones · 3 meses</li>
               </ul>
               <p className="text-sm">
                 {isFirstPurchase && price < 39990 && <span className="line-through text-blue-200 mr-1.5">$39.990</span>}
@@ -560,7 +560,7 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
             <div className="space-y-1.5">
               <button onClick={handleActivatePlan} disabled={planLoading} className="w-full px-4 py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-sm font-black cursor-pointer disabled:opacity-60 inline-flex items-center justify-center gap-1.5">
                 {planLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
-                {paymentsEnabled ? 'Contratar plan' : 'Probar gratis 5 días'}
+                Contratar plan
               </button>
               {planError && <p role="alert" className="text-xs text-rose-200">{planError}</p>}
               <p className="text-[11px] text-blue-100 text-center">Pago seguro con Mercado Pago · No se renueva solo</p>
@@ -681,7 +681,7 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
           {showArchived && (
             <div className="pt-3 border-t border-slate-100 space-y-3">
               <p className="text-[11px] text-slate-500 leading-relaxed">
-                Estas postulaciones están pausadas y no ocupan cupo en tu Plan Semestral. Puedes reactivar una en cualquier momento siempre que tengas menos de 3 postulaciones activas.
+                Estas postulaciones están pausadas y no ocupan cupo en tu Plan Trimestral. Puedes reactivar una en cualquier momento siempre que tengas menos de 3 postulaciones activas.
               </p>
 
               <div className="space-y-2">

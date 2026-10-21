@@ -55,7 +55,7 @@ export const PlanPaywallCard: React.FC<PlanPaywallCardProps> = ({
     if (!auth.currentUser) {
       setLoading(false);
       requestLogin({
-        message: 'Inicia sesión o crea tu cuenta para continuar con el Plan Semestral.',
+        message: 'Inicia sesión o crea tu cuenta para continuar con el Plan Trimestral.',
         mode: 'login',
         onSuccess: async () => {
           await handleCheckout();
@@ -100,7 +100,7 @@ export const PlanPaywallCard: React.FC<PlanPaywallCardProps> = ({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-xs font-black tracking-wide">
             <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-            <span>ACCESO TOTAL 6 MESES</span>
+            <span>ACCESO TOTAL 3 MESES</span>
           </div>
 
           {isFirstPurchase && (referralCode ? (
@@ -119,7 +119,7 @@ export const PlanPaywallCard: React.FC<PlanPaywallCardProps> = ({
         {/* Title & Subtitle */}
         <div className="space-y-1.5">
           <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-tight">
-            Plan Semestral ImpulsaCap: 6 meses de acceso completo
+            Plan Trimestral ImpulsaCap: 3 meses de acceso completo
           </h3>
           <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-2xl">
             {highlightText || 'Desbloquea el Formulador Técnico con IA, la Auditoría Ciega oficial y la generación de documentos para postular a todos los fondos concursables de Chile.'}
@@ -156,8 +156,8 @@ export const PlanPaywallCard: React.FC<PlanPaywallCardProps> = ({
             },
             {
               icon: Clock,
-              title: '6 Meses de Cobertura Continua',
-              desc: 'Válido para todas las convocatorias y aperturas oficiales del semestre'
+              title: '3 Meses de Cobertura Continua',
+              desc: 'Válido para todas las convocatorias y aperturas oficiales del trimestre'
             }
           ].map((item, idx) => {
             const Icon = item.icon;
@@ -179,7 +179,7 @@ export const PlanPaywallCard: React.FC<PlanPaywallCardProps> = ({
         <div className="p-5 rounded-2xl bg-slate-900/90 border border-emerald-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-              Inversión única por 6 meses
+              Inversión única por 3 meses
             </span>
             <div className="flex items-baseline gap-3">
               {isFirstPurchase && price < 39990 ? (
@@ -193,7 +193,7 @@ export const PlanPaywallCard: React.FC<PlanPaywallCardProps> = ({
                   <span className="text-xs font-bold text-amber-300">
                     {referralCode
                       ? `— ${referralDiscountPct}% de descuento con el código ${referralCode}`
-                      : '— 50% de descuento en tu primer semestre'}
+                      : '— 50% de descuento en tu primer trimestre'}
                   </span>
                 </>
               ) : (
@@ -222,24 +222,18 @@ export const PlanPaywallCard: React.FC<PlanPaywallCardProps> = ({
               {loading ? (
                 <>
                   <RefreshCw className="w-5 h-5 animate-spin" />
-                  <span>{paymentsEnabled ? 'Conectando con Mercado Pago...' : 'Activando tu prueba...'}</span>
+                  <span>Conectando con Mercado Pago...</span>
                 </>
               ) : (
                 <>
                   <Lock className="w-5 h-5" />
-                  <span>{paymentsEnabled ? 'Pagar con Mercado Pago' : 'Probar gratis 5 días'}</span>
+                  <span>Pagar con Mercado Pago</span>
                   <ArrowRight className="w-5 h-5" />
                 </>
               )}
             </button>
           </div>
         </div>
-
-        {testMode && (
-          <div className="p-3 rounded-xl bg-amber-400/15 border border-amber-400/40 text-amber-200 text-xs">
-            <strong>Modo prueba de pagos:</strong> solo tu cuenta de administrador ve el pago real con Mercado Pago. Los demás usuarios siguen viendo "Probar gratis 5 días".
-          </div>
-        )}
 
         {/* Error message if any */}
         {error && (

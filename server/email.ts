@@ -191,14 +191,14 @@ export function purchaseEmail(args: { amount: number; paymentId: string; expires
   const app = getAppUrl();
   const vence = formatDateCL(args.expiresAt);
   const rows: [string, string][] = [
-    ['Plan', 'Plan Semestral ImpulsaCap'],
+    ['Plan', 'Plan Trimestral ImpulsaCap'],
     ['Monto pagado', `${formatCLP(args.amount)} CLP`],
     ['Operación Mercado Pago', args.paymentId],
     ['Activo hasta', vence],
   ];
   const html = layout({
-    preheader: `Tu Plan Semestral está activo hasta el ${vence}.`,
-    heading: 'Tu Plan Semestral está activo',
+    preheader: `Tu Plan Trimestral está activo hasta el ${vence}.`,
+    heading: 'Tu Plan Trimestral está activo',
     bodyHtml:
       p('Recibimos tu pago y tu plan ya está activo. Estos son los detalles:') +
       detailTable(rows) +
@@ -206,7 +206,7 @@ export function purchaseEmail(args: { amount: number; paymentId: string; expires
       p('El plan es un pago único y no se renueva automáticamente. Te avisaremos antes de que venza.'),
     cta: { label: 'Ir a mis postulaciones', url: app },
   });
-  const text = `Tu Plan Semestral ImpulsaCap está activo.
+  const text = `Tu Plan Trimestral ImpulsaCap está activo.
 
 Monto pagado: ${formatCLP(args.amount)} CLP
 Operación Mercado Pago: ${args.paymentId}
@@ -218,7 +218,7 @@ Ir a mis postulaciones: ${app}
 
 ¿Dudas? Escríbenos a ${REPLY_TO}
 ImpulsaCap es operado por Tresna SpA.`;
-  return { subject: 'Tu Plan Semestral ImpulsaCap está activo', html, text };
+  return { subject: 'Tu Plan Trimestral ImpulsaCap está activo', html, text };
 }
 
 export function adminSaleEmail(args: {
@@ -243,7 +243,7 @@ export function adminSaleEmail(args: {
   const html = layout({
     preheader: `Nueva venta de ${formatCLP(args.amount)}`,
     heading: `Nueva venta: ${formatCLP(args.amount)}`,
-    bodyHtml: p('Se aprobó un pago del Plan Semestral:') + detailTable(rows),
+    bodyHtml: p('Se aprobó un pago del Plan Trimestral:') + detailTable(rows),
   });
   const text = rows.map(([k, v]) => `${k}: ${v}`).join('\n');
   return { subject: `Nueva venta ImpulsaCap: ${formatCLP(args.amount)}`, html, text };
@@ -254,21 +254,21 @@ export function reminderEmail(kind: '7d' | 'expired', expiresAt: string) {
   const vence = formatDateCL(expiresAt);
   const isExpired = kind === 'expired';
   const subject = isExpired
-    ? 'Tu Plan Semestral ImpulsaCap venció hoy'
-    : `Tu Plan Semestral ImpulsaCap vence el ${vence}`;
+    ? 'Tu Plan Trimestral ImpulsaCap venció hoy'
+    : `Tu Plan Trimestral ImpulsaCap vence el ${vence}`;
   const intro = isExpired
-    ? `Tu Plan Semestral venció hoy (${escapeHtml(vence)}). Tus postulaciones y documentos siguen guardados y puedes consultarlos, pero para generar contenido nuevo necesitas renovar.`
-    : `Tu Plan Semestral vence el <strong>${escapeHtml(vence)}</strong>, en 7 días. Si renuevas antes, los 6 meses nuevos se suman a tu fecha de término actual, así que no pierdes días.`;
+    ? `Tu Plan Trimestral venció hoy (${escapeHtml(vence)}). Tus postulaciones y documentos siguen guardados y puedes consultarlos, pero para generar contenido nuevo necesitas renovar.`
+    : `Tu Plan Trimestral vence el <strong>${escapeHtml(vence)}</strong>, en 7 días. Si renuevas antes, los 3 meses nuevos se suman a tu fecha de término actual, así que no pierdes días.`;
   const html = layout({
     preheader: isExpired ? 'Renueva para seguir preparando tus postulaciones.' : `Tu plan vence el ${vence}.`,
     heading: isExpired ? 'Tu plan venció' : 'Tu plan vence en 7 días',
     bodyHtml:
       p(intro) +
-      p('El Plan Semestral cuesta $39.990 CLP por 6 meses, en un pago único sin renovación automática.') +
-      `<p style="margin:16px 0 0;font-size:12px;color:#94a3b8">Recibes este aviso porque tienes una cuenta con Plan Semestral en ImpulsaCap. Si no quieres recibir más recordatorios, responde este correo con la palabra "BAJA".</p>`,
+      p('El Plan Trimestral cuesta $39.990 CLP por 3 meses, en un pago único sin renovación automática.') +
+      `<p style="margin:16px 0 0;font-size:12px;color:#94a3b8">Recibes este aviso porque tienes una cuenta con Plan Trimestral en ImpulsaCap. Si no quieres recibir más recordatorios, responde este correo con la palabra "BAJA".</p>`,
     cta: { label: 'Renovar mi plan', url: app },
   });
-  const text = `${isExpired ? `Tu Plan Semestral venció hoy (${vence}).` : `Tu Plan Semestral vence el ${vence}, en 7 días.`}
+  const text = `${isExpired ? `Tu Plan Trimestral venció hoy (${vence}).` : `Tu Plan Trimestral vence el ${vence}, en 7 días.`}
 
 Renovar mi plan: ${app}
 
@@ -319,7 +319,7 @@ export function supportTicketAdminEmail(t: SupportTicketEmailData) {
       detailTable([
         ['Solicitud', `#${t.ticketId}`],
         ['Cliente', t.name ? `${t.name} (${t.email})` : t.email],
-        ['Plan', t.hasPlan ? 'Plan Semestral activo' : 'Sin plan activo'],
+        ['Plan', t.hasPlan ? 'Plan Trimestral activo' : 'Sin plan activo'],
         ['Sección', t.page || '—'],
       ]) +
       p('<strong>Mensaje:</strong>') +
@@ -356,16 +356,16 @@ export function earlyAccessUserEmail(args: { expiresAt: string; price: number })
     preheader: 'Tu prueba gratis de ImpulsaCap está activa',
     heading: 'Tu prueba gratis está activa',
     bodyHtml:
-      p('Como beneficio de lanzamiento para pymes, tienes el <strong>Plan Semestral completo gratis</strong>: redacción de tu postulación con IA, documentos y cartas, auditoría simulada y expediente PDF.') +
+      p('Como beneficio de lanzamiento para pymes, tienes el <strong>Plan Trimestral completo gratis</strong>: redacción de tu postulación con IA, documentos y cartas, auditoría simulada y expediente PDF.') +
       detailTable([
         ['Prueba gratis hasta', formatDateCL(args.expiresAt)],
-        ['Precio de lanzamiento', `${formatCLP(args.price)} por 6 meses (IVA incluido)`],
+        ['Precio de lanzamiento', `${formatCLP(args.price)} por 3 meses (IVA incluido)`],
       ]) +
       p('Te enviaremos por este correo tu enlace para activar el plan y seguir trabajando sin perder nada. Tus datos y postulaciones quedan guardados.') +
       p('Aprovecha estos días para subir tu carpeta tributaria y avanzar en tu postulación.'),
     cta: { label: 'Empezar mi prueba', url: getAppUrl() }
   });
-  const text = `Tu prueba gratis del Plan Semestral está activa hasta el ${formatDateCL(args.expiresAt)}. Te enviaremos tu enlace para activarlo a ${formatCLP(args.price)} (precio de lanzamiento).`;
+  const text = `Tu prueba gratis del Plan Trimestral está activa hasta el ${formatDateCL(args.expiresAt)}. Te enviaremos tu enlace para activarlo a ${formatCLP(args.price)} (precio de lanzamiento).`;
   return { subject: 'Tu prueba gratis de ImpulsaCap está activa', html, text };
 }
 
@@ -387,19 +387,19 @@ export function earlyAccessAdminEmail(args: { userEmail: string; companyName?: s
 
 export function paymentAvailableEmail(args: { deadline: string; price: number }) {
   const html = layout({
-    preheader: 'Activa tu Plan Semestral a precio de lanzamiento',
-    heading: 'Activa tu Plan Semestral',
+    preheader: 'Activa tu Plan Trimestral a precio de lanzamiento',
+    heading: 'Activa tu Plan Trimestral',
     bodyHtml:
-      p('Gracias por probar ImpulsaCap. Ya puedes activar tu Plan Semestral a precio de lanzamiento y seguir con tu postulación.') +
+      p('Gracias por probar ImpulsaCap. Ya puedes activar tu Plan Trimestral a precio de lanzamiento y seguir con tu postulación.') +
       detailTable([
-        ['Precio de lanzamiento', `${formatCLP(args.price)} por 6 meses (IVA incluido)`],
+        ['Precio de lanzamiento', `${formatCLP(args.price)} por 3 meses (IVA incluido)`],
         ['Activa antes del', formatDateCL(args.deadline)],
       ]) +
-      p('Hasta esa fecha mantienes el acceso completo. Al activar el plan comienzan tus 6 meses; si no lo activas, el acceso a las herramientas termina en esa fecha, pero tus datos y postulaciones quedan guardados.'),
+      p('Hasta esa fecha mantienes el acceso completo. Al activar el plan comienzan tus 3 meses; si no lo activas, el acceso a las herramientas termina en esa fecha, pero tus datos y postulaciones quedan guardados.'),
     cta: { label: 'Activar mi plan', url: `${getAppUrl()}/?pagar=1` }
   });
-  const text = `Ya puedes activar tu Plan Semestral a ${formatCLP(args.price)} (precio de lanzamiento) antes del ${formatDateCL(args.deadline)}: ${getAppUrl()}/?pagar=1`;
-  return { subject: 'Activa tu Plan Semestral a precio de lanzamiento', html, text };
+  const text = `Ya puedes activar tu Plan Trimestral a ${formatCLP(args.price)} (precio de lanzamiento) antes del ${formatDateCL(args.deadline)}: ${getAppUrl()}/?pagar=1`;
+  return { subject: 'Activa tu Plan Trimestral a precio de lanzamiento', html, text };
 }
 
 export function sellerSaleEmail(args: { sellerName: string; code: string; amount: number; commission: number; companyName?: string }) {
@@ -413,7 +413,7 @@ export function sellerSaleEmail(args: { sellerName: string; code: string; amount
   const html = layout({
     preheader: `Nueva venta con tu código ${args.code}: comisión ${formatCLP(args.commission)}`,
     heading: 'Nueva venta con tu código',
-    bodyHtml: p(hello) + p('Se aprobó un pago del Plan Semestral con tu código.') + detailTable(rows) +
+    bodyHtml: p(hello) + p('Se aprobó un pago del Plan Trimestral con tu código.') + detailTable(rows) +
       p('<br>Puedes ver todas tus ventas y comisiones en tu panel de vendedor.'),
     cta: { label: 'Ver mi panel', url: `${getAppUrl()}/vendedor` },
   });

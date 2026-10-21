@@ -24,7 +24,7 @@ export const EarlyAccessModal: React.FC<{ onStart: () => void }> = ({ onStart })
   let body: React.ReactNode = (
     <>
       <p>
-        Como <strong>beneficio de lanzamiento para pymes</strong>, tienes el Plan Semestral completo gratis
+        Como <strong>beneficio de lanzamiento para pymes</strong>, tienes el Plan Trimestral completo gratis
         {info.expiresAt ? <> hasta el <strong>{fmt(info.expiresAt)}</strong></> : null}: redacción con IA, documentos y cartas, auditoría simulada y expediente.
       </p>
       <p>
@@ -33,12 +33,12 @@ export const EarlyAccessModal: React.FC<{ onStart: () => void }> = ({ onStart })
     </>
   );
   if (info.alreadyPaid) {
-    title = 'Tu Plan Semestral ya está activo';
+    title = 'Tu Plan Trimestral ya está activo';
     body = <p>Tu plan sigue vigente{info.expiresAt ? <> hasta el <strong>{fmt(info.expiresAt)}</strong></> : null}.</p>;
   } else if (info.alreadyGranted) {
     title = info.expiresAt ? 'Tu prueba gratis sigue activa' : 'Ya usaste tu prueba gratis';
     body = info.expiresAt
-      ? <p>Puedes usar el Plan Semestral completo hasta el <strong>{fmt(info.expiresAt)}</strong>. Te enviaremos por correo tu enlace para activarlo.</p>
+      ? <p>Puedes usar el Plan Trimestral completo hasta el <strong>{fmt(info.expiresAt)}</strong>. Te enviaremos por correo tu enlace para activarlo.</p>
       : <p>Tu prueba gratis terminó, pero tus datos y postulaciones siguen guardados. Te enviaremos por correo tu enlace para activar el plan; si quieres activarlo antes, escríbenos a contacto@impulsacap.cl.</p>;
   }
 

@@ -200,7 +200,7 @@ export const NewApplicationModal: React.FC<NewApplicationModalProps> = ({
               </h2>
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              Elige el fondo concursable al que deseas postular. Puedes gestionar hasta 3 postulaciones activas simultáneas con tu Plan Semestral.
+              Elige el fondo concursable al que deseas postular. Puedes gestionar hasta 3 postulaciones activas simultáneas con tu Plan Trimestral.
             </p>
           </div>
 
@@ -506,7 +506,7 @@ export const NewApplicationModal: React.FC<NewApplicationModalProps> = ({
               </div>
               <div>
                 <h3 className="text-base font-bold text-slate-900">Límite de Postulaciones Simultáneas</h3>
-                <p className="text-xs text-slate-500">Plan Semestral: Máximo 3 postulaciones activas</p>
+                <p className="text-xs text-slate-500">Plan Trimestral: Máximo 3 postulaciones activas</p>
               </div>
             </div>
 

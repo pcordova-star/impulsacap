@@ -483,7 +483,7 @@ const SellersPanel: React.FC = () => {
             </label>
           </div>
           <p className="text-xs text-slate-600">
-            El cliente paga <strong>{clp(previewPrice)}</strong> su primer semestre y el vendedor gana <strong>{clp(previewCommission)}</strong> por venta.
+            El cliente paga <strong>{clp(previewPrice)}</strong> su primer trimestre y el vendedor gana <strong>{clp(previewCommission)}</strong> por venta.
             {previewPrice > (data?.limits.priceFirst ?? 19990) && <span className="text-amber-700"> Ojo: es más caro que el 50% de primera compra sin código ({clp(data?.limits.priceFirst ?? 19990)}).</span>}
           </p>
           <div className="flex flex-wrap gap-2">

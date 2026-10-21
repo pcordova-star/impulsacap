@@ -47,7 +47,7 @@ export function normalizeCode(raw: unknown): string {
 
 export const isValidCodeFormat = (code: string) => /^[A-Z0-9][A-Z0-9_-]{2,19}$/.test(code);
 
-/** Precio del Plan Semestral con el descuento del código, sobre el precio normal. */
+/** Precio del Plan Trimestral con el descuento del código, sobre el precio normal. */
 export function priceWithDiscount(discountPct: number): number {
   const pct = Math.min(MAX_DISCOUNT_PCT, Math.max(0, Number(discountPct) || 0));
   // Redondeado hacia abajo a la decena: $15.990 en vez de $15.996

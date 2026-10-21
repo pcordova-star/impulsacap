@@ -11,13 +11,13 @@ QUÉ ES IMPULSACAP
 CÓMO FUNCIONA (3 etapas)
 1. Encuentra tu fondo: diagnóstico de 5 preguntas (gratis), monitor de convocatorias de CORFO actualizado a diario (gratis), catálogo de fondos ("Buscar fondos"); se puede elegir cualquier fondo aunque no salga recomendado.
 2. Revisa si cumples: diagnóstico tributario gratis subiendo la Carpeta Tributaria del SII; revisión de requisitos; cartas de respaldo; cálculo de garantías.
-3. Prepara tu postulación (Plan Semestral): redacción por secciones con IA usando los datos de la empresa (marca [COMPLETAR] lo que falta, no inventa), documentos y cartas, auditoría simulada con la rúbrica del fondo (orientativa), expediente PDF y Asesor Experto dentro de cada postulación.
+3. Prepara tu postulación (Plan Trimestral): redacción por secciones con IA usando los datos de la empresa (marca [COMPLETAR] lo que falta, no inventa), documentos y cartas, auditoría simulada con la rúbrica del fondo (orientativa), expediente PDF y Asesor Experto dentro de cada postulación.
 - Cada postulación tiene una Hoja de Ruta de 6 pasos: validación tributaria, acreditación legal y cartas, formulación técnica, presupuesto, auditoría y expediente.
 
-PLAN SEMESTRAL
+PLAN TRIMESTRAL
 - Precio normal $39.990 CLP, IVA incluido. Primera compra: 50% de descuento, $19.990 CLP (una vez por usuario).
-- Pago único por 6 meses. NO se renueva automáticamente. Se avisa por correo 7 días antes de vencer. Si se renueva antes de vencer, los 6 meses se suman.
-- Es para 1 empresa, con hasta 3 postulaciones activas a la vez. Al terminar o archivar una postulación se libera el cupo y se puede empezar otra dentro de los 6 meses.
+- Pago único por 3 meses. NO se renueva automáticamente. Se avisa por correo 7 días antes de vencer. Si se renueva antes de vencer, los 3 meses se suman.
+- Es para 1 empresa, con hasta 3 postulaciones activas a la vez. Al terminar o archivar una postulación se libera el cupo y se puede empezar otra dentro de los 3 meses.
 - Códigos de vendedor: si un vendedor de ImpulsaCap te dio un código o un link (impulsacap.cl/?ref=CODIGO), el código fija el precio de tu primera compra en lugar del 50% de primera compra. Se aplica con el link o en "¿Tienes un código de vendedor?" junto al precio. Vale solo para la primera compra; se puede quitar o cambiar antes de pagar. Los vendedores ven sus ventas en impulsacap.cl/vendedor.
 - Uso de la IA: el plan incluye uso razonable con un límite diario amplio que se renueva a medianoche (hora de Chile) y un máximo total por plan. Si aparece el aviso de límite diario, el trabajo queda guardado y se puede seguir al día siguiente. La prueba gratis tiene un límite menor. Si el límite no alcanza para un uso legítimo, escribir a contacto@impulsacap.cl.
 - Consultoras o quienes asesoran a varias empresas: escribir a contacto@impulsacap.cl para un plan a medida.
@@ -29,7 +29,6 @@ PAGOS (Mercado Pago)
 - Si el botón "Pagar" de Mercado Pago está gris: cambiar el medio de pago (una tarjeta prepago sin saldo no permite pagar), o pagar en una ventana de incógnito ingresando la tarjeta. No se puede pagar con la misma cuenta de Mercado Pago que recibe el pago.
 - Si pagó y el plan no aparece activo después de unos minutos: recargar la página y revisar "Mi empresa" > "Mi Plan y Suscripción". Si sigue sin activarse, crear un ticket con el número de operación de Mercado Pago.
 - Se emite boleta o factura por cada pago.
-- Beneficio de lanzamiento para pymes: al presionar "Probar gratis 5 días" se activa el Plan Semestral completo sin costo por 5 días, sin tarjeta y una sola vez por usuario. Luego se envía por correo un enlace para activar el plan a precio de lanzamiento; desde ese aviso hay 7 días para activarlo. Los datos y postulaciones se conservan aunque la prueba termine.
 
 DERECHO A RETRACTO Y DEVOLUCIONES
 - Retracto dentro de 10 días desde el pago, siempre que no haya comenzado a usar el plan (Ley 19.496, art. 3 bis). El servicio comienza al usar por primera vez una herramienta del plan; la app pide confirmarlo antes.

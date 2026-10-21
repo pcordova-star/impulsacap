@@ -120,7 +120,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
     // 2. Si no hay sesión, abre el modal de inicio de sesión en vez de mostrar error, y continúa con el pago
     if (!auth.currentUser) {
       requestLogin({
-        message: 'Inicia sesión o crea tu cuenta para continuar con el Plan Semestral.',
+        message: 'Inicia sesión o crea tu cuenta para continuar con el Plan Trimestral.',
         mode: 'login',
         onSuccess: async () => {
           await handleRenewPlan();
@@ -474,7 +474,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
         </div>
       </div>
 
-      {/* AVISOS DE VIGENCIA DEL PLAN SEMESTRAL */}
+      {/* AVISOS DE VIGENCIA DEL PLAN TRIMESTRAL */}
       {isExpiringSoon && expiresAt && (
         <div className="p-4 rounded-3xl bg-gradient-to-r from-amber-500/20 via-amber-500/10 to-orange-500/20 border-2 border-amber-400 text-slate-900 shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fade-in">
           <div className="flex items-center gap-3">
@@ -494,7 +494,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
             onClick={handleRenewPlan}
             className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs shadow-md transition-all cursor-pointer shrink-0"
           >
-            Renovar Plan Semestral
+            Renovar Plan Trimestral
           </button>
         </div>
       )}
@@ -507,7 +507,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
             </div>
             <div>
               <h4 className="text-sm font-black text-slate-900">
-                Tu plan semestral venció el {new Date(expiresAt).toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' })}.
+                Tu plan trimestral venció el {new Date(expiresAt).toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' })}.
               </h4>
               <p className="text-xs text-slate-600">
                 Conservas acceso de solo lectura a lo que ya generaste, pero no puedes generar contenido nuevo con IA.
@@ -518,7 +518,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
             onClick={handleRenewPlan}
             className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs shadow-md transition-all cursor-pointer shrink-0"
           >
-            Reactivar Plan Semestral
+            Reactivar Plan Trimestral
           </button>
         </div>
       )}
@@ -826,7 +826,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
                         {isLocked && (
                           <span className={`inline-flex items-center gap-1 text-[11px] font-semibold ${isPlanLocked ? 'text-amber-300' : 'text-slate-500'}`}>
                             <Lock className={`w-3 h-3 ${isPlanLocked ? 'text-amber-400' : 'text-slate-500'}`} />
-                            Requiere Plan Semestral
+                            Requiere Plan Trimestral
                           </span>
                         )}
                       </div>
@@ -835,7 +835,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
                         {step.title}
                       </h4>
                       <p className="text-xs text-slate-400">
-                        {isLocked ? 'Esta herramienta requiere el Plan Semestral activo.' : step.subtitle}
+                        {isLocked ? 'Esta herramienta requiere el Plan Trimestral activo.' : step.subtitle}
                       </p>
                     </div>
 

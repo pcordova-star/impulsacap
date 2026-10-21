@@ -399,7 +399,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
       {(showPaywall || (!hasActivePlan && !planLoading)) && (
         <div className="animate-fade-in">
           <PlanPaywallCard
-            highlightText="El Generador de Documentos Oficiales (Cartas LOI, Compromisos y Memorias) requiere el Plan Semestral ImpulsaCap. Redacta y descarga cartas en formato Word (.docx) con plena validez para CORFO y SERCOTEC."
+            highlightText="El Generador de Documentos Oficiales (Cartas LOI, Compromisos y Memorias) requiere el Plan Trimestral ImpulsaCap. Redacta y descarga cartas en formato Word (.docx) con plena validez para CORFO y SERCOTEC."
           />
         </div>
       )}

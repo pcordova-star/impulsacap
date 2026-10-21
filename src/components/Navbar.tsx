@@ -141,10 +141,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <button
                       onClick={openPlan}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black shadow-2xs cursor-pointer"
-                      title="Contratar el Plan Semestral"
+                      title="Contratar el Plan Trimestral"
                     >
                       <Sparkles className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">{provisional ? `Prueba: ${daysLeft} d · Activar plan` : 'Contratar plan'}</span>
+                      <span className="hidden sm:inline">{provisional ? 'Activar plan' : 'Contratar plan'}</span>
                       <span className="sm:hidden">Plan</span>
                     </button>
                   )}

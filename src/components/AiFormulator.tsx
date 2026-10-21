@@ -912,7 +912,7 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-base font-bold text-amber-400 flex items-center gap-2">
               <ShieldAlert className="w-5 h-5 text-amber-400" />
-              <span>Desbloquea el Formulador con el Plan Semestral</span>
+              <span>Desbloquea el Formulador con el Plan Trimestral</span>
             </h3>
             <button
               onClick={() => setShowPaywall(false)}

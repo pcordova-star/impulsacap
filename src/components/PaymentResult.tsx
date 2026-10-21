@@ -85,7 +85,7 @@ export const PaymentResult: React.FC<PaymentResultProps> = ({ onNavigateToRoadma
 
     if (!auth.currentUser) {
       requestLogin({
-        message: 'Inicia sesión o crea tu cuenta para continuar con el Plan Semestral.',
+        message: 'Inicia sesión o crea tu cuenta para continuar con el Plan Trimestral.',
         mode: 'login',
         onSuccess: async () => {
           await handleRetryCheckout();
@@ -148,7 +148,7 @@ export const PaymentResult: React.FC<PaymentResultProps> = ({ onNavigateToRoadma
                   <span>Pago confirmado</span>
                 </div>
                 <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-                  ¡Listo! Tu Plan Semestral está activo{formattedExpiry ? ` hasta el ${formattedExpiry}` : ''}
+                  ¡Listo! Tu Plan Trimestral está activo{formattedExpiry ? ` hasta el ${formattedExpiry}` : ''}
                 </h2>
                 <p className="text-sm text-slate-600 max-w-lg mx-auto">
                   Ya puedes usar todas las herramientas en hasta 3 postulaciones a la vez. Te enviamos el comprobante a tu correo.
@@ -228,7 +228,7 @@ export const PaymentResult: React.FC<PaymentResultProps> = ({ onNavigateToRoadma
                 </h2>
                 <p className="text-sm text-slate-600 max-w-md mx-auto">
                   {hasActivePlan
-                    ? `Tu plan actual sigue vigente${formattedExpiry ? ` hasta el ${formattedExpiry}` : ''}. Cuando Mercado Pago acredite este pago, se sumarán 6 meses automáticamente y te llegará un correo.`
+                    ? `Tu plan actual sigue vigente${formattedExpiry ? ` hasta el ${formattedExpiry}` : ''}. Cuando Mercado Pago acredite este pago, se sumarán 3 meses automáticamente y te llegará un correo.`
                     : 'Algunos medios de pago tardan unos minutos. Cuando Mercado Pago lo acredite, tu plan se activará solo y te llegará un correo de confirmación.'}
                 </p>
               </div>

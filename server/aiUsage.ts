@@ -198,7 +198,7 @@ export function aiGuard(opts: {
             if ((Number(per?.costUsd) || 0) >= max) {
               return res.status(429).json({
                 error: ctx.tier === 'prueba'
-                  ? 'Usaste toda la IA incluida en la prueba gratis. Activa tu Plan Semestral para seguir.'
+                  ? 'Usaste toda la IA incluida en tu acceso temporal. Activa tu Plan Trimestral para seguir.'
                   : 'Alcanzaste el uso máximo de IA incluido en tu plan. Escríbenos a contacto@impulsacap.cl y lo revisamos.',
                 code: 'AI_PERIOD_CAP'
               });
@@ -220,7 +220,7 @@ export function aiGuard(opts: {
             if (!allowed) {
               return res.status(429).json({
                 error: ctx.tier === 'gratis'
-                  ? 'Alcanzaste el uso diario de IA de la cuenta gratuita. Se renueva mañana, o activa tu Plan Semestral.'
+                  ? 'Alcanzaste el uso diario de IA de la cuenta gratuita. Se renueva mañana, o activa tu Plan Trimestral.'
                   : 'Alcanzaste el uso diario de IA de tu cuenta. Se renueva a medianoche; tu trabajo queda guardado.',
                 code: 'AI_DAILY_CREDITS'
               });

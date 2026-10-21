@@ -141,7 +141,7 @@ export default function App() {
           id: `ref-ok-${code}`,
           level: 'success',
           title: `Código ${p.code} aplicado`,
-          message: `Tu primer semestre del Plan Semestral queda en $${p.price.toLocaleString('es-CL')} (IVA incluido)${p.sellerName ? `. Te atiende ${p.sellerName}.` : '.'}`
+          message: `Tu primer trimestre del Plan Trimestral queda en $${p.price.toLocaleString('es-CL')} (IVA incluido)${p.sellerName ? `. Te atiende ${p.sellerName}.` : '.'}`
         });
       }
       notifyReferralChanged();
@@ -764,7 +764,7 @@ export default function App() {
               />
             </div>
 
-            {/* 4. GRATIS VS. PLAN SEMESTRAL */}
+            {/* 4. GRATIS VS. PLAN TRIMESTRAL */}
             <PlanComparison
               onStartFree={() => {
                 document.getElementById('asistente-5-preguntas')?.scrollIntoView({ behavior: 'smooth' });

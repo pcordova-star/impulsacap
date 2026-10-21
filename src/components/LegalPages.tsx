@@ -124,17 +124,17 @@ export const TermsPage: React.FC<LegalPageProps> = ({ onBack, onOpenOther }) => 
       <li>Puedes cerrar tu cuenta cuando quieras escribiendo a <Mail />. El cierre no da derecho a reembolso de un plan ya iniciado, salvo lo indicado en la sección 5.</li>
     </UL>
 
-    <H2>4. Servicios gratuitos y Plan Semestral</H2>
+    <H2>4. Servicios gratuitos y Plan Trimestral</H2>
     <P>
-      El diagnóstico de fondos, el catálogo, el monitor de convocatorias, el robot de ayuda, "Mis postulaciones" y la revisión de requisitos con tu carpeta tributaria son gratuitos. Las herramientas de preparación de postulaciones requieren el <strong>Plan Semestral</strong>.
+      El diagnóstico de fondos, el catálogo, el monitor de convocatorias, el robot de ayuda, "Mis postulaciones" y la revisión de requisitos con tu carpeta tributaria son gratuitos. Las herramientas de preparación de postulaciones requieren el <strong>Plan Trimestral</strong>.
     </P>
     <InfoTable
       headers={['Concepto', 'Condición']}
       rows={[
         ['Precio', '$39.990 CLP, IVA incluido'],
         ['Primera compra', '50% de descuento: $19.990 CLP, IVA incluido, una sola vez por usuario. Un código de vendedor vigente puede reemplazar este descuento por el que indique el código'],
-        ['Vigencia', '6 meses desde la aprobación del pago'],
-        ['Renovación', 'No es automática. Si renuevas antes del vencimiento, los 6 meses se suman a la fecha de término vigente'],
+        ['Vigencia', '3 meses desde la aprobación del pago'],
+        ['Renovación', 'No es automática. Si renuevas antes del vencimiento, los 3 meses se suman a la fecha de término vigente'],
         ['Medio de pago', 'Mercado Pago. ImpulsaCap no recibe ni almacena datos de tarjetas'],
         ['Postulaciones simultáneas', 'Hasta 3 activas. Puedes archivar una para liberar cupo'],
         ['Incluye', 'Redacción con IA, documentos y cartas, auditoría simulada, expediente de postulación y asesor experto con IA'],
@@ -153,7 +153,7 @@ export const TermsPage: React.FC<LegalPageProps> = ({ onBack, onOpenOther }) => 
 
     <H2 id="retracto">5. Derecho a retracto y devoluciones</H2>
     <P>
-      Puedes retractarte de la compra del Plan Semestral dentro de <strong>10 días corridos</strong> desde el pago, sin expresión de causa, <strong>siempre que no hayas comenzado a usar el servicio</strong>, conforme al artículo 3 bis de la Ley 19.496.
+      Puedes retractarte de la compra del Plan Trimestral dentro de <strong>10 días corridos</strong> desde el pago, sin expresión de causa, <strong>siempre que no hayas comenzado a usar el servicio</strong>, conforme al artículo 3 bis de la Ley 19.496.
     </P>
     <UL>
       <li>
