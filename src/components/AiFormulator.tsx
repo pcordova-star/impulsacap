@@ -406,6 +406,10 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
 
   const currentSection = SECTIONS[currentSectionIndex];
 
+  // Cierre de la formulación (guardar) separado del paso siguiente (auditoría)
+  const [showFinishSummary, setShowFinishSummary] = useState(false);
+  useEffect(() => { if (currentSectionIndex !== SECTIONS.length - 1) setShowFinishSummary(false); }, [currentSectionIndex]);
+
   // Requisito para redactar con IA: perfil de la empresa y del proyecto con lo esencial.
   // Sin eso la IA solo puede dejar marcas [COMPLETAR] (no inventa datos).
   const PROFILE_FIELDS: { key: keyof NonNullable<CompanyProfile['projectProfile']>; label: string }[] = [
@@ -755,6 +759,7 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
 
     setFullFormulation(draft);
     onSaveFormulation?.(draft);
+    return draft;
   };
 
   // Next section handler
@@ -1214,21 +1219,78 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
               <button
                 onClick={() => {
                   updateFullFormulationDraft(currentSection.id, generatedTexts[currentSection.id] || '');
-                  if (fullFormulation) {
-                    onSendToAudit(fullFormulation, currentFund);
-                  }
+                  setShowFinishSummary(true);
+                  setTimeout(() => document.getElementById('formulation-finish')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120);
                 }}
-                disabled={!isBudgetValid}
-                className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 text-white font-bold text-xs shadow-lg shadow-emerald-600/25 transition-all cursor-pointer w-full sm:w-auto"
+                className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-600/25 transition-all cursor-pointer w-full sm:w-auto"
               >
-                <Sparkles className="w-4 h-4 text-emerald-200" />
-                <span>Finalizar y Enviar a Auditoría Ciega</span>
+                <CheckCircle2 className="w-4 h-4 text-emerald-200" />
+                <span>Guardar formulación</span>
               </button>
             )}
           </div>
         </div>
 
       </div>
+
+      {showFinishSummary && (() => {
+        const textSections = SECTIONS.filter(sec => sec.id !== 'budget');
+        const missingSections = textSections.filter(sec => !generatedTexts[sec.id]?.trim());
+        const completarCount = Object.values(generatedTexts).reduce((acc, t) => acc + ((t || '').match(/\[COMPLETAR/g) || []).length, 0);
+        const allGood = missingSections.length === 0 && completarCount === 0 && isBudgetValid;
+        return (
+          <div id="formulation-finish" className="scroll-mt-40 rounded-3xl bg-slate-900 border border-emerald-500/40 p-5 sm:p-6 space-y-4 shadow-2xl">
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0" />
+              <div>
+                <p className="text-base font-black text-white">Formulación guardada</p>
+                <p className="text-xs text-slate-400">Queda en tu expediente. Puedes volver a editarla cuando quieras.</p>
+              </div>
+            </div>
+            <ul className="grid gap-2 sm:grid-cols-3 text-xs">
+              <li className={`p-3 rounded-xl border ${missingSections.length === 0 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200' : 'bg-amber-500/10 border-amber-500/30 text-amber-200'}`}>
+                <strong className="block text-sm">{textSections.length - missingSections.length} de {textSections.length}</strong> secciones redactadas
+              </li>
+              <li className={`p-3 rounded-xl border ${completarCount === 0 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200' : 'bg-amber-500/10 border-amber-500/30 text-amber-200'}`}>
+                <strong className="block text-sm">{completarCount}</strong> datos [COMPLETAR] pendientes
+              </li>
+              <li className={`p-3 rounded-xl border ${isBudgetValid ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200' : 'bg-amber-500/10 border-amber-500/30 text-amber-200'}`}>
+                <strong className="block text-sm">{isBudgetValid ? 'Presupuesto listo' : 'Presupuesto pendiente'}</strong> {isBudgetValid ? 'dentro de los topes' : 'revisa el paso 8'}
+              </li>
+            </ul>
+            {!allGood && (
+              <p className="text-xs text-slate-300">
+                Te recomendamos completar lo pendiente antes de la auditoría: la evaluación simulada será más baja si faltan secciones o datos.
+              </p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              {missingSections.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => { setCurrentSectionIndex(SECTIONS.findIndex(sec => sec.id === missingSections[0].id)); setShowFinishSummary(false); window.scrollTo({ top: 120, behavior: 'smooth' }); }}
+                  className="px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black cursor-pointer"
+                >
+                  Completar: {missingSections[0].title}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => onNavigateTab?.('my-application')}
+                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 text-xs font-bold cursor-pointer"
+              >
+                Volver a la Hoja de Ruta
+              </button>
+              <button
+                type="button"
+                onClick={() => onNavigateTab?.('auditor')}
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold cursor-pointer inline-flex items-center gap-1.5 ${allGood ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950' : 'border border-slate-600 text-slate-200 hover:bg-slate-800'}`}
+              >
+                Siguiente paso: auditoría simulada <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
     </div>
   );
