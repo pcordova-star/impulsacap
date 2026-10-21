@@ -428,17 +428,6 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
               </span>
             </div>
 
-            {/* Back to Mis Postulaciones Button (Requirement 6) */}
-            <div className="mb-2">
-              <button
-                onClick={() => onNavigateTab('my-applications')}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>← Mis postulaciones</span>
-              </button>
-            </div>
-
             {/* Title & Fund Name (No dropdown selector, Requirement 6) */}
             <div className="flex flex-wrap items-baseline gap-2 pt-1">
               <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">

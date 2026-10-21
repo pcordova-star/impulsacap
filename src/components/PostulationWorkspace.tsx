@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { showToast } from '../utils/toast';
 import { ChileanFund, CompanyProfile, FormulationOutput, BlindAuditResult, CompanyUser, calculateProjectProfileCompletion } from '../types/funds';
 import { ExpedienteData } from '../types/expediente';
@@ -144,6 +144,17 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
     return () => clearTimeout(t);
   }, [activeSubTab, projectCompletion, fund.id]);
 
+  // Encabezado compacto al bajar: solo pestañas y nombre del fondo, para no tapar el contenido
+  const headerSentinelRef = useRef<HTMLDivElement | null>(null);
+  const [compactHeader, setCompactHeader] = useState(false);
+  useEffect(() => {
+    const el = headerSentinelRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const obs = new IntersectionObserver(([entry]) => setCompactHeader(!entry.isIntersecting), { rootMargin: '-72px 0px 0px 0px' });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
   const tabs: { id: PostulationSubTab; label: string; icon: React.FC<{ className?: string }> }[] = [
     { id: 'roadmap', label: 'Hoja de Ruta', icon: CheckCircle2 },
     { id: 'formulator', label: 'Formulador', icon: Sparkles },
@@ -155,9 +166,13 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
 
   return (
     <div className="space-y-4 animate-fade-in max-w-7xl mx-auto">
-      {/* 1. FIXED/STICKY HEADER (Requirement 2) */}
-      <div className="sticky top-16 z-30 bg-white/95 backdrop-blur-md border border-slate-200 rounded-3xl shadow-sm p-4 sm:p-5 space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {/* 1. ENCABEZADO: completo arriba; al bajar queda fijo y compacto (solo pestañas) */}
+      <div ref={headerSentinelRef} aria-hidden="true" className="h-px -mb-4" />
+      <div className={`sticky top-16 z-30 bg-white/95 backdrop-blur-md border border-slate-200 shadow-sm transition-all ${compactHeader ? 'rounded-2xl px-3 py-2 sm:px-4 space-y-0' : 'rounded-3xl p-4 sm:p-5 space-y-3'}`}>
+        {compactHeader && (
+          <p className="text-xs font-bold text-slate-900 truncate px-1 pb-1">{fund.name}</p>
+        )}
+        <div className={`flex-col sm:flex-row sm:items-center justify-between gap-3 ${compactHeader ? 'hidden' : 'flex'}`}>
           {/* Back button + Fund Title */}
           <div className="flex items-center gap-3 min-w-0">
             <button
@@ -211,7 +226,7 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
         </div>
 
         {/* 2. TABS BAR - With Horizontal Scroll on Mobile (Requirement 4) */}
-        <div className="overflow-x-auto no-scrollbar border-t border-slate-100 pt-2">
+        <div className={`overflow-x-auto no-scrollbar ${compactHeader ? '' : 'border-t border-slate-100 pt-2'}`}>
           <div className="flex items-center gap-1.5 min-w-max pb-0.5">
             {tabs.map((tab) => {
               const Icon = tab.icon;
