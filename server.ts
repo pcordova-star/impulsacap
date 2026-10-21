@@ -1592,6 +1592,15 @@ Sé conciso, empático, directo y ultra práctico. Habla con terminología chile
 });
 
 // 5b. Robot de Ayuda de la Plataforma (Público, sin sesión ni plan requerido - Requirement 2)
+// La prueba gratis solo existe con PAGOS_MODO=anticipado: fuera de ese modo, el robot no la ofrece.
+function supportKnowledgeForMode(): string {
+  if (isEarlyAccessMode()) return SUPPORT_KNOWLEDGE;
+  return SUPPORT_KNOWLEDGE.replace(
+    /- Beneficio de lanzamiento para pymes:[^\n]*/,
+    '- Prueba gratis de lanzamiento: ya terminó; hoy el Plan Semestral se activa pagando. Quienes la usaron reciben un correo con el enlace para activar el plan a precio de lanzamiento y tienen 7 días desde ese aviso; sus datos y postulaciones quedan guardados.'
+  );
+}
+
 app.post('/api/ayuda/chat', async (req, res) => {
   try {
     const message = req.body?.message;
@@ -1612,7 +1621,7 @@ app.post('/api/ayuda/chat', async (req, res) => {
     const systemInstruction = `Eres el asistente de soporte de ImpulsaCap. Respondes dudas sobre cómo usar la plataforma, cuentas, planes, pagos, correos, carpeta tributaria, privacidad y problemas técnicos.
 
 BASE DE CONOCIMIENTO (única fuente válida):
-${SUPPORT_KNOWLEDGE}
+${supportKnowledgeForMode()}
 
 REGLAS:
 - Responde en español de Chile, tuteando, claro y breve (máximo 110 palabras). Si es un procedimiento, da los pasos numerados.
