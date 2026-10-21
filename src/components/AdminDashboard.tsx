@@ -366,6 +366,7 @@ const SupportInbox: React.FC = () => {
 interface SellerRow {
   code: string; name: string; email: string; discountPct: number; commissionPct: number; active: boolean; price: number;
   salesCount: number; revenue: number; commissionPending: number; commissionPaid: number; trialsCount: number;
+  commissionPayable?: number; commissionInRetracto?: number; commissionToRecover?: number;
 }
 interface SellerSale { paymentId: string; code: string; companyName?: string; buyerEmail?: string; amount: number; commission: number; status: string; createdAt: string; paidAt?: string | null }
 interface SellersData { appUrl: string; sellers: SellerRow[]; sales: SellerSale[]; limits: { maxDiscountPct: number; maxCommissionPct: number; priceFull: number; priceFirst: number } }
@@ -446,12 +447,12 @@ const SellersPanel: React.FC = () => {
   };
 
   const input = 'w-full px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:ring-2 focus:ring-blue-500';
-  const totalPending = data?.sellers.reduce((a, s) => a + (s.commissionPending || 0), 0) || 0;
+  const totalPending = data?.sellers.reduce((a, s) => a + (s.commissionPayable || 0), 0) || 0;
 
   return (
     <Card
       title="Vendedores"
-      subtitle={`Códigos para la primera compra. El descuento reemplaza al 50% de primera compra; la comisión se calcula sobre lo pagado.${totalPending ? ` Comisiones por pagar: ${clp(totalPending)}.` : ''}`}
+      subtitle={`Códigos para la primera compra. El descuento reemplaza al 50% de primera compra; la comisión se calcula sobre lo pagado y se puede pagar pasados 10 días (plazo de retracto).${totalPending ? ` Comisiones por pagar: ${clp(totalPending)}.` : ''}`}
       right={!showForm ? (
         <button type="button" onClick={() => { setShowForm(true); setEditing(null); setForm(emptyForm); setMsg(null); }} className="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-bold cursor-pointer">
           Nuevo vendedor
@@ -503,15 +504,19 @@ const SellersPanel: React.FC = () => {
             <td className="py-2.5 pr-4 tabular-nums">{s.commissionPct}%</td>
             <td className="py-2.5 pr-4 tabular-nums">{s.salesCount}<div className="text-xs text-slate-500">{clp(s.revenue)}</div></td>
             <td className="py-2.5 pr-4 tabular-nums">{s.trialsCount}</td>
-            <td className="py-2.5 pr-4 tabular-nums font-semibold text-amber-700">{clp(s.commissionPending)}</td>
+            <td className="py-2.5 pr-4 tabular-nums">
+              <div className="font-semibold text-amber-700">{clp(s.commissionPayable || 0)}</div>
+              {(s.commissionInRetracto || 0) > 0 && <div className="text-[11px] text-slate-500">+{clp(s.commissionInRetracto || 0)} en retracto</div>}
+              {(s.commissionToRecover || 0) > 0 && <div className="text-[11px] text-rose-700">Descontar {clp(s.commissionToRecover || 0)}</div>}
+            </td>
             <td className="py-2.5 pr-4 tabular-nums text-emerald-700">{clp(s.commissionPaid)}</td>
             <td className="py-2.5 pr-0">
               <div className="flex flex-wrap gap-1.5 justify-end">
                 <button type="button" onClick={() => { try { navigator.clipboard.writeText(`${data.appUrl}/?ref=${s.code}`); setMsg({ ok: true, text: `Link de ${s.code} copiado: ${data.appUrl}/?ref=${s.code}` }); } catch { /* sin portapapeles */ } }} className="px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-bold cursor-pointer">Copiar link</button>
                 <button type="button" onClick={() => startEdit(s)} className="px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-bold cursor-pointer">Editar</button>
                 <button type="button" disabled={busy} onClick={() => save({ code: s.code, name: s.name, email: s.email, discountPct: s.discountPct as any, commissionPct: s.commissionPct as any, active: !s.active })} className="px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-bold cursor-pointer disabled:opacity-60">{s.active ? 'Pausar' : 'Activar'}</button>
-                {s.commissionPending > 0 && (confirmPay === s.code ? (
-                  <button type="button" disabled={busy} onClick={() => markPaid(s.code)} className="px-2.5 py-1.5 rounded-lg bg-emerald-700 text-white text-xs font-bold cursor-pointer disabled:opacity-60">Confirmar pago de {clp(s.commissionPending)}</button>
+                {(s.commissionPayable || 0) > 0 && (confirmPay === s.code ? (
+                  <button type="button" disabled={busy} onClick={() => markPaid(s.code)} className="px-2.5 py-1.5 rounded-lg bg-emerald-700 text-white text-xs font-bold cursor-pointer disabled:opacity-60">Confirmar pago de {clp(s.commissionPayable || 0)}</button>
                 ) : (
                   <button type="button" onClick={() => setConfirmPay(s.code)} className="px-2.5 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-bold cursor-pointer">Marcar pagado</button>
                 ))}
@@ -532,7 +537,11 @@ const SellersPanel: React.FC = () => {
                 <td className="py-2.5 pr-4"><div className="text-slate-900">{v.companyName || '—'}</div><div className="text-xs text-slate-500">{v.buyerEmail}</div></td>
                 <td className="py-2.5 pr-4 tabular-nums">{clp(v.amount)}</td>
                 <td className="py-2.5 pr-4 tabular-nums font-semibold">{clp(v.commission)}</td>
-                <td className="py-2.5 pr-4 whitespace-nowrap">{v.status === 'pagada' ? <span className="text-emerald-700">Pagada {fmtDate(v.paidAt || null)}</span> : <span className="text-amber-700">Por pagar</span>}</td>
+                <td className="py-2.5 pr-4 whitespace-nowrap">{v.status === 'pagada' ? <span className="text-emerald-700">Pagada {fmtDate(v.paidAt || null)}</span>
+                  : v.status === 'anulada' ? <span className="text-slate-500">Anulada (devolución)</span>
+                  : v.status === 'pagada_anulada' ? <span className="text-rose-700">Devuelta: descontar</span>
+                  : Date.now() - new Date(v.createdAt).getTime() < 10 * 864e5 ? <span className="text-slate-500">En retracto hasta {fmtDate(new Date(new Date(v.createdAt).getTime() + 10 * 864e5).toISOString())}</span>
+                  : <span className="text-amber-700">Por pagar</span>}</td>
               </tr>
             ))}
           </Table>
@@ -574,6 +583,87 @@ const AiStatus: React.FC = () => {
         {busy ? 'Probando…' : 'Probar de nuevo'}
       </button>
     </div>
+  );
+};
+
+
+/** Consumo y costo estimado de la IA (Gemini). */
+const AiUsagePanel: React.FC = () => {
+  const [d, setD] = useState<any>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const load = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/admin/ia-uso');
+      const body = await res.json().catch(() => ({}));
+      if (res.ok) setD(body); else setErr(body.error || 'No se pudo cargar.');
+    } catch (e: any) { setErr(e?.message || 'No se pudo cargar.'); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  const usd = (n: number) => `US$${(n || 0).toFixed(n < 1 ? 3 : 2)}`;
+  if (err) return <Card title="Consumo de IA"><p className="text-sm text-rose-700">{err}</p></Card>;
+  if (!d) return <Card title="Consumo de IA"><p className="text-sm text-slate-500">Cargando…</p></Card>;
+  const L = d.limits;
+  const pctToday = L.dailyBudgetUsd > 0 ? Math.min(100, (d.today.costUsd / L.dailyBudgetUsd) * 100) : 0;
+  const maxDay = Math.max(0.0001, ...d.last14.map((x: any) => x.costUsd));
+  return (
+    <Card
+      title="Consumo de IA (costo estimado)"
+      subtitle={`Precio usado: US$${L.priceInPerM} por millón de tokens de entrada y US$${L.priceOutPerM} de salida. Ajusta GEMINI_PRECIO_* si Google cambia sus precios.`}
+      right={<button type="button" onClick={load} className="text-xs font-bold text-blue-700 hover:underline cursor-pointer">Actualizar</button>}
+    >
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+        <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+          <p className="text-xs text-slate-500">Hoy</p>
+          <p className="text-xl font-black text-slate-900 tabular-nums">{usd(d.today.costUsd)}</p>
+          <p className="text-xs text-slate-500">{d.today.calls} llamadas · tope {usd(L.dailyBudgetUsd)}</p>
+          <div className="h-1.5 rounded-full bg-slate-200 mt-2 overflow-hidden"><div className={`h-full ${pctToday >= 80 ? 'bg-rose-500' : 'bg-emerald-500'}`} style={{ width: `${pctToday}%` }} /></div>
+        </div>
+        <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+          <p className="text-xs text-slate-500">Este mes</p>
+          <p className="text-xl font-black text-slate-900 tabular-nums">{usd(d.month.costUsd)}</p>
+          <p className="text-xs text-slate-500">{d.month.calls} llamadas · {d.month.activeUsers} usuarios</p>
+        </div>
+        <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+          <p className="text-xs text-slate-500">Costo promedio por usuario (mes)</p>
+          <p className="text-xl font-black text-slate-900 tabular-nums">{usd(d.month.activeUsers ? d.month.costUsd / d.month.activeUsers : 0)}</p>
+          <p className="text-xs text-slate-500">Tope por plan {usd(L.maxCostPerPeriodUsd.plan)} · prueba {usd(L.maxCostPerPeriodUsd.prueba)}</p>
+        </div>
+        <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+          <p className="text-xs text-slate-500">Créditos diarios por usuario</p>
+          <p className="text-sm font-bold text-slate-900">Plan {L.creditsPerDay.plan} · Prueba {L.creditsPerDay.prueba} · Gratis {L.creditsPerDay.gratis}</p>
+          <p className="text-xs text-slate-500">Asesor 1 · Sección 2 · Documento 2 · Auditoría 4 · Formulación completa 5</p>
+        </div>
+      </div>
+      <div className="grid gap-5 lg:grid-cols-2">
+        <div>
+          <p className="text-xs font-bold text-slate-700 mb-2">Últimos 14 días</p>
+          {d.last14.length === 0 ? <p className="text-sm text-slate-500">Aún no hay consumo registrado.</p> : (
+            <ul className="space-y-1.5">
+              {d.last14.map((x: any) => (
+                <li key={x.day} className="flex items-center gap-2 text-xs">
+                  <span className="w-20 text-slate-500 tabular-nums">{x.day.slice(5)}</span>
+                  <span className="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden"><span className="block h-full bg-blue-500" style={{ width: `${(x.costUsd / maxDay) * 100}%` }} /></span>
+                  <span className="w-20 text-right tabular-nums text-slate-700">{usd(x.costUsd)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div>
+          <p className="text-xs font-bold text-slate-700 mb-2">Usuarios con más consumo este mes</p>
+          {d.topUsers.length === 0 ? <p className="text-sm text-slate-500">Sin datos todavía.</p> : (
+            <ul className="divide-y divide-slate-100 text-xs">
+              {d.topUsers.map((u: any) => (
+                <li key={u.uid} className="py-1.5 flex justify-between gap-2">
+                  <span className="truncate text-slate-800">{u.email || u.uid}</span>
+                  <span className="tabular-nums text-slate-600 shrink-0">{u.calls} llamadas · <strong>{usd(u.costUsd)}</strong></span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </Card>
   );
 };
 
@@ -805,6 +895,8 @@ export const AdminDashboard: React.FC = () => {
           </button>
         )}
       </Card>
+
+      <AiUsagePanel />
 
       <SellersPanel />
 

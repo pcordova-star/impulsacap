@@ -164,7 +164,8 @@ export const SmartDiagnostic: React.FC<SmartDiagnosticProps> = ({
       });
 
       if (!response.ok) {
-        throw new Error('Error al conectar con el motor de IA de fondos');
+        const errJson = await response.json().catch(() => ({}));
+        throw new Error(errJson.error || 'Error al conectar con el motor de IA de fondos');
       }
 
       const data = await response.json();

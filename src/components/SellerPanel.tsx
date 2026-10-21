@@ -12,7 +12,7 @@ interface PanelData {
   name: string;
   email: string;
   codes: CodeRow[];
-  totals: { salesCount: number; revenue: number; commissionPending: number; commissionPaid: number; trialsCount: number };
+  totals: { salesCount: number; revenue: number; commissionPending: number; commissionPaid: number; trialsCount: number; commissionInRetracto?: number };
   sales: { date: string; code: string; client: string; amount: number; commission: number; status: string; paidAt: string | null }[];
   trials: { date: string; code: string; client: string; until: string | null }[];
 }
@@ -133,7 +133,7 @@ export const SellerPanel: React.FC = () => {
       </header>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Kpi label="Comisión por pagar" value={clp(t.commissionPending)} />
+        <Kpi label="Comisión por pagar" value={clp(t.commissionPending)} detail={(t.commissionInRetracto || 0) > 0 ? `${clp(t.commissionInRetracto || 0)} aún en plazo de retracto (10 días)` : undefined} />
         <Kpi label="Comisión pagada" value={clp(t.commissionPaid)} />
         <Kpi label="Ventas" value={String(t.salesCount)} detail={`${clp(t.revenue)} vendidos (IVA incluido)`} />
         <Kpi label="Probando gratis" value={String(t.trialsCount)} detail="Clientes con tu código que aún no pagan" />
@@ -185,6 +185,8 @@ export const SellerPanel: React.FC = () => {
                     <td className="py-2.5 pr-4 whitespace-nowrap">
                       {s.status === 'pagada'
                         ? <span className="text-emerald-700 font-semibold">Pagada {fmtDate(s.paidAt)}</span>
+                        : s.status === 'anulada' || s.status === 'pagada_anulada'
+                        ? <span className="text-slate-500 font-semibold">Anulada (devolución)</span>
                         : <span className="text-amber-700 font-semibold">Por pagar</span>}
                     </td>
                   </tr>
@@ -211,7 +213,7 @@ export const SellerPanel: React.FC = () => {
       )}
 
       <p className="text-xs text-slate-500">
-        La comisión se calcula sobre el monto pagado (IVA incluido) y se registra cuando Mercado Pago aprueba el pago. ¿Dudas sobre tus pagos? Escribe a contacto@impulsacap.cl.
+        La comisión se calcula sobre el monto pagado (IVA incluido), se registra cuando Mercado Pago aprueba el pago y se paga pasados 10 días (plazo de retracto del cliente). Si el cliente pide devolución, la comisión se anula. ¿Dudas sobre tus pagos? Escribe a contacto@impulsacap.cl.
       </p>
     </div>
   );

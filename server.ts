@@ -43,6 +43,7 @@ import {
   sellerSaleEmail,
   getAppUrl,
 } from './server/email';
+import { aiGuard, aiContext, recordAiUsage, inputTextChars, AI_MAX_INPUT_CHARS, AI_MAX_OUTPUT, AiLimitError, AI_LIMITS, chileDay } from './server/aiUsage';
 import {
   PRICE_FULL,
   PRICE_FIRST,
@@ -119,6 +120,17 @@ const generalGeminiLimiter = rateLimit({
 });
 
 app.use('/api/gemini/instant-match', instantMatchLimiter);
+// Tope por hora y por IP en lo público (además del límite por minuto)
+const publicHourlyLimiter = (max: number, message: string) => rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max,
+  standardHeaders: true,
+  legacyHeaders: false,
+  statusCode: 429,
+  message: { error: message }
+});
+app.use('/api/gemini/instant-match', publicHourlyLimiter(20, 'Hiciste muchos diagnósticos en la última hora. Intenta más tarde o crea tu cuenta.'));
+app.use('/api/ayuda/chat', publicHourlyLimiter(40, 'Hiciste muchas consultas en la última hora. Escríbenos con "Hablar con una persona".'));
 app.use('/api/gemini', generalGeminiLimiter);
 
 // Límite para el robot de ayuda general de la plataforma: 10 por minuto por IP
@@ -210,6 +222,27 @@ ai.models.generateContent = async function resilientGenerateContent(params: any)
   }
 
   throw lastError;
+};
+
+// Medición y topes de la IA: tamaño de entrada, máximo de salida por función y registro de tokens/costo
+const resilientGenerateContent = ai.models.generateContent.bind(ai.models);
+ai.models.generateContent = async function meteredGenerateContent(params: any) {
+  const ctx = aiContext.getStore();
+  const endpoint = ctx?.endpoint || 'otro';
+  if (inputTextChars(params) > AI_MAX_INPUT_CHARS) {
+    console.warn(`[ia] Entrada demasiado grande en ${endpoint}: ${inputTextChars(params)} caracteres`);
+    throw new AiLimitError('El texto enviado es demasiado largo. Acórtalo e intenta de nuevo.', 413);
+  }
+  const maxOut = AI_MAX_OUTPUT[endpoint];
+  const finalParams = maxOut
+    ? { ...params, config: { ...(params?.config || {}), maxOutputTokens: Math.min(Number(params?.config?.maxOutputTokens) || maxOut, maxOut) } }
+    : params;
+  const result: any = await resilientGenerateContent(finalParams);
+  if (ctx && isFirestoreAdminAuthorized) {
+    recordAiUsage(adminDb, ctx, result?.usageMetadata, String(result?.usedModel || finalParams.model || MODEL_NAME))
+      .catch((e: any) => console.warn('[ia] No se pudo registrar el uso:', e?.message));
+  }
+  return result;
 };
 
 // -------------------------------------------------------------
@@ -504,7 +537,33 @@ const checkAndRegisterPostulationSlot = async (uid: string, fundId: string): Pro
 
 
 // 0. Match Inmediato Rápido
-app.post('/api/gemini/instant-match', async (req, res) => {
+// Topes de IA por función (ver server/aiUsage.ts)
+const budgetAlertSent = new Set<string>();
+const guardAi = (endpoint: string) => aiGuard({
+  endpoint,
+  getDb: async () => ((await ensureFirestoreAdmin()) ? adminDb : null),
+  isAdmin: (req) => {
+    const u = (req as AuthenticatedRequest).user;
+    return Boolean(u?.email && u.emailVerified && getAdminDashboardEmails().includes(u.email.toLowerCase()));
+  },
+  onBudgetExceeded: (day, costUsd) => {
+    if (budgetAlertSent.has(day)) return;
+    budgetAlertSent.add(day);
+    const to = getAdminEmail();
+    console.error(`[ia] Presupuesto diario de IA alcanzado (${day}): US$${costUsd.toFixed(2)}`);
+    if (to) {
+      sendEmail({
+        to,
+        subject: `ImpulsaCap: la IA se pausó hoy por presupuesto (US$${costUsd.toFixed(2)})`,
+        html: `<p>El gasto estimado de IA de hoy (${day}) llegó a US$${costUsd.toFixed(2)}, el tope diario configurado (IA_PRESUPUESTO_DIARIO_USD = ${AI_LIMITS().dailyBudgetUsd}). La IA queda pausada hasta mañana.</p><p>Revisa el consumo en /admin. Si es uso legítimo, sube el tope en AI Studio y vuelve a publicar.</p>`,
+        text: `El gasto de IA de hoy (${day}) llegó a US$${costUsd.toFixed(2)} y la IA quedó pausada hasta mañana. Revisa /admin.`,
+        idempotencyKey: `ai-budget-${day}`
+      }).catch(() => {});
+    }
+  }
+});
+
+app.post('/api/gemini/instant-match', guardAi('instant-match'), async (req, res) => {
   try {
     const userPrompt = String(req.body?.userPrompt || req.body?.query || '').trim().slice(0, 2000);
     const targetFundHint = req.body?.targetFundHint;
@@ -812,7 +871,7 @@ function legacyTaxFieldsFromDiagnosis(d: TaxDiagnosis) {
   };
 }
 
-app.post('/api/gemini/parse-tax-folder', requireAuth, async (req, res) => {
+app.post('/api/gemini/parse-tax-folder', requireAuth, guardAi('parse-tax-folder'), async (req, res) => {
   try {
     const { rawText, fileBase64, mimeType, fileName } = req.body || {};
     let extractedText = '';
@@ -992,7 +1051,7 @@ Responde ÚNICAMENTE un JSON con:
 });
 
 // 1. Diagnóstico y Calce Inteligente de Fondos
-app.post('/api/gemini/diagnose', requireAuth, async (req, res) => {
+app.post('/api/gemini/diagnose', requireAuth, guardAi('diagnose'), async (req, res) => {
   try {
     const { profile, availableFunds } = req.body;
 
@@ -1072,7 +1131,7 @@ Devuelve una evaluación rigurosa en formato JSON con la siguiente estructura:
 });
 
 // 2. Formulación Técnica Completa para Postulación
-app.post('/api/gemini/formulate', requireAuth, requireActivePlan, async (req, res) => {
+app.post('/api/gemini/formulate', requireAuth, requireActivePlan, guardAi('formulate'), async (req, res) => {
   try {
     const user = (req as AuthenticatedRequest).user!;
     const fundId = req.body?.fund?.id;
@@ -1201,7 +1260,7 @@ Responde ÚNICAMENTE en formato JSON con la siguiente estructura completa:
 // 3. Auditor Ciego y Simulador de Rúbrica CORFO / SERCOTEC
 
 // 2.1 Formulación de Sección Específica (Problema, Solución, Mercado, Equipo, Modelo/Plan)
-app.post('/api/gemini/formulate-section', requireAuth, requireActivePlan, async (req, res) => {
+app.post('/api/gemini/formulate-section', requireAuth, requireActivePlan, guardAi('formulate-section'), async (req, res) => {
   try {
     const user = (req as AuthenticatedRequest).user!;
     const fundId = req.body?.fund?.id;
@@ -1309,7 +1368,7 @@ Responde ÚNICAMENTE en formato JSON con la siguiente estructura:
   }
 });
 
-app.post('/api/gemini/audit', requireAuth, requireActivePlan, async (req, res) => {
+app.post('/api/gemini/audit', requireAuth, requireActivePlan, guardAi('audit'), async (req, res) => {
   try {
     const { fund, formulationText, projectSummary, profile, projectProfile: directProj, taxFolderData } = req.body;
     const project = directProj || profile?.projectProfile || {};
@@ -1403,7 +1462,7 @@ Responde ÚNICAMENTE en formato JSON con la siguiente estructura:
 });
 
 // 4. Generación de Documentos Formales (Cartas LOI, Compromisos, etc.)
-app.post('/api/gemini/generate-doc', requireAuth, requireActivePlan, async (req, res) => {
+app.post('/api/gemini/generate-doc', requireAuth, requireActivePlan, guardAi('generate-doc'), async (req, res) => {
   try {
     const {
       documentType,
@@ -1514,7 +1573,7 @@ function normalizeChatTurns(turns: { role: 'user' | 'model'; text: string }[], m
   return trimmed;
 }
 
-app.post('/api/gemini/chat', requireAuth, requireActivePlan, async (req, res) => {
+app.post('/api/gemini/chat', requireAuth, requireActivePlan, guardAi('chat'), async (req, res) => {
   try {
     const { messages, companyProfile, profile, projectProfile: directProj, taxFolderData, currentFund } = req.body;
     const compProfile = companyProfile || profile || {};
@@ -1601,7 +1660,7 @@ function supportKnowledgeForMode(): string {
   );
 }
 
-app.post('/api/ayuda/chat', async (req, res) => {
+app.post('/api/ayuda/chat', guardAi('ayuda'), async (req, res) => {
   try {
     const message = req.body?.message;
     if (typeof message !== 'string' || !message.trim()) {
@@ -1643,7 +1702,7 @@ Responde SOLO un JSON: {"reply": "texto", "intent": "plataforma" | "fondos" | "h
       config: {
         systemInstruction,
         temperature: 0.2,
-        maxOutputTokens: 500,
+        maxOutputTokens: 1500,
         responseMimeType: 'application/json'
       }
     });
@@ -1980,6 +2039,57 @@ app.post('/api/pagos/crear', requireAuth, async (req, res) => {
   }
 });
 
+/**
+ * Pago devuelto (retracto, devolución manual) o contracargo: si ese pago había activado el plan,
+ * el plan se cierra; la comisión del vendedor se anula y se avisa al administrador.
+ */
+async function handlePaymentReversal(paymentId: string, status: string) {
+  if (!(await ensureFirestoreAdmin())) throw new Error('Firestore Admin no autorizado');
+  const payRef = adminDb.collection('payments').doc(paymentId);
+  const pay = (await payRef.get()).data();
+  if (!pay || pay.status !== 'approved') {
+    console.log(`[pagos] Reverso ${status} de ${paymentId} sin pago aprobado registrado: se ignora`);
+    return;
+  }
+  const now = new Date().toISOString();
+  await payRef.set({ status, reversedAt: now }, { merge: true });
+
+  const uid = String(pay.uid || '');
+  let planClosed = false;
+  if (uid) {
+    const entRef = adminDb.collection('entitlements').doc(uid);
+    const ent = (await entRef.get()).data();
+    if (ent && String(ent.lastPaymentId || '') === paymentId) {
+      await entRef.set({ status: 'revoked', expiresAt: now, revokedReason: status, updatedAt: now }, { merge: true });
+      planClosed = true;
+    }
+  }
+
+  let commissionNote = 'sin código de vendedor';
+  const saleRef = adminDb.collection('seller_sales').doc(paymentId);
+  const sale = (await saleRef.get()).data();
+  if (sale) {
+    const wasPaid = sale.status === 'pagada';
+    await saleRef.set({ status: wasPaid ? 'pagada_anulada' : 'anulada', annulledAt: now, annulReason: status }, { merge: true });
+    commissionNote = wasPaid
+      ? `la comisión de ${sale.code} (${sale.commission}) YA estaba pagada: descuéntala del próximo pago`
+      : `la comisión de ${sale.code} quedó anulada`;
+  }
+
+  console.warn(`[pagos] Pago ${paymentId} ${status}: plan ${planClosed ? 'cerrado' : 'sin cambios'}, ${commissionNote}`);
+  const to = getAdminEmail();
+  if (to) {
+    const email = uid ? await getUserEmail(uid) : '';
+    await sendEmail({
+      to,
+      subject: `ImpulsaCap: pago ${paymentId} ${status === 'charged_back' ? 'con contracargo' : 'devuelto'}`,
+      html: `<p>El pago <strong>${paymentId}</strong> (${email || uid}) cambió a <strong>${status}</strong>.</p><ul><li>Plan: ${planClosed ? 'cerrado' : 'sin cambios (no era el último pago del usuario)'}</li><li>Vendedor: ${commissionNote}</li></ul>`,
+      text: `Pago ${paymentId} (${email || uid}) cambió a ${status}. Plan: ${planClosed ? 'cerrado' : 'sin cambios'}. Vendedor: ${commissionNote}.`,
+      idempotencyKey: `reversal-${paymentId}-${status}`
+    });
+  }
+}
+
 // Webhook oficial de Mercado Pago (público)
 app.post('/api/pagos/webhook', async (req, res) => {
   try {
@@ -1997,6 +2107,13 @@ app.post('/api/pagos/webhook', async (req, res) => {
 
     // Consulta oficial a la API de Mercado Pago. NUNCA confiar en el cuerpo de la notificación
     const paymentInfo = await paymentClient.get({ id: String(paymentId) });
+
+    // Devolución o contracargo de un pago que habíamos aprobado: se retira el plan y se anula la comisión
+    if (paymentInfo && ['refunded', 'charged_back', 'cancelled'].includes(String(paymentInfo.status))) {
+      await handlePaymentReversal(String(paymentId), String(paymentInfo.status));
+      return res.status(200).send('OK');
+    }
+
     if (!paymentInfo || paymentInfo.status !== 'approved') {
       console.log(`Payment ${paymentId} status: ${paymentInfo?.status}`);
       return res.status(200).send('OK');
@@ -2765,6 +2882,45 @@ app.post('/api/admin/acceso-anticipado/avisar', requireAuth, requireAdminUser, a
   }
 });
 
+// Admin: consumo y costo estimado de la IA
+app.get('/api/admin/ia-uso', requireAuth, requireAdminUser, async (_req, res) => {
+  try {
+    if (!(await ensureFirestoreAdmin())) return res.status(503).json({ error: 'Firestore Admin no está autorizado.' });
+    res.set('Cache-Control', 'no-store');
+    const today = chileDay();
+    const since = chileDay(new Date(Date.now() - 13 * 864e5));
+    const monthStart = `${today.slice(0, 7)}-01`;
+    const [dailySnap, usersSnap] = await Promise.all([
+      adminDb.collection('ai_usage_daily').where('day', '>=', since < monthStart ? since : monthStart).get(),
+      adminDb.collection('ai_usage_users').where('day', '>=', monthStart).get()
+    ]);
+    const days = dailySnap.docs.map(d => d.data() as any).sort((a, b) => String(a.day).localeCompare(String(b.day)));
+    const month = days.filter(d => d.day >= monthStart);
+    const sum = (list: any[], k: string) => list.reduce((acc, d) => acc + (Number(d[k]) || 0), 0);
+    const byUser = new Map<string, { uid: string; calls: number; costUsd: number }>();
+    usersSnap.docs.forEach(d => {
+      const x = d.data() as any;
+      const cur = byUser.get(x.uid) || { uid: x.uid, calls: 0, costUsd: 0 };
+      cur.calls += Number(x.calls) || 0;
+      cur.costUsd += Number(x.costUsd) || 0;
+      byUser.set(x.uid, cur);
+    });
+    const top = Array.from(byUser.values()).sort((a, b) => b.costUsd - a.costUsd).slice(0, 10);
+    const topWithEmail = await Promise.all(top.map(async t => ({ ...t, email: await getUserEmail(t.uid) })));
+    const todayDoc = days.find(d => d.day === today) || null;
+    return res.json({
+      today: { calls: Number(todayDoc?.calls) || 0, costUsd: Number(todayDoc?.costUsd) || 0, endpoints: todayDoc?.endpoints || {} },
+      month: { calls: sum(month, 'calls'), costUsd: sum(month, 'costUsd'), inTok: sum(month, 'inTok'), outTok: sum(month, 'outTok'), activeUsers: byUser.size },
+      last14: days.filter(d => d.day >= since).map(d => ({ day: d.day, calls: Number(d.calls) || 0, costUsd: Number(d.costUsd) || 0 })),
+      topUsers: topWithEmail,
+      limits: AI_LIMITS()
+    });
+  } catch (err: any) {
+    console.error('Error in /api/admin/ia-uso:', err?.message);
+    return res.status(500).json({ error: 'No se pudo cargar el consumo de IA.' });
+  }
+});
+
 // Admin: prueba en vivo de la IA (Gemini). Devuelve el error real para diagnosticar clave, cuota o modelo.
 app.get('/api/admin/diagnostico-ia', requireAuth, requireAdminUser, async (_req, res) => {
   res.set('Cache-Control', 'no-store');
@@ -2845,6 +3001,9 @@ app.post('/api/vendedores/aplicar', sellerCodeLimiter, requireAuth, async (req, 
     if (await hasApprovedPayment(adminDb, user.uid)) {
       return res.status(409).json({ error: 'Los códigos aplican solo a la primera compra del plan.' });
     }
+    if (seller.email && user.email && seller.email.toLowerCase() === user.email.toLowerCase()) {
+      return res.status(409).json({ error: 'No puedes usar tu propio código de vendedor.' });
+    }
     const source = req.body?.source === 'link' ? 'link' : 'campo';
     await adminDb.collection('referrals').doc(user.uid).set({ code: seller.code, appliedAt: new Date().toISOString(), source, email: user.email || '' });
     return res.json({ ok: true, ...(await resolvePricing(adminDb, user.uid)) });
@@ -2867,6 +3026,12 @@ app.post('/api/vendedores/quitar', requireAuth, async (req, res) => {
   }
 });
 
+const RETRACTO_DAYS = 10;
+const isPastRetracto = (iso: string) => {
+  const t = new Date(iso || 0).getTime();
+  return Boolean(t) && Date.now() - t >= RETRACTO_DAYS * 864e5;
+};
+
 /** Ventas, pruebas y totales de un conjunto de códigos. */
 async function sellerActivity(codes: string[]) {
   const sales: any[] = [];
@@ -2883,13 +3048,19 @@ async function sellerActivity(codes: string[]) {
   sales.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   trials.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   const totals = (code?: string) => {
-    const list = code ? sales.filter(s => s.code === code) : sales;
+    const all = code ? sales.filter(s => s.code === code) : sales;
+    // Ventas devueltas o con contracargo no cuentan
+    const list = all.filter(s => s.status !== 'anulada' && s.status !== 'pagada_anulada');
     const sum = (f: (s: any) => boolean) => list.filter(f).reduce((acc, s) => acc + (Number(s.commission) || 0), 0);
     return {
       salesCount: list.length,
       revenue: list.reduce((acc, s) => acc + (Number(s.amount) || 0), 0),
-      commissionPending: sum(s => s.status !== 'pagada'),
+      commissionPending: sum(s => s.status === 'pendiente'),
+      // Se puede pagar cuando pasó el plazo de retracto (10 días desde la venta)
+      commissionPayable: sum(s => s.status === 'pendiente' && isPastRetracto(s.createdAt)),
+      commissionInRetracto: sum(s => s.status === 'pendiente' && !isPastRetracto(s.createdAt)),
       commissionPaid: sum(s => s.status === 'pagada'),
+      commissionToRecover: all.filter(s => s.status === 'pagada_anulada').reduce((acc, s) => acc + (Number(s.commission) || 0), 0),
       trialsCount: (code ? trials.filter(t => t.sellerCode === code) : trials).filter(t => t.status !== 'pagado').length
     };
   };
@@ -3015,7 +3186,8 @@ app.post('/api/admin/vendedores/:code/pagar', requireAuth, requireAdminUser, asy
     if (!(await ensureFirestoreAdmin())) return res.status(503).json({ error: 'Firestore Admin no está autorizado.' });
     const code = normalizeCode(req.params.code);
     const snap = await adminDb.collection('seller_sales').where('code', '==', code).get();
-    const pending = snap.docs.filter(d => d.data().status !== 'pagada');
+    // Solo comisiones pendientes y con el plazo de retracto cumplido
+    const pending = snap.docs.filter(d => d.data().status === 'pendiente' && isPastRetracto(d.data().createdAt));
     const now = new Date().toISOString();
     let total = 0;
     for (let i = 0; i < pending.length; i += 400) {
