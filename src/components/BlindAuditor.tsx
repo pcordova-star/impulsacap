@@ -28,6 +28,24 @@ interface BlindAuditorProps {
   onNavigateTab?: (tab: string) => void;
 }
 
+/** A qué parte del formulario lleva cada observación de la auditoría (por palabras clave). */
+function fixTargetFor(text: string): { target: string; label: string } | null {
+  const t = (text || '').toLowerCase();
+  const rules: [RegExp, string, string][] = [
+    [/equipo|integrante|fundador|dedicaci|emprendedor/, 'formulator#section:team', 'Completar equipo'],
+    [/mercado|tam|sam|som|escalab|cliente objetivo|comercializ|adquisici/, 'formulator#section:market', 'Calcular mercado'],
+    [/innova|novedad|diferenci|propuesta de valor|tecnolog|soluci[oó]n/, 'formulator#section:solution', 'Explicar innovación'],
+    [/problema|dolor/, 'formulator#section:problem', 'Trabajar el problema'],
+    [/modelo de negocio|monetiz|ingreso|precio|suscripci/, 'formulator#section:model', 'Modelo de negocio'],
+    [/plan de trabajo|hito|cronograma|entregable/, 'formulator#section:workplan', 'Plan de trabajo'],
+    [/presupuest|financiamiento|cofinanc|gasto|aporte/, 'formulator#section:budget', 'Revisar presupuesto'],
+    [/pitch|t[ií]tulo/, 'formulator#section:title_pitch', 'Título y pitch'],
+    [/perfil|no informado|empresa|avance|desarrollo actual/, 'my-company#project-profile', 'Completar perfil']
+  ];
+  for (const [re, target, label] of rules) if (re.test(t)) return { target, label };
+  return null;
+}
+
 export const BlindAuditor: React.FC<BlindAuditorProps> = ({
   initialFund,
   initialFormulation,
@@ -252,7 +270,7 @@ export const BlindAuditor: React.FC<BlindAuditorProps> = ({
               {auditResult.criteriaScores.map((crit, cIdx) => (
                 <div key={cIdx} className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-white truncate max-w-[180px]">{crit.criterion}</span>
+                    <span className="text-xs font-bold text-white leading-snug">{crit.criterion}</span>
                     <span className="text-xs font-black px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                       {crit.score} / 5.0 ({crit.weight}%)
                     </span>
@@ -266,6 +284,14 @@ export const BlindAuditor: React.FC<BlindAuditorProps> = ({
                     <span className="font-bold">Para llegar a 5.0: </span>
                     {crit.improvementTips}
                   </div>
+                  {(() => {
+                    const fix = fixTargetFor(`${crit.criterion} ${crit.improvementTips}`);
+                    return fix && onNavigateTab && Number(crit.score) < 4.5 ? (
+                      <button type="button" onClick={() => onNavigateTab(fix.target)} className="mt-1 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-[11px] font-black cursor-pointer">
+                        Mejorar: {fix.label} →
+                      </button>
+                    ) : null;
+                  })()}
                 </div>
               ))}
             </div>
@@ -274,38 +300,48 @@ export const BlindAuditor: React.FC<BlindAuditorProps> = ({
           {/* Red Flags & Top Priorities */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {/* Red Flags */}
-            <div className="p-5 rounded-2xl bg-rose-950/20 border border-rose-900/40 space-y-3">
-              <h4 className="text-sm font-bold text-rose-300 flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-rose-400" />
-                Alertas Mortales / Red Flags Detectadas
+            <div className="p-5 rounded-2xl bg-rose-50 border border-rose-200 space-y-3">
+              <h4 className="text-sm font-bold text-rose-800 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-600" />
+                Alertas graves detectadas
               </h4>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-rose-900/80">
                 Puntos débiles que los evaluadores de CORFO/SERCOTEC suelen castigar con bajas notas o descalificación:
               </p>
               <div className="space-y-2">
                 {auditResult.redFlags.map((flag, fIdx) => (
-                  <div key={fIdx} className="flex items-start gap-2.5 p-2.5 rounded-xl bg-rose-950/40 border border-rose-900/60 text-xs text-rose-200">
-                    <span className="text-rose-400 font-bold shrink-0">⚠️</span>
-                    <span>{flag}</span>
+                  <div key={fIdx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-xl bg-white border border-rose-200 text-xs text-rose-950">
+                    <span className="flex items-start gap-2"><AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" /><span>{flag}</span></span>
+                    {(() => {
+                      const fix = fixTargetFor(flag);
+                      return fix && onNavigateTab ? (
+                        <button type="button" onClick={() => onNavigateTab(fix.target)} className="shrink-0 px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold cursor-pointer">{fix.label} →</button>
+                      ) : null;
+                    })()}
                   </div>
                 ))}
               </div>
             </div>
 
             {/* Top 3 Priority Changes */}
-            <div className="p-5 rounded-2xl bg-amber-950/20 border border-amber-900/40 space-y-3">
-              <h4 className="text-sm font-bold text-amber-300 flex items-center gap-2">
-                <Flame className="w-4 h-4 text-amber-400" />
-                Top 3 Cambios Obligatorios para Ganar el Fondo
+            <div className="p-5 rounded-2xl bg-amber-50 border border-amber-200 space-y-3">
+              <h4 className="text-sm font-bold text-amber-900 flex items-center gap-2">
+                <Flame className="w-4 h-4 text-amber-600" />
+                Los 3 cambios más importantes
               </h4>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-amber-950/80">
                 Implementa estas 3 acciones antes de enviar tu formulario en la plataforma oficial:
               </p>
               <div className="space-y-2">
                 {auditResult.top3PriorityChanges.map((change, cIdx) => (
-                  <div key={cIdx} className="flex items-start gap-2.5 p-2.5 rounded-xl bg-amber-950/40 border border-amber-900/60 text-xs text-amber-200 font-medium">
-                    <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                    <span>{change}</span>
+                  <div key={cIdx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-xl bg-white border border-amber-200 text-xs text-amber-950 font-medium">
+                    <span className="flex items-start gap-2"><span className="w-5 h-5 rounded-full bg-amber-500 text-white text-[11px] font-black flex items-center justify-center shrink-0">{cIdx + 1}</span><span>{change}</span></span>
+                    {(() => {
+                      const fix = fixTargetFor(change);
+                      return fix && onNavigateTab ? (
+                        <button type="button" onClick={() => onNavigateTab(fix.target)} className="shrink-0 px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold cursor-pointer">{fix.label} →</button>
+                      ) : null;
+                    })()}
                   </div>
                 ))}
               </div>

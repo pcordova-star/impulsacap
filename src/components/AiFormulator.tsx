@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { consume, onRequest } from '../utils/navFocus';
 import { BudgetWizard } from './BudgetWizard';
+import { SectionHelper } from './SectionHelpers';
 import { ChileanFund, CompanyProfile, FormulationOutput, ProjectProfile } from '../types/funds';
 import { ExpedienteData } from '../types/expediente';
 import { apiFetch } from '../utils/apiFetch';
@@ -528,6 +529,16 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
     if (onSaveSectionAnswers) {
       onSaveSectionAnswers(currentSection.id, updatedSectionAnswers, generatedTexts[currentSection.id]);
     }
+  };
+
+  // Varias respuestas a la vez (ayudantes guiados): un solo guardado, sin pisar campos
+  const handleAnswersBatch = (updates: Record<string, string>) => {
+    const updatedSectionAnswers = { ...(answersBySection[currentSection.id] || {}), ...updates };
+    setAnswersBySection(prev => ({ ...prev, [currentSection.id]: { ...(prev[currentSection.id] || {}), ...updates } }));
+    if (onSaveSectionAnswers) {
+      onSaveSectionAnswers(currentSection.id, updatedSectionAnswers, generatedTexts[currentSection.id]);
+    }
+    setTimeout(() => document.getElementById('formulator-questions')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120);
   };
 
   // Helper to handle budget inputs
@@ -1062,8 +1073,15 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
           /* SECTIONS 1 TO 7: QUESTIONS & AI GENERATION */
           <div className="space-y-6">
             
+            <SectionHelper
+              key={`${currentSection.id}-${currentFund.id}`}
+              sectionId={currentSection.id}
+              answers={answersBySection[currentSection.id] || {}}
+              onApply={handleAnswersBatch}
+            />
+
             {/* Input Questions Grid */}
-            <div className="space-y-4">
+            <div id="formulator-questions" className="scroll-mt-40 space-y-4">
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                 Preguntas Clave para el Comité Evaluador
               </h3>
