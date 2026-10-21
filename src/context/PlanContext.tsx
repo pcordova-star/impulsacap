@@ -3,6 +3,7 @@ import { auth, db } from '../firebase';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { apiFetch } from '../utils/apiFetch';
+import { getStoredRef, previewCode, syncStoredRefToAccount, onReferralChanged } from '../utils/referral';
 
 export interface PlanState {
   hasActivePlan: boolean;
@@ -14,6 +15,10 @@ export interface PlanState {
   daysLeft: number;
   isFirstPurchase: boolean;
   price: number;
+  /** Código de vendedor aplicado a la primera compra (fija el precio) */
+  referralCode: string | null;
+  referralDiscountPct: number | null;
+  referralSellerName: string | null;
   activeFundIds: string[];
   isExpiringSoon: boolean;
   isExpired: boolean;
@@ -30,6 +35,9 @@ const defaultPlanState: PlanState = {
   daysLeft: 0,
   isFirstPurchase: true,
   price: 19990,
+  referralCode: null,
+  referralDiscountPct: null,
+  referralSellerName: null,
   activeFundIds: [],
   isExpiringSoon: false,
   isExpired: false,
@@ -55,9 +63,15 @@ export const PlanProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [pricingState, setPricingState] = useState<{
     isFirstPurchase: boolean;
     price: number;
+    code: string | null;
+    discountPct: number | null;
+    sellerName: string | null;
   }>({
     isFirstPurchase: true,
-    price: 19990
+    price: 19990,
+    code: null,
+    discountPct: null,
+    sellerName: null
   });
 
   // Track auth state
@@ -74,14 +88,28 @@ export const PlanProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Fetch pricing from /api/pagos/estado
   const fetchPricing = useCallback(async () => {
-    if (!currentUser) return;
+    if (!currentUser) {
+      // Visitante sin cuenta: precio de referencia con el código guardado desde un link
+      const stored = getStoredRef();
+      const preview = stored ? await previewCode(stored.code) : null;
+      if (preview && !('error' in preview)) {
+        setPricingState({ isFirstPurchase: true, price: preview.price, code: preview.code, discountPct: preview.discountPct, sellerName: preview.sellerName });
+      } else {
+        setPricingState({ isFirstPurchase: true, price: 19990, code: null, discountPct: null, sellerName: null });
+      }
+      return;
+    }
     try {
+      await syncStoredRefToAccount();
       const res = await apiFetch('/api/pagos/estado');
       if (res.ok) {
         const data = await res.json();
         setPricingState({
           isFirstPurchase: !!data.isFirstPurchase,
-          price: data.price || (data.isFirstPurchase ? 19990 : 39990)
+          price: data.price || (data.isFirstPurchase ? 19990 : 39990),
+          code: data.code || null,
+          discountPct: typeof data.discountPct === 'number' ? data.discountPct : null,
+          sellerName: data.sellerName || null
         });
       }
     } catch (err) {
@@ -89,10 +117,14 @@ export const PlanProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [currentUser]);
 
+  // Cambios de código de vendedor: recalcula el precio
+  useEffect(() => onReferralChanged(() => { fetchPricing(); }), [fetchPricing]);
+
   // Real-time listener on entitlements/{uid} - exactly ONCE for the whole app
   useEffect(() => {
     if (!currentUser) {
       setLoading(false);
+      fetchPricing();
       return;
     }
 
@@ -160,6 +192,9 @@ export const PlanProvider: React.FC<{ children: React.ReactNode }> = ({ children
     daysLeft,
     isFirstPurchase: pricingState.isFirstPurchase,
     price: pricingState.price,
+    referralCode: pricingState.code,
+    referralDiscountPct: pricingState.discountPct,
+    referralSellerName: pricingState.sellerName,
     activeFundIds,
     isExpiringSoon,
     isExpired,

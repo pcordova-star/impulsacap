@@ -228,12 +228,15 @@ export function adminSaleEmail(args: {
   isFirstPurchase: boolean;
   paymentId: string;
   expiresAt: string;
+  sellerCode?: string | null;
+  commission?: number | null;
 }) {
   const rows: [string, string][] = [
     ['Usuario', args.userEmail || '(sin correo)'],
     ['Empresa', args.companyName || '(sin completar)'],
     ['Monto', `${formatCLP(args.amount)} CLP`],
-    ['Tipo', args.isFirstPurchase ? 'Primera compra (50% dcto.)' : 'Renovación / compra adicional'],
+    ['Tipo', args.isFirstPurchase ? (args.sellerCode ? `Primera compra con código ${args.sellerCode}` : 'Primera compra (50% dcto.)') : 'Renovación / compra adicional'],
+    ...(args.sellerCode ? [['Comisión del vendedor', `${formatCLP(args.commission || 0)} (${args.sellerCode})`] as [string, string]] : []),
     ['Operación Mercado Pago', args.paymentId],
     ['Plan activo hasta', formatDateCL(args.expiresAt)],
   ];
@@ -397,4 +400,28 @@ export function paymentAvailableEmail(args: { deadline: string; price: number })
   });
   const text = `Ya puedes activar tu Plan Semestral a ${formatCLP(args.price)} (precio de lanzamiento) antes del ${formatDateCL(args.deadline)}: ${getAppUrl()}/?pagar=1`;
   return { subject: 'Activa tu Plan Semestral a precio de lanzamiento', html, text };
+}
+
+export function sellerSaleEmail(args: { sellerName: string; code: string; amount: number; commission: number; companyName?: string }) {
+  const hello = args.sellerName ? `Hola, ${escapeHtml(args.sellerName.split(/\s+/)[0])}:` : 'Hola:';
+  const rows: [string, string][] = [
+    ['Código', args.code],
+    ['Cliente', args.companyName || 'Empresa sin nombre registrado'],
+    ['Venta', `${formatCLP(args.amount)} (IVA incluido)`],
+    ['Tu comisión', formatCLP(args.commission)],
+  ];
+  const html = layout({
+    preheader: `Nueva venta con tu código ${args.code}: comisión ${formatCLP(args.commission)}`,
+    heading: 'Nueva venta con tu código',
+    bodyHtml: p(hello) + p('Se aprobó un pago del Plan Semestral con tu código.') + detailTable(rows) +
+      p('<br>Puedes ver todas tus ventas y comisiones en tu panel de vendedor.'),
+    cta: { label: 'Ver mi panel', url: `${getAppUrl()}/vendedor` },
+  });
+  const text = `Nueva venta con tu código ${args.code}.
+Cliente: ${args.companyName || 'Empresa sin nombre registrado'}
+Venta: ${formatCLP(args.amount)} (IVA incluido)
+Tu comisión: ${formatCLP(args.commission)}
+
+Tu panel: ${getAppUrl()}/vendedor`;
+  return { subject: `Nueva venta con tu código ${args.code}: ${formatCLP(args.commission)} de comisión`, html, text };
 }

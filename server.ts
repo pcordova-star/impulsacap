@@ -40,7 +40,25 @@ import {
   earlyAccessUserEmail,
   earlyAccessAdminEmail,
   paymentAvailableEmail,
+  sellerSaleEmail,
+  getAppUrl,
 } from './server/email';
+import {
+  PRICE_FULL,
+  PRICE_FIRST,
+  MAX_DISCOUNT_PCT,
+  MAX_COMMISSION_PCT,
+  normalizeCode,
+  isValidCodeFormat,
+  priceWithDiscount,
+  commissionFor,
+  firstName,
+  getActiveSeller,
+  hasApprovedPayment,
+  resolvePricing,
+  maskEmail,
+  type Seller,
+} from './server/sellers';
 
 dotenv.config();
 
@@ -253,9 +271,11 @@ async function sendPurchaseNotifications(args: {
   amount: number;
   expiresAt: string;
   paymentDocRef: FirebaseFirestore.DocumentReference;
+  sellerCode?: string | null;
+  commission?: number | null;
 }) {
   try {
-    const { uid, paymentId, amount, expiresAt, paymentDocRef } = args;
+    const { uid, paymentId, amount, expiresAt, paymentDocRef, sellerCode, commission } = args;
 
     let userEmail = '';
     try {
@@ -288,7 +308,7 @@ async function sendPurchaseNotifications(args: {
     const sentAdmin = adminTo
       ? await sendEmail({
           to: adminTo,
-          ...adminSaleEmail({ userEmail, companyName, amount, isFirstPurchase, paymentId, expiresAt }),
+          ...adminSaleEmail({ userEmail, companyName, amount, isFirstPurchase, paymentId, expiresAt, sellerCode, commission }),
           idempotencyKey: `purchase-admin-${paymentId}`,
         })
       : false;
@@ -1667,15 +1687,6 @@ app.get('/api/pagos/modo', (_req, res) => {
   res.json({ paymentsEnabled: !isEarlyAccessMode() });
 });
 
-async function isFirstPurchaseFor(uid: string): Promise<boolean> {
-  try {
-    const snap = await adminDb.collection('payments').where('uid', '==', uid).where('status', '==', 'approved').limit(1).get();
-    return snap.empty;
-  } catch {
-    return true;
-  }
-}
-
 async function grantEarlyAccess(uid: string, email: string | undefined) {
   const entRef = adminDb.collection('entitlements').doc(uid);
   const intentRef = adminDb.collection('purchase_intents').doc(uid);
@@ -1692,7 +1703,8 @@ async function grantEarlyAccess(uid: string, email: string | undefined) {
     return { earlyAccess: true, alreadyGranted: true, expiresAt: entActive ? ent!.expiresAt : null };
   }
 
-  const price = (await isFirstPurchaseFor(uid)) ? 19990 : 39990;
+  const pricing = await resolvePricing(adminDb, uid);
+  const price = pricing.price;
   const now = new Date();
   const expiresAt = new Date(now.getTime() + EARLY_ACCESS_DAYS() * 864e5).toISOString();
   await entRef.set({
@@ -1710,6 +1722,7 @@ async function grantEarlyAccess(uid: string, email: string | undefined) {
     email: email || '',
     companyName,
     price,
+    sellerCode: pricing.code,
     createdAt: now.toISOString(),
     status: 'acceso_anticipado',
     accessUntil: expiresAt,
@@ -1732,27 +1745,14 @@ async function grantEarlyAccess(uid: string, email: string | undefined) {
 app.get('/api/pagos/estado', requireAuth, async (req, res) => {
   try {
     const user = (req as AuthenticatedRequest).user!;
-    let isFirstPurchase = true;
-
-    if (isFirestoreAdminAuthorized) {
-      try {
-        const snap = await adminDb.collection('payments')
-          .where('uid', '==', user.uid)
-          .where('status', '==', 'approved')
-          .limit(1)
-          .get();
-        isFirstPurchase = snap.empty;
-      } catch {
-        isFirstPurchase = true;
-      }
-    } else {
-      isFirstPurchase = true;
+    res.set('Cache-Control', 'no-store');
+    if (!isFirestoreAdminAuthorized) {
+      return res.json({ isFirstPurchase: true, price: PRICE_FIRST, paymentsEnabled: !isEarlyAccessMode() });
     }
-
-    const price = isFirstPurchase ? 19990 : 39990;
-    return res.json({ isFirstPurchase, price, paymentsEnabled: !isEarlyAccessMode() });
+    const pricing = await resolvePricing(adminDb, user.uid);
+    return res.json({ ...pricing, paymentsEnabled: !isEarlyAccessMode() });
   } catch {
-    return res.json({ isFirstPurchase: true, price: 19990 });
+    return res.json({ isFirstPurchase: true, price: PRICE_FIRST });
   }
 });
 
@@ -1809,29 +1809,26 @@ app.post('/api/pagos/crear', requireAuth, async (req, res) => {
       return res.status(500).json({ error: 'Mercado Pago no está configurado (MP_ACCESS_TOKEN ausente).' });
     }
 
-    // El precio lo define SOLO el servidor
-    let isFirstPurchase = true;
-    if (isFirestoreAdminAuthorized) {
-      try {
-        const snap = await adminDb.collection('payments')
-          .where('uid', '==', user.uid)
-          .where('status', '==', 'approved')
-          .limit(1)
-          .get();
-        isFirstPurchase = snap.empty;
-      } catch {
-        isFirstPurchase = true;
-      }
-    } else {
-      isFirstPurchase = true;
+    // El precio lo define SOLO el servidor (incluye el código de vendedor de la primera compra)
+    if (!(await ensureFirestoreAdmin())) {
+      return res.status(503).json({ error: 'No pudimos iniciar el pago en este momento. Intenta en unos minutos.' });
     }
-    const price = isFirstPurchase ? 19990 : 39990;
+    const pricing = await resolvePricing(adminDb, user.uid);
+    const price = pricing.price;
 
     const host = req.get('x-forwarded-host') || req.get('host') || 'localhost:3000';
     const protocol = req.get('x-forwarded-proto') || req.protocol || 'http';
     const appUrl = (process.env.APP_URL || `${protocol}://${host}`).replace(/\/$/, '');
 
     const externalReference = `${user.uid}:semestral:${Date.now()}`;
+    // Precio esperado y vendedor de esta preferencia: el webhook valida el monto contra este registro
+    await adminDb.collection('checkout_orders').doc(externalReference).set({
+      uid: user.uid,
+      price,
+      code: pricing.code,
+      commissionPct: pricing.commissionPct,
+      createdAt: new Date().toISOString()
+    });
 
     const preferenceData = {
       items: [
@@ -1890,10 +1887,23 @@ app.post('/api/pagos/webhook', async (req, res) => {
       return res.status(200).send('OK');
     }
 
-    // Verificación estricta (Requirement 8): moneda CLP y monto 19990 o 39990
+    // Verificación estricta (Requirement 8): moneda CLP y monto igual al precio fijado al crear la preferencia
+    // (o 19.990 / 39.990 para preferencias anteriores a los códigos de vendedor)
     const transactionAmount = Number(paymentInfo.transaction_amount);
     const isCurrencyValid = paymentInfo.currency_id === 'CLP';
-    const isAmountValid = transactionAmount === 19990 || transactionAmount === 39990;
+    let order: { uid?: string; price?: number; code?: string | null; commissionPct?: number | null } | null = null;
+    try {
+      const extRef = String(paymentInfo.external_reference || '');
+      if (extRef && !extRef.includes('/')) {
+        const orderSnap = await adminDb.collection('checkout_orders').doc(extRef).get();
+        order = orderSnap.exists ? (orderSnap.data() as any) : null;
+      }
+    } catch (e: any) {
+      console.warn('[pagos] No se pudo leer la orden del pago:', e?.message);
+    }
+    const isAmountValid = order?.price
+      ? transactionAmount === Number(order.price)
+      : (transactionAmount === PRICE_FIRST || transactionAmount === PRICE_FULL);
 
     if (!isCurrencyValid || !isAmountValid) {
       console.warn(`Payment ${paymentId} rechazado_validacion: currency_id=${paymentInfo.currency_id}, amount=${transactionAmount}`);
@@ -1907,7 +1917,7 @@ app.post('/api/pagos/webhook', async (req, res) => {
             currencyId: paymentInfo.currency_id || 'unknown',
             status: 'rechazado_validacion',
             rejectedAt: new Date().toISOString(),
-            reason: !isCurrencyValid ? 'Moneda no es CLP' : 'Monto no corresponde a plan oficial (19.990 o 39.990)',
+            reason: !isCurrencyValid ? 'Moneda no es CLP' : `Monto no corresponde al precio fijado (${order?.price ?? '19.990 o 39.990'})`,
             externalReference: externalRef
           }, { merge: true });
         }
@@ -1941,7 +1951,8 @@ app.post('/api/pagos/webhook', async (req, res) => {
       status: 'approved',
       approvedAt: paymentInfo.date_approved || new Date().toISOString(),
       paymentMethodId: paymentInfo.payment_method_id || 'unknown',
-      externalReference: externalRef
+      externalReference: externalRef,
+      sellerCode: order?.code || null
     });
 
     // Escribir entitlements/{uid}: { plan: "semestral", status: "active", expiresAt, lastPaymentId }
@@ -1982,6 +1993,48 @@ app.post('/api/pagos/webhook', async (req, res) => {
 
     console.log(`Plan semestral activated for user ${uid} until ${expiresAt.toISOString()}`);
 
+    // Venta con código de vendedor: registra la comisión (una por pago) y avisa al vendedor
+    let commission: number | null = null;
+    if (order?.code) {
+      try {
+        const sellerSnap = await adminDb.collection('sellers').doc(order.code).get();
+        const seller = sellerSnap.exists ? (sellerSnap.data() as Seller) : null;
+        commission = commissionFor(transactionAmount, Number(order.commissionPct ?? seller?.commissionPct ?? 0));
+        let buyerEmail = '';
+        let companyName = '';
+        try { buyerEmail = (await adminAuth.getUser(uid)).email || ''; } catch {}
+        try { companyName = String((await adminDb.collection('users').doc(uid).get()).data()?.companyName || ''); } catch {}
+        const saleRef = adminDb.collection('seller_sales').doc(String(paymentId));
+        const created = await adminDb.runTransaction(async tx => {
+          if ((await tx.get(saleRef)).exists) return false;
+          tx.set(saleRef, {
+            paymentId: String(paymentId),
+            code: order!.code,
+            sellerEmail: seller?.email || '',
+            uid,
+            buyerEmail,
+            companyName,
+            amount: transactionAmount,
+            commissionPct: Number(order!.commissionPct ?? seller?.commissionPct ?? 0),
+            commission,
+            status: 'pendiente',
+            createdAt: new Date().toISOString(),
+            paidAt: null
+          });
+          return true;
+        });
+        if (created && seller?.email) {
+          await sendEmail({
+            to: seller.email,
+            ...sellerSaleEmail({ sellerName: seller.name, code: order.code, amount: transactionAmount, commission, companyName }),
+            idempotencyKey: `seller-sale-${paymentId}`
+          });
+        }
+      } catch (e: any) {
+        console.error('[vendedores] No se pudo registrar la comisión:', e?.message);
+      }
+    }
+
     // Correos de confirmación (usuario) y nueva venta (administrador). No bloquean ni hacen fallar el webhook.
     await sendPurchaseNotifications({
       uid,
@@ -1989,6 +2042,8 @@ app.post('/api/pagos/webhook', async (req, res) => {
       amount: transactionAmount,
       expiresAt: expiresAt.toISOString(),
       paymentDocRef,
+      sellerCode: order?.code || null,
+      commission,
     });
     // Recién al finalizar todo el procesamiento y guardado exitoso se responde 200
     return res.status(200).send('OK');
@@ -2566,7 +2621,7 @@ app.post('/api/admin/acceso-anticipado/avisar', requireAuth, requireAdminUser, a
       if (ent?.provisional) {
         await entRef.set({ status: 'active', expiresAt: deadline, updatedAt: new Date().toISOString() }, { merge: true });
       }
-      const price = (await isFirstPurchaseFor(it.uid)) ? 19990 : 39990;
+      const price = (await resolvePricing(adminDb, it.uid)).price;
       const sent = await sendEmail({ to: it.email, ...paymentAvailableEmail({ deadline, price }), idempotencyKey: `pay-available-${it.uid}` });
       await d.ref.set({ notifiedAt: new Date().toISOString(), paymentDeadline: deadline, notifyEmailSent: sent }, { merge: true });
       avisados++;
@@ -2593,6 +2648,238 @@ app.get('/api/admin/resumen', requireAuth, requireAdminUser, async (req, res) =>
   } catch (err: any) {
     console.error('Error in /api/admin/resumen:', err?.message);
     return res.status(500).json({ error: 'No se pudo generar el resumen: ' + (err?.message || 'error desconocido') });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Vendedores: códigos con descuento para la primera compra y comisión por venta
+// ---------------------------------------------------------------------------
+const sellerCodeLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  statusCode: 429,
+  message: { error: 'Demasiados intentos. Espera unos minutos.' }
+});
+
+const publicSellerCode = (s: Seller) => ({
+  valid: true,
+  code: s.code,
+  sellerName: firstName(s.name),
+  discountPct: s.discountPct,
+  price: priceWithDiscount(s.discountPct)
+});
+
+// Público: valida un código y muestra el precio (para visitantes sin sesión)
+app.get('/api/vendedores/codigo/:code', sellerCodeLimiter, async (req, res) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    if (!(await ensureFirestoreAdmin())) return res.status(503).json({ error: 'Intenta en unos minutos.' });
+    const seller = await getActiveSeller(adminDb, req.params.code);
+    if (!seller) return res.status(404).json({ valid: false, error: 'Ese código no existe o ya no está vigente.' });
+    return res.json(publicSellerCode(seller));
+  } catch (err: any) {
+    console.error('Error in /api/vendedores/codigo:', err?.message);
+    return res.status(500).json({ error: 'No se pudo validar el código.' });
+  }
+});
+
+// Asocia un código a la cuenta. Vale hasta la primera compra; un código nuevo reemplaza al anterior.
+app.post('/api/vendedores/aplicar', sellerCodeLimiter, requireAuth, async (req, res) => {
+  try {
+    const user = (req as AuthenticatedRequest).user!;
+    if (!(await ensureFirestoreAdmin())) return res.status(503).json({ error: 'Intenta en unos minutos.' });
+    const seller = await getActiveSeller(adminDb, req.body?.code);
+    if (!seller) return res.status(404).json({ error: 'Ese código no existe o ya no está vigente.' });
+    if (await hasApprovedPayment(adminDb, user.uid)) {
+      return res.status(409).json({ error: 'Los códigos aplican solo a la primera compra del plan.' });
+    }
+    const source = req.body?.source === 'link' ? 'link' : 'campo';
+    await adminDb.collection('referrals').doc(user.uid).set({ code: seller.code, appliedAt: new Date().toISOString(), source, email: user.email || '' });
+    return res.json({ ok: true, ...(await resolvePricing(adminDb, user.uid)) });
+  } catch (err: any) {
+    console.error('Error in /api/vendedores/aplicar:', err?.message);
+    return res.status(500).json({ error: 'No se pudo aplicar el código.' });
+  }
+});
+
+app.post('/api/vendedores/quitar', requireAuth, async (req, res) => {
+  try {
+    const user = (req as AuthenticatedRequest).user!;
+    if (!(await ensureFirestoreAdmin())) return res.status(503).json({ error: 'Intenta en unos minutos.' });
+    if (await hasApprovedPayment(adminDb, user.uid)) return res.json({ ok: true, ...(await resolvePricing(adminDb, user.uid)) });
+    await adminDb.collection('referrals').doc(user.uid).delete();
+    return res.json({ ok: true, ...(await resolvePricing(adminDb, user.uid)) });
+  } catch (err: any) {
+    console.error('Error in /api/vendedores/quitar:', err?.message);
+    return res.status(500).json({ error: 'No se pudo quitar el código.' });
+  }
+});
+
+/** Ventas, pruebas y totales de un conjunto de códigos. */
+async function sellerActivity(codes: string[]) {
+  const sales: any[] = [];
+  const trials: any[] = [];
+  for (let i = 0; i < codes.length; i += 10) {
+    const chunk = codes.slice(i, i + 10);
+    const [salesSnap, trialsSnap] = await Promise.all([
+      adminDb.collection('seller_sales').where('code', 'in', chunk).get(),
+      adminDb.collection('purchase_intents').where('sellerCode', 'in', chunk).get()
+    ]);
+    salesSnap.forEach(d => sales.push(d.data()));
+    trialsSnap.forEach(d => trials.push(d.data()));
+  }
+  sales.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  trials.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  const totals = (code?: string) => {
+    const list = code ? sales.filter(s => s.code === code) : sales;
+    const sum = (f: (s: any) => boolean) => list.filter(f).reduce((acc, s) => acc + (Number(s.commission) || 0), 0);
+    return {
+      salesCount: list.length,
+      revenue: list.reduce((acc, s) => acc + (Number(s.amount) || 0), 0),
+      commissionPending: sum(s => s.status !== 'pagada'),
+      commissionPaid: sum(s => s.status === 'pagada'),
+      trialsCount: (code ? trials.filter(t => t.sellerCode === code) : trials).filter(t => t.status !== 'pagado').length
+    };
+  };
+  return { sales, trials, totals };
+}
+
+// Panel del vendedor: entra con la cuenta cuyo correo está registrado en su código
+app.get('/api/vendedor/panel', requireAuth, async (req, res) => {
+  try {
+    const user = (req as AuthenticatedRequest).user!;
+    res.set('Cache-Control', 'no-store');
+    const email = (user.email || '').toLowerCase();
+    if (!email) return res.status(403).json({ error: 'Tu cuenta no tiene correo.' });
+    if (!user.emailVerified) {
+      return res.status(403).json({ error: 'Verifica tu correo para ver tu panel de vendedor (revisa el mensaje de verificación o entra con Google).', email });
+    }
+    if (!(await ensureFirestoreAdmin())) return res.status(503).json({ error: 'Intenta en unos minutos.' });
+    const snap = await adminDb.collection('sellers').where('email', '==', email).get();
+    if (snap.empty) return res.status(404).json({ error: 'Tu cuenta no tiene un código de vendedor.', email });
+    const sellers = snap.docs.map(d => ({ ...(d.data() as Seller), code: d.id }));
+    const { sales, trials, totals } = await sellerActivity(sellers.map(s => s.code));
+    return res.json({
+      name: sellers[0].name,
+      email,
+      codes: sellers.map(s => ({
+        code: s.code,
+        active: s.active,
+        discountPct: s.discountPct,
+        commissionPct: s.commissionPct,
+        price: priceWithDiscount(s.discountPct),
+        link: `${getAppUrl()}/?ref=${encodeURIComponent(s.code)}`,
+        ...totals(s.code)
+      })),
+      totals: totals(),
+      sales: sales.slice(0, 200).map(s => ({
+        date: s.createdAt,
+        code: s.code,
+        client: s.companyName || maskEmail(s.buyerEmail),
+        amount: s.amount,
+        commission: s.commission,
+        status: s.status,
+        paidAt: s.paidAt || null
+      })),
+      trials: trials.filter(t => t.status !== 'pagado').slice(0, 100).map(t => ({
+        date: t.createdAt,
+        code: t.sellerCode,
+        client: t.companyName || maskEmail(t.email),
+        until: t.accessUntil || null
+      }))
+    });
+  } catch (err: any) {
+    console.error('Error in /api/vendedor/panel:', err?.message);
+    return res.status(500).json({ error: 'No se pudo cargar tu panel.' });
+  }
+});
+
+// Admin: listado de vendedores con ventas y comisiones
+app.get('/api/admin/vendedores', requireAuth, requireAdminUser, async (_req, res) => {
+  try {
+    if (!(await ensureFirestoreAdmin())) return res.status(503).json({ error: 'Firestore Admin no está autorizado.' });
+    res.set('Cache-Control', 'no-store');
+    const snap = await adminDb.collection('sellers').get();
+    const sellers = snap.docs.map(d => ({ ...(d.data() as Seller), code: d.id }));
+    sellers.sort((a, b) => String(a.name).localeCompare(String(b.name), 'es'));
+    const { sales, totals } = sellers.length ? await sellerActivity(sellers.map(s => s.code)) : { sales: [], totals: () => ({}) as any };
+    return res.json({
+      appUrl: getAppUrl(),
+      sellers: sellers.map(s => ({ ...s, price: priceWithDiscount(s.discountPct), ...totals(s.code) })),
+      sales: sales.slice(0, 300),
+      limits: { maxDiscountPct: MAX_DISCOUNT_PCT, maxCommissionPct: MAX_COMMISSION_PCT, priceFull: PRICE_FULL, priceFirst: PRICE_FIRST }
+    });
+  } catch (err: any) {
+    console.error('Error in /api/admin/vendedores:', err?.message);
+    return res.status(500).json({ error: 'No se pudieron cargar los vendedores.' });
+  }
+});
+
+// Admin: crear o editar un vendedor
+app.post('/api/admin/vendedores', requireAuth, requireAdminUser, async (req, res) => {
+  try {
+    if (!(await ensureFirestoreAdmin())) return res.status(503).json({ error: 'Firestore Admin no está autorizado.' });
+    const b = req.body || {};
+    const code = normalizeCode(b.code);
+    if (!isValidCodeFormat(code)) {
+      return res.status(400).json({ error: 'El código debe tener entre 3 y 20 caracteres: letras, números, guion o guion bajo.' });
+    }
+    const name = String(b.name || '').trim().slice(0, 80);
+    const email = String(b.email || '').trim().toLowerCase().slice(0, 120);
+    const discountPct = Number(b.discountPct);
+    const commissionPct = Number(b.commissionPct);
+    if (!name) return res.status(400).json({ error: 'Falta el nombre del vendedor.' });
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'El correo del vendedor no es válido.' });
+    if (!Number.isFinite(discountPct) || discountPct < 0 || discountPct > MAX_DISCOUNT_PCT) {
+      return res.status(400).json({ error: `El descuento debe estar entre 0% y ${MAX_DISCOUNT_PCT}%.` });
+    }
+    if (!Number.isFinite(commissionPct) || commissionPct < 0 || commissionPct > MAX_COMMISSION_PCT) {
+      return res.status(400).json({ error: `La comisión debe estar entre 0% y ${MAX_COMMISSION_PCT}%.` });
+    }
+    const ref = adminDb.collection('sellers').doc(code);
+    const existing = await ref.get();
+    if (b.isNew && existing.exists) return res.status(409).json({ error: `El código ${code} ya existe.` });
+    const now = new Date().toISOString();
+    await ref.set({
+      code,
+      name,
+      email,
+      discountPct: Math.round(discountPct * 100) / 100,
+      commissionPct: Math.round(commissionPct * 100) / 100,
+      active: b.active !== false,
+      updatedAt: now,
+      ...(existing.exists ? {} : { createdAt: now })
+    }, { merge: true });
+    return res.json({ ok: true, code });
+  } catch (err: any) {
+    console.error('Error in POST /api/admin/vendedores:', err?.message);
+    return res.status(500).json({ error: 'No se pudo guardar el vendedor.' });
+  }
+});
+
+// Admin: marca como pagadas las comisiones pendientes de un código
+app.post('/api/admin/vendedores/:code/pagar', requireAuth, requireAdminUser, async (req, res) => {
+  try {
+    if (!(await ensureFirestoreAdmin())) return res.status(503).json({ error: 'Firestore Admin no está autorizado.' });
+    const code = normalizeCode(req.params.code);
+    const snap = await adminDb.collection('seller_sales').where('code', '==', code).get();
+    const pending = snap.docs.filter(d => d.data().status !== 'pagada');
+    const now = new Date().toISOString();
+    let total = 0;
+    for (let i = 0; i < pending.length; i += 400) {
+      const batch = adminDb.batch();
+      pending.slice(i, i + 400).forEach(d => {
+        total += Number(d.data().commission) || 0;
+        batch.set(d.ref, { status: 'pagada', paidAt: now }, { merge: true });
+      });
+      await batch.commit();
+    }
+    return res.json({ ok: true, count: pending.length, total });
+  } catch (err: any) {
+    console.error('Error in /api/admin/vendedores/:code/pagar:', err?.message);
+    return res.status(500).json({ error: 'No se pudieron marcar las comisiones.' });
   }
 });
 

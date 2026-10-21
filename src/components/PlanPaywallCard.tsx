@@ -16,6 +16,7 @@ import {
 import { apiFetch } from '../utils/apiFetch';
 import { announceEarlyAccess, getPaymentsMode } from '../utils/earlyAccess';
 import { usePlan } from '../hooks/usePlan';
+import { ReferralCodeField } from './ReferralCodeField';
 
 interface PlanPaywallCardProps {
   onPlanActivated?: () => void;
@@ -30,7 +31,7 @@ export const PlanPaywallCard: React.FC<PlanPaywallCardProps> = ({
   compact = false,
   highlightText
 }) => {
-  const { isFirstPurchase, price, hasActivePlan, daysLeft, isExpiringSoon } = usePlan();
+  const { isFirstPurchase, price, hasActivePlan, daysLeft, isExpiringSoon, referralCode, referralDiscountPct } = usePlan();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [paymentsEnabled, setPaymentsEnabled] = useState(true);
@@ -101,11 +102,17 @@ export const PlanPaywallCard: React.FC<PlanPaywallCardProps> = ({
             <span>ACCESO TOTAL 6 MESES</span>
           </div>
 
-          {isFirstPurchase && (
+          {isFirstPurchase && (referralCode ? (
+            (referralDiscountPct ?? 0) > 0 && (
+              <div className="px-3 py-1 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 text-xs font-black uppercase tracking-wider">
+                {referralDiscountPct}% DCTO. CON CÓDIGO {referralCode}
+              </div>
+            )
+          ) : (
             <div className="px-3 py-1 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 text-xs font-black uppercase tracking-wider animate-pulse">
               ⚡ 50% DCTO. PRIMERA COMPRA
             </div>
-          )}
+          ))}
         </div>
 
         {/* Title & Subtitle */}
@@ -174,7 +181,7 @@ export const PlanPaywallCard: React.FC<PlanPaywallCardProps> = ({
               Inversión única por 6 meses
             </span>
             <div className="flex items-baseline gap-3">
-              {isFirstPurchase ? (
+              {isFirstPurchase && price < 39990 ? (
                 <>
                   <span className="text-slate-400 text-lg line-through font-bold">
                     $39.990
@@ -183,7 +190,9 @@ export const PlanPaywallCard: React.FC<PlanPaywallCardProps> = ({
                     ${formattedPrice}
                   </span>
                   <span className="text-xs font-bold text-amber-300">
-                    — 50% de descuento en tu primer semestre
+                    {referralCode
+                      ? `— ${referralDiscountPct}% de descuento con el código ${referralCode}`
+                      : '— 50% de descuento en tu primer semestre'}
                   </span>
                 </>
               ) : (
@@ -199,6 +208,7 @@ export const PlanPaywallCard: React.FC<PlanPaywallCardProps> = ({
               Al pagar aceptas los{' '}
               <a href="/terminos" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">Términos y Condiciones</a>. Tienes derecho a retracto dentro de 10 días desde el pago, mientras no comiences a usar el plan.
             </p>
+            <div className="pt-1"><ReferralCodeField tone="dark" /></div>
           </div>
 
           {/* Action Button */}

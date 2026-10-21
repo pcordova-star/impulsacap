@@ -18,6 +18,7 @@ PLAN SEMESTRAL
 - Precio normal $39.990 CLP, IVA incluido. Primera compra: 50% de descuento, $19.990 CLP (una vez por usuario).
 - Pago único por 6 meses. NO se renueva automáticamente. Se avisa por correo 7 días antes de vencer. Si se renueva antes de vencer, los 6 meses se suman.
 - Es para 1 empresa, con hasta 3 postulaciones activas a la vez. Al terminar o archivar una postulación se libera el cupo y se puede empezar otra dentro de los 6 meses.
+- Códigos de vendedor: si un vendedor de ImpulsaCap te dio un código o un link (impulsacap.cl/?ref=CODIGO), el código fija el precio de tu primera compra en lugar del 50% de primera compra. Se aplica con el link o en "¿Tienes un código de vendedor?" junto al precio. Vale solo para la primera compra; se puede quitar o cambiar antes de pagar. Los vendedores ven sus ventas en impulsacap.cl/vendedor.
 - Consultoras o quienes asesoran a varias empresas: escribir a contacto@impulsacap.cl para un plan a medida.
 - Gratis sin plan: diagnóstico de 5 preguntas, monitor de convocatorias, catálogo, Mis postulaciones y hoja de ruta, diagnóstico tributario con la carpeta, robot de ayuda.
 

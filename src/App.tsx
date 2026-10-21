@@ -19,6 +19,9 @@ import { WelcomeStartModal } from './components/WelcomeStartModal';
 import { ToastCenter } from './components/ToastCenter';
 import { EarlyAccessModal } from './components/EarlyAccessModal';
 import { AdminDashboard } from './components/AdminDashboard';
+import { SellerPanel } from './components/SellerPanel';
+import { showToast } from './utils/toast';
+import { captureRefFromUrl, previewCode, clearStoredRef, notifyReferralChanged } from './utils/referral';
 import { trackPageview } from './utils/pageviews';
 import { AuthGateView } from './components/AuthGateView';
 import { PaymentResult } from './components/PaymentResult';
@@ -55,11 +58,12 @@ const SmartDiagnostic = React.lazy(() =>
 );
 
 // Páginas con URL propia: legales públicas (/terminos, /privacidad) y panel de administración (/admin)
-const ROUTED_TABS = ['terminos', 'privacidad', 'admin'] as const;
-function legalTabForPath(pathname: string): 'terminos' | 'privacidad' | 'admin' | null {
+const ROUTED_TABS = ['terminos', 'privacidad', 'admin', 'vendedor'] as const;
+function legalTabForPath(pathname: string): 'terminos' | 'privacidad' | 'admin' | 'vendedor' | null {
   if (pathname.startsWith('/terminos')) return 'terminos';
   if (pathname.startsWith('/privacidad')) return 'privacidad';
   if (pathname.startsWith('/admin')) return 'admin';
+  if (pathname.startsWith('/vendedor')) return 'vendedor';
   return null;
 }
 
@@ -97,6 +101,26 @@ export default function App() {
     handleUrlRoute();
     window.addEventListener('popstate', handleUrlRoute);
     return () => window.removeEventListener('popstate', handleUrlRoute);
+  }, []);
+
+  // Link de vendedor (?ref=CODIGO): guarda el código y avisa el precio
+  useEffect(() => {
+    const code = captureRefFromUrl();
+    if (!code) return;
+    previewCode(code).then(p => {
+      if ('error' in p) {
+        clearStoredRef();
+        showToast({ id: `ref-invalid-${code}`, level: 'warning', title: `El código ${code} no está vigente`, message: 'Puedes seguir con el precio de primera compra.' });
+      } else {
+        showToast({
+          id: `ref-ok-${code}`,
+          level: 'success',
+          title: `Código ${p.code} aplicado`,
+          message: `Tu primer semestre del Plan Semestral queda en $${p.price.toLocaleString('es-CL')} (IVA incluido)${p.sellerName ? `. Te atiende ${p.sellerName}.` : '.'}`
+        });
+      }
+      notifyReferralChanged();
+    });
   }, []);
 
   // Al salir de una página legal por la navegación de la app, la URL vuelve a "/"
@@ -640,6 +664,7 @@ export default function App() {
 
         {/* Panel de administración (solo correos autorizados en el servidor) */}
         {activeTab === 'admin' && <AdminDashboard />}
+        {activeTab === 'vendedor' && <SellerPanel />}
 
         {/* Páginas legales */}
         {activeTab === 'terminos' && (

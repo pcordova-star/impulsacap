@@ -359,6 +359,189 @@ const SupportInbox: React.FC = () => {
   );
 };
 
+
+/* -------------------------------------------------------------------------- */
+/* Vendedores: códigos, descuentos y comisiones                               */
+
+interface SellerRow {
+  code: string; name: string; email: string; discountPct: number; commissionPct: number; active: boolean; price: number;
+  salesCount: number; revenue: number; commissionPending: number; commissionPaid: number; trialsCount: number;
+}
+interface SellerSale { paymentId: string; code: string; companyName?: string; buyerEmail?: string; amount: number; commission: number; status: string; createdAt: string; paidAt?: string | null }
+interface SellersData { appUrl: string; sellers: SellerRow[]; sales: SellerSale[]; limits: { maxDiscountPct: number; maxCommissionPct: number; priceFull: number; priceFirst: number } }
+
+const emptyForm = { code: '', name: '', email: '', discountPct: '50', commissionPct: '20', active: true };
+
+const SellersPanel: React.FC = () => {
+  const [data, setData] = useState<SellersData | null>(null);
+  const [form, setForm] = useState(emptyForm);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [confirmPay, setConfirmPay] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/admin/vendedores');
+      const body = await res.json().catch(() => ({}));
+      if (res.ok) setData(body);
+    } catch { /* sin efecto */ }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const priceFull = data?.limits.priceFull ?? 39990;
+  const d = Number(form.discountPct);
+  const c = Number(form.commissionPct);
+  const previewPrice = Number.isFinite(d) ? Math.floor((priceFull * (1 - Math.min(90, Math.max(0, d)) / 100)) / 10) * 10 : 0;
+  const previewCommission = Number.isFinite(c) ? Math.round(previewPrice * c / 100) : 0;
+
+  const save = async (override?: Partial<typeof emptyForm> & { code: string }) => {
+    setBusy(true);
+    setMsg(null);
+    const payload = override
+      ? { ...override }
+      : { ...form, discountPct: Number(form.discountPct), commissionPct: Number(form.commissionPct), isNew: !editing };
+    try {
+      const res = await apiFetch('/api/admin/vendedores', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) { setMsg({ ok: false, text: body.error || 'No se pudo guardar.' }); return; }
+      if (!override) {
+        setMsg({ ok: true, text: `Vendedor ${body.code} guardado. Comparte con él su link y el panel ${data?.appUrl || ''}/vendedor.` });
+        setForm(emptyForm);
+        setEditing(null);
+        setShowForm(false);
+      }
+      await load();
+    } catch (err: any) {
+      setMsg({ ok: false, text: err?.message || 'No se pudo guardar.' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const markPaid = async (code: string) => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await apiFetch(`/api/admin/vendedores/${encodeURIComponent(code)}/pagar`, { method: 'POST' });
+      const body = await res.json().catch(() => ({}));
+      setMsg(res.ok ? { ok: true, text: `${body.count} comisiones de ${code} marcadas como pagadas (${clp(body.total || 0)}).` } : { ok: false, text: body.error || 'No se pudo marcar.' });
+      await load();
+    } finally {
+      setBusy(false);
+      setConfirmPay(null);
+    }
+  };
+
+  const startEdit = (s: SellerRow) => {
+    setEditing(s.code);
+    setForm({ code: s.code, name: s.name, email: s.email, discountPct: String(s.discountPct), commissionPct: String(s.commissionPct), active: s.active });
+    setShowForm(true);
+    setMsg(null);
+  };
+
+  const input = 'w-full px-3 py-2 rounded-lg border border-slate-300 text-sm outline-none focus:ring-2 focus:ring-blue-500';
+  const totalPending = data?.sellers.reduce((a, s) => a + (s.commissionPending || 0), 0) || 0;
+
+  return (
+    <Card
+      title="Vendedores"
+      subtitle={`Códigos para la primera compra. El descuento reemplaza al 50% de primera compra; la comisión se calcula sobre lo pagado.${totalPending ? ` Comisiones por pagar: ${clp(totalPending)}.` : ''}`}
+      right={!showForm ? (
+        <button type="button" onClick={() => { setShowForm(true); setEditing(null); setForm(emptyForm); setMsg(null); }} className="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-bold cursor-pointer">
+          Nuevo vendedor
+        </button>
+      ) : undefined}
+    >
+      {showForm && (
+        <form onSubmit={e => { e.preventDefault(); save(); }} className="mb-5 p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+          <p className="text-sm font-bold text-slate-900">{editing ? `Editar ${editing}` : 'Nuevo vendedor'}</p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <label className="text-xs font-semibold text-slate-600 space-y-1">Nombre
+              <input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className={input} />
+            </label>
+            <label className="text-xs font-semibold text-slate-600 space-y-1">Correo (con este entra a su panel)
+              <input required type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className={input} />
+            </label>
+            <label className="text-xs font-semibold text-slate-600 space-y-1">Código
+              <input required disabled={Boolean(editing)} value={form.code} onChange={e => setForm({ ...form, code: e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 20) })} placeholder="JUAN20" className={`${input} font-mono uppercase disabled:bg-slate-100`} />
+            </label>
+            <label className="text-xs font-semibold text-slate-600 space-y-1">Descuento al cliente (%)
+              <input required type="number" min={0} max={data?.limits.maxDiscountPct ?? 90} step="0.5" value={form.discountPct} onChange={e => setForm({ ...form, discountPct: e.target.value })} className={input} />
+            </label>
+            <label className="text-xs font-semibold text-slate-600 space-y-1">Comisión del vendedor (%)
+              <input required type="number" min={0} max={data?.limits.maxCommissionPct ?? 80} step="0.5" value={form.commissionPct} onChange={e => setForm({ ...form, commissionPct: e.target.value })} className={input} />
+            </label>
+            <label className="text-xs font-semibold text-slate-600 flex items-center gap-2 pt-5">
+              <input type="checkbox" checked={form.active} onChange={e => setForm({ ...form, active: e.target.checked })} /> Código activo
+            </label>
+          </div>
+          <p className="text-xs text-slate-600">
+            El cliente paga <strong>{clp(previewPrice)}</strong> su primer semestre y el vendedor gana <strong>{clp(previewCommission)}</strong> por venta.
+            {previewPrice > (data?.limits.priceFirst ?? 19990) && <span className="text-amber-700"> Ojo: es más caro que el 50% de primera compra sin código ({clp(data?.limits.priceFirst ?? 19990)}).</span>}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button type="submit" disabled={busy} className="px-4 py-2 rounded-lg bg-blue-700 text-white text-sm font-bold cursor-pointer disabled:opacity-60">{busy ? 'Guardando…' : 'Guardar'}</button>
+            <button type="button" onClick={() => { setShowForm(false); setEditing(null); }} className="px-4 py-2 rounded-lg border border-slate-300 text-sm font-bold cursor-pointer">Cancelar</button>
+          </div>
+        </form>
+      )}
+
+      {msg && <p role="status" className={`mb-4 text-sm ${msg.ok ? 'text-emerald-700' : 'text-rose-700'}`}>{msg.text}</p>}
+
+      <Table headers={['Vendedor', 'Código', 'Precio cliente', 'Comisión', 'Ventas', 'Pruebas', 'Por pagar', 'Pagado', '']} empty={!data || data.sellers.length === 0}>
+        {data?.sellers.map(s => (
+          <tr key={s.code} className="align-top">
+            <td className="py-2.5 pr-4"><div className="text-slate-900">{s.name}</div><div className="text-xs text-slate-500">{s.email}</div></td>
+            <td className="py-2.5 pr-4 font-mono font-bold">{s.code}{!s.active && <div className="text-[11px] font-sans font-semibold text-amber-700">Pausado</div>}</td>
+            <td className="py-2.5 pr-4 tabular-nums whitespace-nowrap">{clp(s.price)} <span className="text-xs text-slate-500">({s.discountPct}%)</span></td>
+            <td className="py-2.5 pr-4 tabular-nums">{s.commissionPct}%</td>
+            <td className="py-2.5 pr-4 tabular-nums">{s.salesCount}<div className="text-xs text-slate-500">{clp(s.revenue)}</div></td>
+            <td className="py-2.5 pr-4 tabular-nums">{s.trialsCount}</td>
+            <td className="py-2.5 pr-4 tabular-nums font-semibold text-amber-700">{clp(s.commissionPending)}</td>
+            <td className="py-2.5 pr-4 tabular-nums text-emerald-700">{clp(s.commissionPaid)}</td>
+            <td className="py-2.5 pr-0">
+              <div className="flex flex-wrap gap-1.5 justify-end">
+                <button type="button" onClick={() => { try { navigator.clipboard.writeText(`${data.appUrl}/?ref=${s.code}`); setMsg({ ok: true, text: `Link de ${s.code} copiado: ${data.appUrl}/?ref=${s.code}` }); } catch { /* sin portapapeles */ } }} className="px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-bold cursor-pointer">Copiar link</button>
+                <button type="button" onClick={() => startEdit(s)} className="px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-bold cursor-pointer">Editar</button>
+                <button type="button" disabled={busy} onClick={() => save({ code: s.code, name: s.name, email: s.email, discountPct: s.discountPct as any, commissionPct: s.commissionPct as any, active: !s.active })} className="px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-bold cursor-pointer disabled:opacity-60">{s.active ? 'Pausar' : 'Activar'}</button>
+                {s.commissionPending > 0 && (confirmPay === s.code ? (
+                  <button type="button" disabled={busy} onClick={() => markPaid(s.code)} className="px-2.5 py-1.5 rounded-lg bg-emerald-700 text-white text-xs font-bold cursor-pointer disabled:opacity-60">Confirmar pago de {clp(s.commissionPending)}</button>
+                ) : (
+                  <button type="button" onClick={() => setConfirmPay(s.code)} className="px-2.5 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-bold cursor-pointer">Marcar pagado</button>
+                ))}
+              </div>
+            </td>
+          </tr>
+        ))}
+      </Table>
+
+      {data && data.sales.length > 0 && (
+        <div className="mt-6">
+          <h3 className="text-sm font-bold text-slate-900 mb-3">Ventas con código</h3>
+          <Table headers={['Fecha', 'Código', 'Cliente', 'Venta', 'Comisión', 'Estado']}>
+            {data.sales.slice(0, 50).map(v => (
+              <tr key={v.paymentId}>
+                <td className="py-2.5 pr-4 whitespace-nowrap text-slate-600">{fmtDate(v.createdAt, true)}</td>
+                <td className="py-2.5 pr-4 font-mono">{v.code}</td>
+                <td className="py-2.5 pr-4"><div className="text-slate-900">{v.companyName || '—'}</div><div className="text-xs text-slate-500">{v.buyerEmail}</div></td>
+                <td className="py-2.5 pr-4 tabular-nums">{clp(v.amount)}</td>
+                <td className="py-2.5 pr-4 tabular-nums font-semibold">{clp(v.commission)}</td>
+                <td className="py-2.5 pr-4 whitespace-nowrap">{v.status === 'pagada' ? <span className="text-emerald-700">Pagada {fmtDate(v.paidAt || null)}</span> : <span className="text-amber-700">Por pagar</span>}</td>
+              </tr>
+            ))}
+          </Table>
+        </div>
+      )}
+    </Card>
+  );
+};
+
 export const AdminDashboard: React.FC = () => {
   const [data, setData] = useState<Summary | null>(null);
   const [showAllUsers, setShowAllUsers] = useState(false);
@@ -554,6 +737,8 @@ export const AdminDashboard: React.FC = () => {
           </button>
         )}
       </Card>
+
+      <SellersPanel />
 
       <EarlyAccessPanel />
 
