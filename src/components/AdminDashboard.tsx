@@ -185,6 +185,109 @@ const Status: React.FC<{ ok: boolean; okText: string; badText: string }> = ({ ok
 
 /* -------------------------------------------------------------------------- */
 
+interface Ticket {
+  id: string; ticketId: string; createdAt: string; status: 'abierto' | 'resuelto';
+  email: string; name?: string; message: string; page?: string; hasPlan?: boolean;
+  conversation?: { role: 'user' | 'bot'; text: string }[];
+}
+
+/** Bandeja de solicitudes de soporte creadas desde el asistente de ayuda. */
+const SupportInbox: React.FC = () => {
+  const [tickets, setTickets] = useState<Ticket[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<'abierto' | 'todos'>('abierto');
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const loadTickets = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/admin/soporte');
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || 'No se pudieron cargar las solicitudes.');
+      setTickets(body.tickets || []);
+      setError(null);
+    } catch (e: any) {
+      setError(e?.message || 'No se pudieron cargar las solicitudes.');
+    }
+  }, []);
+  useEffect(() => { loadTickets(); }, [loadTickets]);
+
+  const setStatus = async (t: Ticket, status: 'abierto' | 'resuelto') => {
+    setBusy(t.id);
+    try {
+      const res = await apiFetch(`/api/admin/soporte/${t.id}/estado`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      if (res.ok) setTickets(prev => (prev || []).map(x => (x.id === t.id ? { ...x, status } : x)));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const open = (tickets || []).filter(t => t.status !== 'resuelto');
+  const shown = filter === 'abierto' ? open : (tickets || []);
+
+  return (
+    <Card
+      title="Soporte"
+      subtitle={tickets ? `${open.length} ${open.length === 1 ? 'solicitud abierta' : 'solicitudes abiertas'}` : 'Cargando…'}
+      right={
+        <div className="flex gap-1 rounded-xl bg-slate-100 p-1">
+          {(['abierto', 'todos'] as const).map(f => (
+            <button key={f} type="button" onClick={() => setFilter(f)} className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer ${filter === f ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'}`}>
+              {f === 'abierto' ? 'Abiertas' : 'Todas'}
+            </button>
+          ))}
+        </div>
+      }
+    >
+      {error && <p className="text-sm text-rose-700">{error}</p>}
+      {tickets && shown.length === 0 && <p className="text-sm text-slate-500">{filter === 'abierto' ? 'No hay solicitudes abiertas.' : 'Aún no hay solicitudes.'}</p>}
+      <ul className="divide-y divide-slate-100">
+        {shown.map(t => (
+          <li key={t.id} className="py-3 space-y-2">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+              <span className="font-mono text-xs text-slate-500">#{t.ticketId}</span>
+              <span className="font-semibold text-slate-900 break-all">{t.email}</span>
+              <span className="text-xs text-slate-500">{fmtDate(t.createdAt, true)}</span>
+              {t.hasPlan && <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">Con plan</span>}
+              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${t.status === 'resuelto' ? 'bg-slate-100 text-slate-600 border-slate-200' : 'bg-amber-50 text-amber-800 border-amber-200'}`}>
+                {t.status === 'resuelto' ? 'Resuelta' : 'Abierta'}
+              </span>
+            </div>
+            <p className="text-sm text-slate-800 whitespace-pre-line">{t.message}</p>
+            {t.conversation && t.conversation.length > 0 && (
+              <details className="text-xs text-slate-600">
+                <summary className="cursor-pointer text-slate-500">Ver conversación con el asistente ({t.conversation.length})</summary>
+                <div className="mt-2 space-y-1 pl-3 border-l-2 border-slate-200">
+                  {t.conversation.map((m, i) => <p key={i}><strong>{m.role === 'user' ? 'Cliente' : 'Asistente'}:</strong> {m.text}</p>)}
+                </div>
+              </details>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <a
+                href={`mailto:${t.email}?subject=${encodeURIComponent(`Re: Tu consulta #${t.ticketId}`)}&body=${encodeURIComponent(`Hola,\n\n\n\n---\nTu consulta:\n${t.message}`)}`}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-bold"
+              >
+                Responder por correo
+              </a>
+              <button
+                type="button"
+                disabled={busy === t.id}
+                onClick={() => setStatus(t, t.status === 'resuelto' ? 'abierto' : 'resuelto')}
+                className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer disabled:opacity-60"
+              >
+                {t.status === 'resuelto' ? 'Reabrir' : 'Marcar como resuelta'}
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+};
+
 export const AdminDashboard: React.FC = () => {
   const [data, setData] = useState<Summary | null>(null);
   const [showAllUsers, setShowAllUsers] = useState(false);
@@ -380,6 +483,8 @@ export const AdminDashboard: React.FC = () => {
           </button>
         )}
       </Card>
+
+      <SupportInbox />
 
       <Card title="Estado del sistema">
         <ul className="grid gap-3 sm:grid-cols-2 text-sm">

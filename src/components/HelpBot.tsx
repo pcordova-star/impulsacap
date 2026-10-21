@@ -1,21 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-  Bot, 
-  X, 
-  Send, 
-  Sparkles, 
-  HelpCircle, 
-  ArrowRight, 
-  RefreshCw,
-  AlertCircle
-} from 'lucide-react';
+import { Bot, X, Send, ArrowRight, RefreshCw, AlertCircle, UserRound, CheckCircle2, ArrowLeft } from 'lucide-react';
 import { apiFetch } from '../utils/apiFetch';
 import { CompanyUser } from '../types/funds';
+import { showToast } from '../utils/toast';
 
 interface HelpBotProps {
   currentUser: CompanyUser | null;
   onNavigateTab: (tab: string) => void;
   onOpenAuthModal: (mode?: 'login' | 'register') => void;
+  /** Sección actual de la app, para dar contexto a la solicitud de soporte */
+  currentSection?: string;
 }
 
 interface BotMessage {
@@ -24,132 +18,185 @@ interface BotMessage {
   text: string;
   timestamp: string;
   isExpertRedirect?: boolean;
+  needsHuman?: boolean;
 }
 
-const STATIC_FAQS: Record<string, string> = {
+const SUPPORT_EMAIL = 'contacto@impulsacap.cl';
+
+/** Respuestas inmediatas a las dudas más comunes (alineadas con server/supportKnowledge.ts). */
+const QUICK_ANSWERS: Record<string, string> = {
   '¿Cómo funciona ImpulsaCap?':
-    'ImpulsaCap te guía paso a paso para preparar postulaciones completas a fondos del Estado (CORFO, SERCOTEC, etc.). Subes tu Carpeta Tributaria del SII para validar requisitos, formulas tu proyecto con Inteligencia Artificial, estructuras el presupuesto por cuentas aprobadas, simulas la evaluación de un comité con el Auditor Ciego y descargas tu expediente listo para copiar a e-CORFO.',
-  '¿Qué incluye el Plan Semestral y cuánto cuesta?':
-    'El Plan Semestral tiene un precio normal de $39.990 CLP, con 50% de descuento en tu primera compra quedando en $19.990 CLP. Incluye 6 meses de acceso completo para hasta 3 postulaciones simultáneas: formulador técnico con IA, simulación de auditoría ciega, generador de cartas de interés (LOI), expediente consolidado en PDF y asesor experto por postulación.',
-  '¿Cómo pago y qué pasa después?':
-    'El pago se hace con Mercado Pago, con los medios que ofrece (por ejemplo, tarjeta de crédito o débito). Es un pago único, IVA incluido, sin renovación automática. Cuando Mercado Pago confirma el pago, normalmente en segundos, tu plan se activa y te llega un correo de confirmación. Tienes derecho a retracto dentro de 10 días desde el pago, mientras no hayas comenzado a usar el plan.',
-  '¿Qué hacen con mis datos?':
-    'Usamos tus datos solo para prestarte el servicio y no los vendemos. Cada usuario solo puede ver sus propios datos. El archivo de tu carpeta tributaria no se guarda: se procesa en el momento y conservamos solo un resumen. Para operar usamos proveedores como Google (alojamiento e IA) y Mercado Pago (pagos). El detalle está en la Política de Privacidad, en impulsacap.cl/privacidad.'
+    'Te acompañamos en 3 etapas:\n1. Encuentra tu fondo: diagnóstico de 5 preguntas y monitor de convocatorias (gratis).\n2. Revisa si cumples: sube tu carpeta tributaria y ve a qué fondos calificas (gratis).\n3. Prepara tu postulación con el Plan Semestral: redacción con IA, cartas, auditoría simulada y expediente PDF.\nLa postulación final la envías tú en el portal del fondo.',
+  '¿Qué incluye el plan y cuánto cuesta?':
+    'El Plan Semestral cuesta $39.990 (IVA incluido) y tu primera compra tiene 50% de descuento: $19.990. Es un pago único por 6 meses, sin renovación automática. Es para 1 empresa con hasta 3 postulaciones activas a la vez, e incluye redacción con IA, cartas y documentos, auditoría simulada, expediente PDF y asesor experto.',
+  '¿Cómo obtengo mi carpeta tributaria?':
+    '1. Entra a sii.cl con tu RUT y clave.\n2. Ve a Servicios online > Situación tributaria > Carpeta tributaria electrónica.\n3. Elige "Acreditar tamaño de empresa", la regular o una personalizada con F29 y F22, y descárgala en PDF.\n4. Súbela en ImpulsaCap desde tu postulación (paso 1) o desde "Mi empresa".',
+  'Pagué y no veo mi plan activo':
+    'Normalmente se activa en segundos. Recarga la página y revisa "Mi empresa" > "Mi Plan y Suscripción". Si después de unos minutos sigue sin activarse, toca "Hablar con una persona" y déjanos el número de operación de Mercado Pago para revisarlo.'
 };
 
-export const HelpBot: React.FC<HelpBotProps> = ({
-  currentUser,
-  onNavigateTab,
-  onOpenAuthModal
-}) => {
-  const [isOpen, setIsOpen] = useState<boolean>(false);
-  const [input, setInput] = useState<string>('');
-  const [loading, setLoading] = useState<boolean>(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+const now = () => new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
 
+export const HelpBot: React.FC<HelpBotProps> = ({ currentUser, onNavigateTab, onOpenAuthModal, currentSection }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [view, setView] = useState<'chat' | 'ticket'>('chat');
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [messages, setMessages] = useState<BotMessage[]>([
     {
       id: 'welcome',
       sender: 'bot',
-      text: '¡Hola! Soy el Robot de Ayuda de ImpulsaCap 🤖. Puedo orientarte sobre el funcionamiento del sistema, la Hoja de Ruta, planes y cómo subir tus documentos.',
-      timestamp: new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
+      text: '¡Hola! Soy el asistente de ImpulsaCap. Te ayudo con tu cuenta, el plan, los pagos, la carpeta tributaria o cualquier duda sobre cómo usar la plataforma.',
+      timestamp: now()
     }
   ]);
+
+  // Formulario de solicitud a una persona
+  const [ticketEmail, setTicketEmail] = useState(currentUser?.email || '');
+  const [ticketMessage, setTicketMessage] = useState('');
+  const [ticketSending, setTicketSending] = useState(false);
+  const [ticketError, setTicketError] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (isOpen) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages, isOpen, loading]);
+    if (currentUser?.email && !ticketEmail) setTicketEmail(currentUser.email);
+  }, [currentUser?.email]);
 
-  const handleSelectFaq = (question: string) => {
-    const answer = STATIC_FAQS[question];
-    if (!answer) return;
+  useEffect(() => {
+    if (isOpen && view === 'chat') messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isOpen, loading, view]);
 
+  const historyForApi = () =>
+    messages
+      .filter(m => m.id !== 'welcome')
+      .slice(-8)
+      .map(m => ({ role: m.sender === 'user' ? 'user' : 'bot', text: m.text }));
+
+  const handleQuick = (question: string) => {
     setErrorMsg(null);
-    const now = new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
-    
     setMessages(prev => [
       ...prev,
-      {
-        id: `user_${Date.now()}`,
-        sender: 'user',
-        text: question,
-        timestamp: now
-      },
-      {
-        id: `bot_${Date.now() + 1}`,
-        sender: 'bot',
-        text: answer,
-        timestamp: now
-      }
+      { id: `user_${Date.now()}`, sender: 'user', text: question, timestamp: now() },
+      { id: `bot_${Date.now() + 1}`, sender: 'bot', text: QUICK_ANSWERS[question], timestamp: now() }
     ]);
   };
 
-  const handleSendFreeText = async (e?: React.FormEvent) => {
+  const handleSend = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const trimmed = input.trim();
     if (!trimmed || loading) return;
-
     if (trimmed.length > 500) {
       setErrorMsg('El mensaje no puede superar los 500 caracteres.');
       return;
     }
-
     setErrorMsg(null);
-    const now = new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
-    
-    const userMsg: BotMessage = {
-      id: `user_${Date.now()}`,
-      sender: 'user',
-      text: trimmed,
-      timestamp: now
-    };
-
-    setMessages(prev => [...prev, userMsg]);
+    const history = historyForApi();
+    setMessages(prev => [...prev, { id: `user_${Date.now()}`, sender: 'user', text: trimmed, timestamp: now() }]);
     setInput('');
     setLoading(true);
-
     try {
       const res = await apiFetch('/api/ayuda/chat', {
         method: 'POST',
+        requireAuth: false,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: trimmed })
+        body: JSON.stringify({ message: trimmed, history })
       });
-
       const data = await res.json().catch(() => ({}));
-
       if (!res.ok) {
-        throw new Error(data.error || 'No se pudo obtener respuesta del servicio de ayuda.');
+        setMessages(prev => [...prev, {
+          id: `bot_${Date.now()}`,
+          sender: 'bot',
+          text: data.error || 'No pude responder en este momento.',
+          timestamp: now(),
+          needsHuman: true
+        }]);
+        return;
       }
-
-      const botReply: BotMessage = {
+      setMessages(prev => [...prev, {
         id: `bot_${Date.now()}`,
         sender: 'bot',
-        text: data.reply || 'No tengo información sobre eso en este momento. Te sugiero escribir a soporte.',
-        timestamp: new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }),
-        isExpertRedirect: Boolean(data.isExpertRedirect)
-      };
-
-      setMessages(prev => [...prev, botReply]);
+        text: data.reply || 'No tengo esa información. Si quieres, te comunico con una persona.',
+        timestamp: now(),
+        isExpertRedirect: Boolean(data.isExpertRedirect),
+        needsHuman: Boolean(data.needsHuman)
+      }]);
     } catch (err: any) {
-      console.warn('HelpBot error:', err);
       setErrorMsg(err?.message || 'Error de conexión. Intenta nuevamente.');
     } finally {
       setLoading(false);
     }
   };
 
+  const openTicket = () => {
+    const lastUserMsg = [...messages].reverse().find(m => m.sender === 'user')?.text || '';
+    if (!ticketMessage) setTicketMessage(lastUserMsg);
+    setTicketError(null);
+    setView('ticket');
+  };
+
+  const sendTicket = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTicketError(null);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ticketEmail.trim())) {
+      setTicketError('Ingresa un correo válido para poder responderte.');
+      return;
+    }
+    if (ticketMessage.trim().length < 5) {
+      setTicketError('Cuéntanos un poco más sobre tu consulta.');
+      return;
+    }
+    setTicketSending(true);
+    try {
+      const res = await apiFetch('/api/soporte/ticket', {
+        method: 'POST',
+        requireAuth: false,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: ticketEmail.trim(),
+          name: currentUser?.representativeName || '',
+          message: ticketMessage.trim(),
+          page: currentSection || '',
+          conversation: historyForApi()
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ticketId) throw new Error(data.error || `No pudimos enviar tu solicitud. Escríbenos a ${SUPPORT_EMAIL}.`);
+      setMessages(prev => [...prev, {
+        id: `bot_${Date.now()}`,
+        sender: 'bot',
+        text: `Listo, recibimos tu solicitud #${data.ticketId}. Te responderemos a ${ticketEmail.trim()} lo antes posible; también te enviamos una confirmación a ese correo.`,
+        timestamp: now()
+      }]);
+      setTicketMessage('');
+      setView('chat');
+      showToast({ id: `ticket-${data.ticketId}`, level: 'success', title: `Solicitud #${data.ticketId} enviada`, message: 'Te responderemos por correo.' });
+    } catch (err: any) {
+      setTicketError(err?.message || `No pudimos enviar tu solicitud. Escríbenos a ${SUPPORT_EMAIL}.`);
+    } finally {
+      setTicketSending(false);
+    }
+  };
+
+  const humanButton = (
+    <button
+      type="button"
+      onClick={openTicket}
+      className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 text-xs font-bold cursor-pointer"
+    >
+      <UserRound className="w-3.5 h-3.5" />
+      Hablar con una persona
+    </button>
+  );
+
   return (
     <>
-      {/* Botón flotante: en móvil solo un círculo con el ícono del robot (sin texto), en escritorio con texto */}
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          title="Ayuda sobre la plataforma"
-          aria-label="Ayuda sobre la plataforma"
+          title="Ayuda"
+          aria-label="Abrir ayuda"
           className="fixed bottom-20 md:bottom-6 right-3.5 sm:right-6 z-40 flex items-center justify-center gap-2 p-3 sm:px-3.5 sm:py-2.5 rounded-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xl shadow-slate-900/30 active:scale-95 transition-all cursor-pointer border border-slate-700/80 group"
         >
           <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-blue-600/30 flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform shrink-0">
@@ -159,165 +206,159 @@ export const HelpBot: React.FC<HelpBotProps> = ({
         </button>
       )}
 
-      {/* Modal / Panel Compacto de Ayuda */}
       {isOpen && (
-        <div 
-          className="fixed inset-0 z-50 flex items-end sm:items-end justify-end p-4 sm:p-6 bg-slate-950/20 backdrop-blur-2xs animate-fade-in"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setIsOpen(false);
-          }}
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-end p-3 sm:p-6 bg-slate-950/20 animate-fade-in"
+          onClick={(e) => { if (e.target === e.currentTarget) setIsOpen(false); }}
         >
-          <div 
-            className="w-[calc(100vw-32px)] sm:w-[380px] max-h-[70vh] bg-white rounded-3xl border border-slate-200 shadow-2xl flex flex-col overflow-hidden animate-slide-up sm:animate-zoom-in"
+          <div
+            role="dialog"
+            aria-label="Ayuda de ImpulsaCap"
+            className="w-full sm:w-[400px] max-h-[80vh] bg-white rounded-3xl border border-slate-200 shadow-2xl flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
-            <div className="p-3.5 sm:p-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
+            {/* Encabezado */}
+            <div className="p-4 bg-slate-900 text-white flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-blue-600/30 border border-blue-500/40 flex items-center justify-center text-blue-400">
-                  <Bot className="w-4 h-4" />
-                </div>
+                {view === 'ticket' ? (
+                  <button type="button" onClick={() => setView('chat')} aria-label="Volver al chat" className="p-1.5 rounded-xl hover:bg-slate-800 text-slate-300 cursor-pointer">
+                    <ArrowLeft className="w-4 h-4" />
+                  </button>
+                ) : (
+                  <div className="w-8 h-8 rounded-xl bg-blue-600/30 border border-blue-500/40 flex items-center justify-center text-blue-300">
+                    <Bot className="w-4 h-4" />
+                  </div>
+                )}
                 <div>
-                  <h3 className="text-xs font-bold leading-tight flex items-center gap-1.5">
-                    <span>Robot de Ayuda</span>
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  </h3>
-                  <p className="text-[10px] text-slate-400">
-                    Soporte y guía de ImpulsaCap
-                  </p>
+                  <h3 className="text-sm font-bold leading-tight">{view === 'ticket' ? 'Hablar con una persona' : 'Ayuda'}</h3>
+                  <p className="text-[11px] text-slate-400">{view === 'ticket' ? 'Te respondemos por correo' : 'Responde al instante, a cualquier hora'}</p>
                 </div>
               </div>
-
-              <button
-                onClick={() => setIsOpen(false)}
-                className="p-1.5 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
-                title="Cerrar ayuda"
-              >
+              <button onClick={() => setIsOpen(false)} aria-label="Cerrar ayuda" className="p-1.5 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Area de Mensajes con Scroll Interno */}
-            <div className="flex-1 overflow-y-auto p-3.5 space-y-3 bg-slate-50 text-xs">
-              {messages.map((m) => {
-                const isBot = m.sender === 'bot';
-                return (
-                  <div
-                    key={m.id}
-                    className={`flex flex-col ${isBot ? 'items-start' : 'items-end'}`}
-                  >
-                    <div
-                      className={`max-w-[88%] rounded-2xl p-3 leading-relaxed ${
-                        isBot
-                          ? 'bg-white border border-slate-200 text-slate-800 shadow-2xs'
-                          : 'bg-blue-600 text-white font-medium'
-                      }`}
-                    >
-                      <p className="whitespace-pre-line text-xs">{m.text}</p>
-
-                      {/* Botón de redirección si es una consulta sobre fondos/postulaciones */}
-                      {m.isExpertRedirect && (
-                        <div className="mt-2.5 pt-2 border-t border-slate-100">
-                          {currentUser ? (
-                            <button
-                              onClick={() => {
-                                setIsOpen(false);
-                                onNavigateTab('my-applications');
-                              }}
-                              className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
-                            >
-                              <span>Ir a Mis postulaciones</span>
-                              <ArrowRight className="w-3.5 h-3.5" />
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => {
-                                setIsOpen(false);
-                                onOpenAuthModal('login');
-                              }}
-                              className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
-                            >
-                              <span>Iniciar sesión / Registrarse</span>
-                              <ArrowRight className="w-3.5 h-3.5" />
-                            </button>
+            {view === 'chat' ? (
+              <>
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50">
+                  {messages.map(m => {
+                    const isBot = m.sender === 'bot';
+                    return (
+                      <div key={m.id} className={`flex flex-col ${isBot ? 'items-start' : 'items-end'}`}>
+                        <div className={`max-w-[88%] rounded-2xl p-3 leading-relaxed ${isBot ? 'bg-white border border-slate-200 text-slate-800' : 'bg-blue-600 text-white'}`}>
+                          <p className="whitespace-pre-line text-[13px]">{m.text}</p>
+                          {m.isExpertRedirect && (
+                            <div className="mt-2.5 pt-2 border-t border-slate-100">
+                              <button
+                                onClick={() => { setIsOpen(false); if (currentUser) onNavigateTab('my-applications'); else onOpenAuthModal('login'); }}
+                                className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer"
+                              >
+                                {currentUser ? 'Ir a Mis postulaciones' : 'Iniciar sesión o registrarme'}
+                                <ArrowRight className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           )}
+                          {m.needsHuman && <div className="mt-2.5 pt-2 border-t border-slate-100">{humanButton}</div>}
                         </div>
-                      )}
+                        <span className="text-[10px] text-slate-400 mt-0.5 px-1">{m.timestamp}</span>
+                      </div>
+                    );
+                  })}
+
+                  {loading && (
+                    <div className="flex items-center gap-2 text-slate-500 text-xs p-2 bg-white rounded-xl border border-slate-200 w-fit">
+                      <RefreshCw className="w-3 h-3 animate-spin text-blue-600" />
+                      Escribiendo…
                     </div>
-                    <span className="text-[9px] text-slate-400 mt-0.5 px-1">
-                      {m.timestamp}
-                    </span>
-                  </div>
-                );
-              })}
+                  )}
+                  {errorMsg && (
+                    <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
+                      <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                      <span>{errorMsg}</span>
+                    </div>
+                  )}
 
-              {loading && (
-                <div className="flex items-center gap-2 text-slate-500 text-[11px] p-2 bg-white rounded-xl border border-slate-200/80 w-fit">
-                  <RefreshCw className="w-3 h-3 animate-spin text-blue-600" />
-                  <span>Consultando información...</span>
+                  {messages.length <= 3 && (
+                    <div className="pt-1 space-y-1.5">
+                      <p className="text-[11px] text-slate-500">Preguntas frecuentes</p>
+                      {Object.keys(QUICK_ANSWERS).map(q => (
+                        <button
+                          key={q}
+                          onClick={() => handleQuick(q)}
+                          className="block w-full text-left px-3 py-2 rounded-xl bg-white border border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 text-xs text-slate-700 font-medium cursor-pointer"
+                        >
+                          {q}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <div ref={messagesEndRef} />
                 </div>
-              )}
 
-              {errorMsg && (
-                <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-[11px] flex items-center gap-2">
-                  <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                  <span>{errorMsg}</span>
-                </div>
-              )}
-
-              {/* 4 Preguntas Frecuentes Rápidas */}
-              <div className="pt-2">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-                  Preguntas frecuentes:
-                </p>
-                <div className="grid grid-cols-1 gap-1.5">
-                  {Object.keys(STATIC_FAQS).map((q, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => handleSelectFaq(q)}
-                      className="text-left px-2.5 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 text-[11px] text-slate-700 font-medium transition-all cursor-pointer shadow-2xs"
-                    >
-                      {q}
+                <div className="p-3 bg-white border-t border-slate-200 space-y-2">
+                  <form onSubmit={handleSend} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      maxLength={500}
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      placeholder="Escribe tu pregunta…"
+                      aria-label="Tu pregunta"
+                      className="flex-1 px-3 py-2.5 text-sm rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:outline-hidden focus:bg-white focus:border-blue-500 placeholder:text-slate-400"
+                    />
+                    <button type="submit" disabled={!input.trim() || loading} aria-label="Enviar" className="p-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white cursor-pointer shrink-0">
+                      <Send className="w-4 h-4" />
                     </button>
-                  ))}
+                  </form>
+                  <button type="button" onClick={openTicket} className="w-full text-center text-xs text-slate-500 hover:text-slate-800 cursor-pointer">
+                    ¿Prefieres hablar con una persona? <span className="font-semibold underline underline-offset-2">Déjanos tu consulta</span>
+                  </button>
                 </div>
-              </div>
-
-              {/* Mensaje final de contacto a soporte */}
-              <div className="pt-3 border-t border-slate-200/80 text-center">
-                <p className="text-[10px] text-slate-500">
-                  ¿Necesitas ayuda de una persona? Escríbenos a <strong>[CORREO_SOPORTE]</strong>
+              </>
+            ) : (
+              <form onSubmit={sendTicket} className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50">
+                <p className="text-[13px] text-slate-600 leading-relaxed">
+                  Cuéntanos qué necesitas y te responderemos por correo. Si es sobre un pago, incluye el número de operación de Mercado Pago.
                 </p>
-              </div>
-
-              <div ref={messagesEndRef} />
-            </div>
-
-            {/* Input para preguntas libres - Siempre visible */}
-            <div className="p-3 bg-white border-t border-slate-200">
-              <form onSubmit={handleSendFreeText} className="flex items-center gap-2">
-                <input
-                  type="text"
-                  maxLength={500}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder="Escribe tu consulta sobre la plataforma..."
-                  className="flex-1 px-3 py-2 text-xs rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:outline-hidden focus:bg-white focus:border-blue-500 placeholder:text-slate-400"
-                />
+                <label className="block space-y-1">
+                  <span className="text-xs font-semibold text-slate-700">Tu correo</span>
+                  <input
+                    type="email"
+                    required
+                    value={ticketEmail}
+                    onChange={(e) => setTicketEmail(e.target.value)}
+                    placeholder="nombre@empresa.cl"
+                    className="w-full px-3 py-2.5 text-sm rounded-xl bg-white border border-slate-300 text-slate-900 focus:outline-hidden focus:border-blue-500"
+                  />
+                </label>
+                <label className="block space-y-1">
+                  <span className="text-xs font-semibold text-slate-700">Tu consulta</span>
+                  <textarea
+                    required
+                    rows={5}
+                    maxLength={2000}
+                    value={ticketMessage}
+                    onChange={(e) => setTicketMessage(e.target.value)}
+                    placeholder="Por ejemplo: pagué el plan y no aparece activo. Número de operación: 123456789."
+                    className="w-full px-3 py-2.5 text-sm rounded-xl bg-white border border-slate-300 text-slate-900 focus:outline-hidden focus:border-blue-500 leading-relaxed"
+                  />
+                </label>
+                <p className="text-[11px] text-slate-500">Adjuntaremos esta conversación con el asistente para no pedirte lo mismo dos veces.</p>
+                {ticketError && (
+                  <p className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-xl p-2.5" role="alert">{ticketError}</p>
+                )}
                 <button
                   type="submit"
-                  disabled={!input.trim() || loading}
-                  className="p-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white transition-all cursor-pointer shrink-0"
-                  title="Enviar consulta"
+                  disabled={ticketSending}
+                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold cursor-pointer disabled:opacity-60"
                 >
-                  <Send className="w-3.5 h-3.5" />
+                  {ticketSending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                  {ticketSending ? 'Enviando…' : 'Enviar consulta'}
                 </button>
+                <p className="text-[11px] text-slate-500 text-center">También puedes escribir a {SUPPORT_EMAIL}</p>
               </form>
-              <div className="flex justify-between items-center px-1 mt-1 text-[9px] text-slate-400">
-                <span>Solo consultas sobre la plataforma</span>
-                <span>{input.length}/500</span>
-              </div>
-            </div>
+            )}
           </div>
         </div>
       )}

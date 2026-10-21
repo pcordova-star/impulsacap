@@ -25,6 +25,7 @@ import {
   parseNumberCLP 
 } from './server/taxFolderExtractor';
 import { buildAdminSummary, chileDayKey, TRACKED_PAGES } from './server/adminStats';
+import { SUPPORT_KNOWLEDGE } from './server/supportKnowledge';
 import {
   sendEmail,
   getAdminEmail,
@@ -34,6 +35,8 @@ import {
   adminSaleEmail,
   reminderEmail,
   testEmail,
+  supportTicketAdminEmail,
+  supportTicketUserEmail,
 } from './server/email';
 
 dotenv.config();
@@ -1472,69 +1475,151 @@ app.post('/api/ayuda/chat', async (req, res) => {
     if (message.length > 500) {
       return res.status(400).json({ error: 'El mensaje no puede superar los 500 caracteres.' });
     }
+    // Conversación previa (para entender preguntas como "¿y si no me llega?")
+    const history: { role: 'user' | 'bot'; text: string }[] = Array.isArray(req.body?.history)
+      ? req.body.history
+          .filter((m: any) => (m?.role === 'user' || m?.role === 'bot') && typeof m?.text === 'string')
+          .slice(-8)
+          .map((m: any) => ({ role: m.role, text: String(m.text).slice(0, 600) }))
+      : [];
 
-    const systemInstruction = `Eres el Robot de Ayuda de ImpulsaCap, el asistente de soporte técnico y guía de navegación de la plataforma web.
+    const systemInstruction = `Eres el asistente de soporte de ImpulsaCap. Respondes dudas sobre cómo usar la plataforma, cuentas, planes, pagos, correos, carpeta tributaria, privacidad y problemas técnicos.
 
-BASE DE CONOCIMIENTO OFICIAL DE IMPULSACAP:
-1. ¿CÓMO FUNCIONA LA PLATAFORMA?:
-ImpulsaCap es la plataforma digital chilena que guía a emprendedores y empresas paso a paso para postular a fondos concursables (CORFO, SERCOTEC, ANID, Start-Up Chile, FIA).
-Funciona mediante una Hoja de Ruta en 6 pasos estructurados:
-- Paso 1: Validación Tributaria y SII (se valida RUT con Módulo 11 y se vincula la Carpeta Tributaria Electrónica F29 del SII).
-- Paso 2: Acreditación Legal y Cartas de Interés (estatutos sociales y cartas LOI de clientes para pertinencia comercial).
-- Paso 3: Formulación Técnica con IA (redacción guiada bajo las rúbricas y criterios de comités evaluadores).
-- Paso 4: Presupuesto y Cuentas Oficiales (cuentas de Recursos Humanos, Operación, Inversión y Administración, con topes porcentuales y garantías).
-- Paso 5: Auditoría Ciega (simulación del comité con nota de 1.0 a 5.0 para detectar debilidades antes de postular).
-- Paso 6: Expediente en PDF consolidado y listo para copiar o adjuntar en e-CORFO o SERCOTEC.
+BASE DE CONOCIMIENTO (única fuente válida):
+${SUPPORT_KNOWLEDGE}
 
-2. PLAN SEMESTRAL Y PRECIOS:
-- Precio normal: $39.990 CLP semestral.
-- Descuento Primera Compra: 50% de descuento automático en la primera compra, quedando en $19.990 CLP.
-- Pago único mediante Mercado Pago (Webpay, tarjetas de crédito y débito).
-- NO tiene renovación automática ni cobros recurrentes sorpresa.
-- Vigencia: 6 meses de acceso completo a todas las funciones.
-- Límite: Permite hasta 3 postulaciones activas simultáneas por empresa (se pueden archivar postulaciones terminadas para liberar cupos).
-- Incluye: Formulación técnica con IA ilimitada, Auditor ciego, Gestor de cartas de interés (LOI), Expediente en PDF y Asesor Experto por postulación.
+REGLAS:
+- Responde en español de Chile, tuteando, claro y breve (máximo 110 palabras). Si es un procedimiento, da los pasos numerados.
+- Usa SOLO la base de conocimiento. Si la respuesta no está ahí, no la inventes: dilo y ofrece hablar con una persona (needsHuman = true).
+- Preguntas sobre fondos específicos, requisitos de un concurso, bases, montos, fechas de cierre, cómo redactar o cómo ganar un fondo: intent = "fondos". En ese caso responde que eso lo resuelve el Asesor Experto, disponible dentro de cada postulación con el Plan Semestral, y que el monitor de convocatorias muestra los cierres.
+- needsHuman = true cuando: el usuario pide hablar con una persona; reporta un pago cobrado sin plan activo, un cobro duplicado o quiere ejercer el retracto o pedir devolución; reporta un error que los pasos de la base no resuelven; está molesto; o no sabes la respuesta.
+- Nunca pidas contraseñas ni datos de tarjetas.
 
-3. CÓMO CREAR CUENTA:
-Hacer clic en "Registrarse" o "Crear Cuenta de Empresa" e ingresar el nombre de la empresa, RUT, correo y contraseña. Los datos quedan protegidos en una bóveda privada.
+Responde SOLO un JSON: {"reply": "texto", "intent": "plataforma" | "fondos" | "humano", "needsHuman": true | false}`;
 
-4. CÓMO SUBIR LA CARPETA TRIBUTARIA:
-Ir a "Mi empresa" o al Paso 1 de una postulación. Descargar gratis la "Carpeta Tributaria para Solicitar Créditos" (PDF o XML) desde www.sii.cl y subirla a ImpulsaCap. El sistema lee el RUT, razón social, inicio de actividades en 1ª categoría, antigüedad y ventas de los últimos 12 meses, mostrando una pantalla de confirmación con datos editables antes de guardar.
-
-5. PRIVACIDAD DE DATOS:
-La Carpeta Tributaria y los antecedentes de la empresa se procesan bajo cifrado para el cálculo exclusivo de admisibilidad de las postulaciones. Nunca se comparten con terceros ni se usan para entrenar modelos públicos.
-
-REGLAS ESTRICTAS DE RESPUESTA:
-- SOLO responde preguntas sobre el funcionamiento de la plataforma ImpulsaCap, navegación, Hoja de Ruta, planes, precios, pagos, registro, subida de documentos y privacidad.
-- Si te preguntan sobre fondos específicos, requisitos particulares de un concurso, bases administrativas, fechas de cierre, montos de subsidio, cómo redactar un proyecto o cómo ganar un fondo, DEBES responder EXACTAMENTE la siguiente frase sin agregar nada más:
-"Eso lo resuelve el Asesor Experto, disponible dentro de cada postulación con el Plan Semestral."
-- Respuestas cortas, amables y directas (máximo 120 palabras).
-- NUNCA inventes información. Si no sabes la respuesta o no está en esta base de conocimiento, responde que no dispones de esa información y sugiere escribir a soporte.`;
+    const contents = [
+      ...history.map(m => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.text }] })),
+      { role: 'user', parts: [{ text: message.trim() }] }
+    ];
 
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
-      contents: [{ role: 'user', parts: [{ text: message.trim() }] }],
+      contents,
       config: {
         systemInstruction,
         temperature: 0.2,
-        maxOutputTokens: 300
+        maxOutputTokens: 500,
+        responseMimeType: 'application/json'
       }
     });
 
-    const reply = response.text?.trim() || '';
+    let reply = '';
+    let intent = 'plataforma';
+    let needsHuman = false;
+    const raw = response.text?.trim() || '';
+    try {
+      const parsed = JSON.parse(raw);
+      reply = String(parsed.reply || '').trim();
+      intent = ['plataforma', 'fondos', 'humano'].includes(parsed.intent) ? parsed.intent : 'plataforma';
+      needsHuman = Boolean(parsed.needsHuman) || intent === 'humano';
+    } catch {
+      reply = raw;
+    }
     if (!reply) throw new Error('Respuesta vacía de Gemini');
 
-    const isExpertRedirect = reply.includes('Eso lo resuelve el Asesor Experto, disponible dentro de cada postulación con el Plan Semestral');
-
-    return res.json({
-      reply,
-      isExpertRedirect
-    });
+    return res.json({ reply, intent, needsHuman, isExpertRedirect: intent === 'fondos' });
   } catch (error: any) {
     console.error('Error in /api/ayuda/chat:', error?.message);
-    return res.status(503).json({ error: 'El servicio de ayuda no está disponible en este momento. Intenta nuevamente en unos minutos.' });
+    return res.status(503).json({
+      error: 'El asistente no está disponible en este momento. Puedes dejarnos tu consulta con "Hablar con una persona".',
+      needsHuman: true
+    });
   }
 });
+
+// ---------------------------------------------------------------------------
+// Soporte: solicitudes (tickets) cuando el robot no resuelve
+// ---------------------------------------------------------------------------
+const ticketLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  statusCode: 429,
+  message: { error: 'Enviaste varias solicitudes seguidas. Espera unos minutos o escríbenos a contacto@impulsacap.cl.' }
+});
+
+app.post('/api/soporte/ticket', ticketLimiter, async (req, res) => {
+  try {
+    const email = String(req.body?.email || '').trim().toLowerCase().slice(0, 120);
+    const name = String(req.body?.name || '').trim().slice(0, 80);
+    const message = String(req.body?.message || '').trim().slice(0, 2000);
+    const page = String(req.body?.page || '').trim().slice(0, 60);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: 'Ingresa un correo válido para poder responderte.' });
+    }
+    if (message.length < 5) {
+      return res.status(400).json({ error: 'Cuéntanos un poco más sobre tu consulta.' });
+    }
+    const conversation: { role: 'user' | 'bot'; text: string }[] = Array.isArray(req.body?.conversation)
+      ? req.body.conversation
+          .filter((m: any) => (m?.role === 'user' || m?.role === 'bot') && typeof m?.text === 'string')
+          .slice(-12)
+          .map((m: any) => ({ role: m.role, text: String(m.text).slice(0, 800) }))
+      : [];
+
+    // Sesión opcional: si viene, se asocia el usuario y su plan
+    let uid: string | null = null;
+    let hasPlan = false;
+    const authHeader = req.headers.authorization || '';
+    if (authHeader.startsWith('Bearer ')) {
+      try {
+        const decoded = await adminAuth.verifyIdToken(authHeader.slice(7).trim());
+        uid = decoded.uid;
+      } catch { /* sin sesión válida: se crea igual */ }
+    }
+
+    if (!(await ensureFirestoreAdmin())) {
+      return res.status(503).json({ error: 'No pudimos registrar tu solicitud. Escríbenos a contacto@impulsacap.cl.' });
+    }
+    if (uid) {
+      try {
+        const ent = (await adminDb.collection('entitlements').doc(uid).get()).data();
+        hasPlan = Boolean(ent?.status === 'active' && ent?.expiresAt && new Date(ent.expiresAt).getTime() > Date.now());
+      } catch { /* sin efecto */ }
+    }
+
+    const ref = adminDb.collection('support_tickets').doc();
+    const ticketId = ref.id.slice(0, 6).toUpperCase();
+    await ref.set({
+      ticketId,
+      createdAt: new Date().toISOString(),
+      status: 'abierto',
+      email,
+      name,
+      uid,
+      hasPlan,
+      message,
+      page,
+      conversation,
+      userAgent: String(req.get('user-agent') || '').slice(0, 200)
+    });
+
+    const data = { ticketId, email, name, message, page, conversation, hasPlan };
+    const adminEmail = getAdminEmail();
+    const [adminSent, userSent] = await Promise.all([
+      adminEmail ? sendEmail({ to: adminEmail, ...supportTicketAdminEmail(data), replyTo: email, idempotencyKey: `ticket-admin-${ref.id}` }) : Promise.resolve(false),
+      sendEmail({ to: email, ...supportTicketUserEmail(data), idempotencyKey: `ticket-user-${ref.id}` })
+    ]);
+    await ref.set({ adminNotified: adminSent, userNotified: userSent }, { merge: true });
+    console.log(`[soporte] Solicitud #${ticketId} de ${email} (admin ${adminSent ? 'avisado' : 'NO avisado'})`);
+    return res.json({ ok: true, ticketId });
+  } catch (err: any) {
+    console.error('Error in /api/soporte/ticket:', err?.message);
+    return res.status(500).json({ error: 'No pudimos registrar tu solicitud. Escríbenos a contacto@impulsacap.cl.' });
+  }
+});
+
 
 // Health check
 
@@ -2303,6 +2388,34 @@ const requireAdminUser = (req: express.Request, res: express.Response, next: exp
   }
   return next();
 };
+
+app.get('/api/admin/soporte', requireAuth, requireAdminUser, async (req, res) => {
+  try {
+    if (!(await ensureFirestoreAdmin())) return res.status(503).json({ error: 'Firestore Admin no está autorizado.' });
+    const snap = await adminDb.collection('support_tickets').orderBy('createdAt', 'desc').limit(100).get();
+    res.set('Cache-Control', 'no-store');
+    return res.json({ tickets: snap.docs.map(d => ({ id: d.id, ...d.data() })) });
+  } catch (err: any) {
+    console.error('Error in /api/admin/soporte:', err?.message);
+    return res.status(500).json({ error: 'No se pudieron cargar las solicitudes.' });
+  }
+});
+
+app.post('/api/admin/soporte/:id/estado', requireAuth, requireAdminUser, async (req, res) => {
+  try {
+    const status = String(req.body?.status || '');
+    if (!['abierto', 'resuelto'].includes(status)) return res.status(400).json({ error: 'Estado inválido.' });
+    if (!(await ensureFirestoreAdmin())) return res.status(503).json({ error: 'Firestore Admin no está autorizado.' });
+    await adminDb.collection('support_tickets').doc(String(req.params.id)).set({
+      status,
+      ...(status === 'resuelto' ? { resolvedAt: new Date().toISOString() } : { resolvedAt: null })
+    }, { merge: true });
+    return res.json({ ok: true });
+  } catch (err: any) {
+    console.error('Error in /api/admin/soporte/:id/estado:', err?.message);
+    return res.status(500).json({ error: 'No se pudo actualizar la solicitud.' });
+  }
+});
 
 app.get('/api/admin/resumen', requireAuth, requireAdminUser, async (req, res) => {
   try {

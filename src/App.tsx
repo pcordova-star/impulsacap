@@ -825,6 +825,7 @@ export default function App() {
       {/* Robot de Ayuda de la Plataforma (Visible en todas las pantallas con y sin sesión - Requisito 2) */}
       <HelpBot
         currentUser={currentUser}
+        currentSection={activeTab}
         onNavigateTab={(tab) => {
           handleNavigateTab(tab);
         }}

@@ -118,10 +118,12 @@ interface SendArgs {
   text: string;
   /** Evita duplicados si la misma acción se reintenta (p. ej. webhook) */
   idempotencyKey?: string;
+  /** Dirección para responder (por defecto contacto@impulsacap.cl) */
+  replyTo?: string;
 }
 
 /** Envía un correo. Nunca lanza errores: devuelve true si Resend lo aceptó. */
-export async function sendEmail({ to, subject, html, text, idempotencyKey }: SendArgs): Promise<boolean> {
+export async function sendEmail({ to, subject, html, text, idempotencyKey, replyTo }: SendArgs): Promise<boolean> {
   const resend = getClient();
   if (!resend) {
     console.warn(`[email] RESEND_API_KEY no configurada; no se envió "${subject}" a ${to}`);
@@ -134,7 +136,7 @@ export async function sendEmail({ to, subject, html, text, idempotencyKey }: Sen
   try {
     const result = await Promise.race([
       resend.emails.send(
-        { from: FROM, replyTo: REPLY_TO, to, subject, html, text },
+        { from: FROM, replyTo: replyTo || REPLY_TO, to, subject, html, text },
         idempotencyKey ? { idempotencyKey } : undefined
       ),
       new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), SEND_TIMEOUT_MS)),
@@ -285,4 +287,59 @@ export function testEmail() {
       ]),
   });
   return { subject: 'Prueba de correos ImpulsaCap', html, text: 'Los correos automáticos de ImpulsaCap están funcionando.' };
+}
+
+
+/* -------------------------------------------------------------------------- */
+/* Soporte                                                                     */
+/* -------------------------------------------------------------------------- */
+
+export interface SupportTicketEmailData {
+  ticketId: string;
+  email: string;
+  name?: string;
+  message: string;
+  page?: string;
+  conversation?: { role: 'user' | 'bot'; text: string }[];
+  hasPlan?: boolean;
+}
+
+/** Aviso al administrador; al responder este correo, la respuesta va directo al cliente. */
+export function supportTicketAdminEmail(t: SupportTicketEmailData) {
+  const convo = (t.conversation || [])
+    .map(m => `<p style="margin:0 0 8px;font-size:13px;color:${m.role === 'user' ? '#0f172a' : '#475569'}"><strong>${m.role === 'user' ? 'Cliente' : 'Robot'}:</strong> ${escapeHtml(m.text)}</p>`)
+    .join('');
+  const html = layout({
+    preheader: `Nueva solicitud de soporte de ${t.email}`,
+    heading: 'Nueva solicitud de soporte',
+    bodyHtml:
+      detailTable([
+        ['Solicitud', `#${t.ticketId}`],
+        ['Cliente', t.name ? `${t.name} (${t.email})` : t.email],
+        ['Plan', t.hasPlan ? 'Plan Semestral activo' : 'Sin plan activo'],
+        ['Sección', t.page || '—'],
+      ]) +
+      p('<strong>Mensaje:</strong>') +
+      `<p style="margin:0 0 16px;padding:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;white-space:pre-line">${escapeHtml(t.message)}</p>` +
+      (convo ? p('<strong>Conversación previa con el robot:</strong>') + convo : '') +
+      p('Responde este correo para contestarle directamente al cliente.'),
+    cta: { label: 'Ver en el panel', url: `${getAppUrl()}/admin` }
+  });
+  const text = `Nueva solicitud #${t.ticketId} de ${t.email}\n\n${t.message}\n\nResponde este correo para contestarle al cliente.`;
+  return { subject: `Soporte #${t.ticketId}: ${t.message.slice(0, 60)}${t.message.length > 60 ? '…' : ''}`, html, text };
+}
+
+/** Confirmación al cliente de que su solicitud llegó. */
+export function supportTicketUserEmail(t: SupportTicketEmailData) {
+  const html = layout({
+    preheader: 'Recibimos tu consulta',
+    heading: 'Recibimos tu consulta',
+    bodyHtml:
+      p(`Hola${t.name ? ' ' + escapeHtml(t.name.split(' ')[0]) : ''}, recibimos tu solicitud <strong>#${escapeHtml(t.ticketId)}</strong>. Te responderemos a este correo lo antes posible.`) +
+      p('<strong>Tu mensaje:</strong>') +
+      `<p style="margin:0 0 16px;padding:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;white-space:pre-line">${escapeHtml(t.message)}</p>` +
+      p('Si quieres agregar algo, responde este correo.')
+  });
+  const text = `Recibimos tu solicitud #${t.ticketId}. Te responderemos a este correo lo antes posible.\n\nTu mensaje:\n${t.message}`;
+  return { subject: `Recibimos tu consulta (#${t.ticketId})`, html, text };
 }
