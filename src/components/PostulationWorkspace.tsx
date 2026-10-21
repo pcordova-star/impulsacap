@@ -1,4 +1,5 @@
-import React, { Suspense, useMemo, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
+import { showToast } from '../utils/toast';
 import { ChileanFund, CompanyProfile, FormulationOutput, BlindAuditResult, CompanyUser, calculateProjectProfileCompletion } from '../types/funds';
 import { ExpedienteData } from '../types/expediente';
 import { ApplicationItem } from '../types/application';
@@ -129,6 +130,20 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
   }, [profile.projectProfile]);
 
   // Tab definitions: includes Asesor Experto inside each postulation (Requirement 3)
+  // Aviso emergente (una vez por sesión y por fondo) si el perfil del proyecto está incompleto
+  useEffect(() => {
+    if (activeSubTab !== 'roadmap' || projectCompletion >= 60) return;
+    const t = setTimeout(() => showToast({
+      id: `perfil-incompleto-${fund.id}`,
+      oncePerSession: true,
+      level: 'warning',
+      title: `Tu perfil de proyecto está al ${projectCompletion}%`,
+      message: 'Complétalo para que la IA redacte con tus datos reales y no deje marcas [COMPLETAR].',
+      action: { label: 'Completar perfil', onClick: () => onNavigateTab('my-company') }
+    }), 600);
+    return () => clearTimeout(t);
+  }, [activeSubTab, projectCompletion, fund.id]);
+
   const tabs: { id: PostulationSubTab; label: string; icon: React.FC<{ className?: string }> }[] = [
     { id: 'roadmap', label: 'Hoja de Ruta', icon: CheckCircle2 },
     { id: 'formulator', label: 'Formulador', icon: Sparkles },
@@ -224,36 +239,6 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
       <div className="min-h-[400px]">
         {activeSubTab === 'roadmap' && (
           <div className="space-y-4">
-            {/* Aviso de perfil de proyecto incompleto (Requirement A.2) */}
-            {projectCompletion < 60 && (
-              <div className="p-4 sm:p-5 rounded-3xl bg-amber-50 border-2 border-amber-300/80 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-fade-in">
-                <div className="flex items-start sm:items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-amber-500/20">
-                    <AlertTriangle className="w-5 h-5" />
-                  </div>
-                  <div className="min-w-0">
-                    <h3 className="text-sm font-bold text-slate-900 flex flex-wrap items-center gap-2">
-                      <span>Completa el perfil de tu proyecto para que la IA redacte con tus datos reales</span>
-                      <span className="font-mono text-[11px] px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 font-bold shrink-0">
-                        {projectCompletion}% completo
-                      </span>
-                    </h3>
-                    <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
-                      El perfil de tu empresa tiene menos del 60% de información técnica. Completa los antecedentes para que la IA no inserte marcas [COMPLETAR: dato faltante].
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => onNavigateTab('my-company')}
-                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-bold text-xs shadow-md shadow-amber-600/20 transition-all cursor-pointer shrink-0"
-                >
-                  <span>Completar perfil</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-
             <MyActiveApplication
               profile={profile}
               selectedFund={fund}

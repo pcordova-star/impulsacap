@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'react';
 import { CompanyProfile, ChileanFund, FormulationOutput, BlindAuditResult, CompanyUser } from './types/funds';
 import { CHILEAN_FUNDS } from './data/chileanFunds';
 import { Navbar } from './components/Navbar';
@@ -15,6 +15,8 @@ import { SiiUploaderModal } from './components/SiiUploaderModal';
 import { AuthModal } from './components/AuthModal';
 import { TermsPage, PrivacyPage } from './components/LegalPages';
 import { ServiceStartModal } from './components/ServiceStartModal';
+import { WelcomeStartModal } from './components/WelcomeStartModal';
+import { ToastCenter } from './components/ToastCenter';
 import { AdminDashboard } from './components/AdminDashboard';
 import { trackPageview } from './utils/pageviews';
 import { AuthGateView } from './components/AuthGateView';
@@ -130,6 +132,10 @@ export default function App() {
   // SII Uploader Modal
   const [showSiiModal, setShowSiiModal] = useState<boolean>(false);
 
+  // Bienvenida para cuentas sin postulaciones: el usuario elige cómo empezar (no se crea nada automáticamente)
+  const [welcomeOpen, setWelcomeOpen] = useState(false);
+  const [suggestedFund, setSuggestedFund] = useState<ChileanFund | null>(null);
+
   // Active Chilean Company Profile with local persistence scoped per user
   const [profile, setProfile] = useState<CompanyProfile>(() => {
     return getCleanDefaultProfile(null);
@@ -143,6 +149,7 @@ export default function App() {
     applications,
     activeApplications,
     archivedApplications,
+    loading: applicationsLoading,
     activeApplication,
     activeApplicationId,
     activeFund,
@@ -334,6 +341,24 @@ export default function App() {
       auditResult: app?.auditResult || null
     };
   }, [activeApplication, activeFund, profile, currentUser]);
+
+  const welcomeKey = (uid?: string) => `impulsacap_welcome_start_done_${uid || 'guest'}`;
+  const closeWelcome = useCallback(() => {
+    setWelcomeOpen(false);
+    try { localStorage.setItem(welcomeKey(currentUser?.id), '1'); } catch { /* sin efecto */ }
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    if (!currentUser || applicationsLoading || applications.length > 0) return;
+    let done = false;
+    try { done = localStorage.getItem(welcomeKey(currentUser.id)) === '1'; } catch { done = false; }
+    if (!done) setWelcomeOpen(true);
+  }, [currentUser, applicationsLoading, applications.length]);
+
+  const handleSuggestFund = (fund: ChileanFund | null) => {
+    setSuggestedFund(fund);
+    setWelcomeOpen(true);
+  };
 
   const handleAuthSuccess = async (user: CompanyUser) => {
     activeUserIdRef.current = user.id;
@@ -635,6 +660,7 @@ export default function App() {
                 setProfile={setProfile}
                 currentUser={currentUser}
                 onAuthSuccess={handleAuthSuccess}
+                onSuggestFund={handleSuggestFund}
               />
             </div>
 
@@ -840,8 +866,20 @@ export default function App() {
         initialMessage={authModalMessage}
       />
 
+      {/* Avisos emergentes (burbujas con sonido) */}
+      <ToastCenter />
+
       {/* Aviso de inicio del servicio del plan (derecho a retracto) */}
       <ServiceStartModal onOpenTerms={() => openLegalPage('terminos')} />
+
+      <WelcomeStartModal
+        open={welcomeOpen && Boolean(currentUser)}
+        suggestedFund={suggestedFund}
+        onStartWithFund={(fund) => { closeWelcome(); handleSelectFundToFormulate(fund); }}
+        onUploadTaxFolder={() => { closeWelcome(); setShowSiiModal(true); }}
+        onBrowseFunds={() => { closeWelcome(); setActiveTab('my-applications'); setShowNewAppModal(true); }}
+        onClose={closeWelcome}
+      />
 
       {/* Sii Tax Folder Uploader Modal */}
       <SiiUploaderModal

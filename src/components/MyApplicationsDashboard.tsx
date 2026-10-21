@@ -4,7 +4,7 @@ import { CHILEAN_FUNDS } from '../data/chileanFunds';
 import { ApplicationItem } from '../types/application';
 import { Convocatoria } from '../types/convocatoria';
 import { calculateDaysRemaining } from '../utils/convocatorias';
-import { validateRut } from '../utils/rutValidator';
+import { validateRut, formatRut } from '../utils/rutValidator';
 import { 
   Building2, 
   FileText, 
@@ -117,12 +117,13 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
       // Si ya tiene postulación activa para el fondo vinculado, no alertar
       if (conv.fundId && activeFundIds.has(conv.fundId)) return false;
 
-      // Calce con región
-      if (profile.region) {
-        const reg = profile.region.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        const alc = (conv.alcance || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        const isRegionOk = alc.includes('todo chile') || alc.includes('nacional') || alc.includes(reg);
-        if (!isRegionOk) return false;
+      // Calce con región: nacionales siempre; regionales solo si coinciden con la región de la empresa
+      const norm = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+      const alc = norm(conv.alcance || '');
+      const isNational = !alc || alc.includes('todo chile') || alc.includes('nacional');
+      if (!isNational) {
+        const reg = norm(profile.region || '').replace(/^region\s+(de\s+la\s+|del\s+|de\s+)?/, '');
+        if (!reg || !(alc.includes(reg) || reg.includes(alc))) return false;
       }
 
       return true;
@@ -335,7 +336,7 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
 
               <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
                 <span className="flex items-center gap-1 font-mono">
-                  RUT: <strong className={isRutValid ? 'text-slate-800' : 'text-rose-600'}>{profile.rut || 'Sin configurar'}</strong>
+                  RUT: <strong className={isRutValid ? 'text-slate-800' : 'text-rose-600'}>{profile.rut ? (isRutValid ? formatRut(profile.rut) : profile.rut) : 'Sin configurar'}</strong>
                   {profile.rut && (
                     <span className={`text-[10px] px-1.5 py-0.2 rounded font-sans font-bold ${isRutValid ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
                       {isRutValid ? '✓ Módulo 11' : '✗ Inválido'}
@@ -454,7 +455,7 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="px-2 py-0.5 rounded-full bg-blue-600 text-white font-mono text-[9px] font-bold">
-                      NUEVA CONVOCATORIA PARA TU PERFIL
+                      {/todo chile|nacional/i.test(conv.alcance || '') || !conv.alcance ? 'ABIERTA PARA TODO CHILE' : 'ABIERTA EN TU REGIÓN'}
                     </span>
                     <span className="text-[10px] px-2 py-0.2 rounded-full bg-white text-slate-700 border border-slate-200">
                       📍 {conv.alcance}

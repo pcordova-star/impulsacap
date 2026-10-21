@@ -47,6 +47,8 @@ interface InstantWowMatcherProps {
   setProfile: React.Dispatch<React.SetStateAction<CompanyProfile>>;
   currentUser?: CompanyUser | null;
   onAuthSuccess?: (user: CompanyUser) => void;
+  /** Fondo sugerido por el diagnóstico cuando el usuario se registra sin elegir uno */
+  onSuggestFund?: (fund: ChileanFund | null) => void;
 }
 
 export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
@@ -54,7 +56,8 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
   onNavigateTab,
   setProfile,
   currentUser: propUser,
-  onAuthSuccess
+  onAuthSuccess,
+  onSuggestFund
 }) => {
   // Step in guided onboarding: 1 to 5
   const [onboardingStep, setOnboardingStep] = useState<number>(1);
@@ -353,19 +356,24 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
 
       setCurrentUser(companyUser);
       setActiveUser(companyUser);
-      setAuthSuccess(`¡Empresa ${cleanCompanyName} registrada! Creando tu Hoja de Ruta...`);
+      setAuthSuccess(`¡Empresa ${cleanCompanyName} registrada!`);
 
       const cleanProf = getCleanDefaultProfile(companyUser);
       const mergedProf = { ...cleanProf, ...built };
       setProfile(mergedProf);
       onAuthSuccess?.(companyUser);
 
-      const target = selectedFundForRoadmap || (matchResult?.primaryFund ? CHILEAN_FUNDS.find(f => f.id === matchResult.primaryFund.fundId) : null) || CHILEAN_FUNDS[0];
-      onSelectFundToFormulate(target);
-
-      setTimeout(() => {
-        onNavigateTab('my-application');
-      }, 700);
+      // Solo se crea la postulación si el usuario eligió un fondo; si no, se sugiere y él decide
+      if (selectedFundForRoadmap) {
+        onSelectFundToFormulate(selectedFundForRoadmap);
+        setTimeout(() => {
+          onNavigateTab('my-application');
+        }, 700);
+      } else {
+        const suggested = matchResult?.primaryFund ? CHILEAN_FUNDS.find(f => f.id === matchResult.primaryFund.fundId) || null : null;
+        onSuggestFund?.(suggested);
+        onNavigateTab('my-applications');
+      }
     } catch (err: any) {
       setAuthError(getFirebaseAuthErrorMessage(err));
     } finally {
@@ -413,7 +421,7 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
 
       setCurrentUser(companyUser);
       setActiveUser(companyUser);
-      setAuthSuccess(`¡Bienvenido, ${companyUser.companyName}! Redirigiendo a tu Hoja de Ruta...`);
+      setAuthSuccess(`¡Bienvenido, ${companyUser.companyName}!`);
 
       const cleanProf = getCleanDefaultProfile(companyUser);
       const built = buildProfileFromAnswers();
@@ -421,12 +429,17 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
       setProfile(mergedProf);
       onAuthSuccess?.(companyUser);
 
-      const target = selectedFundForRoadmap || (matchResult?.primaryFund ? CHILEAN_FUNDS.find(f => f.id === matchResult.primaryFund.fundId) : null) || CHILEAN_FUNDS[0];
-      onSelectFundToFormulate(target);
-
-      setTimeout(() => {
-        onNavigateTab('my-application');
-      }, 700);
+      // Solo se crea la postulación si el usuario eligió un fondo; si no, se sugiere y él decide
+      if (selectedFundForRoadmap) {
+        onSelectFundToFormulate(selectedFundForRoadmap);
+        setTimeout(() => {
+          onNavigateTab('my-application');
+        }, 700);
+      } else {
+        const suggested = matchResult?.primaryFund ? CHILEAN_FUNDS.find(f => f.id === matchResult.primaryFund.fundId) || null : null;
+        onSuggestFund?.(suggested);
+        onNavigateTab('my-applications');
+      }
     } catch (err: any) {
       setAuthError(getFirebaseAuthErrorMessage(err));
     } finally {
@@ -492,19 +505,24 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
 
       setCurrentUser(companyUser);
       setActiveUser(companyUser);
-      setAuthSuccess(`¡Autenticado con Google! Abriendo tu Hoja de Ruta...`);
+      setAuthSuccess(`¡Listo, entraste con Google!`);
 
       const cleanProf = getCleanDefaultProfile(companyUser);
       const mergedProf = { ...cleanProf, ...built };
       setProfile(mergedProf);
       onAuthSuccess?.(companyUser);
 
-      const target = selectedFundForRoadmap || (matchResult?.primaryFund ? CHILEAN_FUNDS.find(f => f.id === matchResult.primaryFund.fundId) : null) || CHILEAN_FUNDS[0];
-      onSelectFundToFormulate(target);
-
-      setTimeout(() => {
-        onNavigateTab('my-application');
-      }, 700);
+      // Solo se crea la postulación si el usuario eligió un fondo; si no, se sugiere y él decide
+      if (selectedFundForRoadmap) {
+        onSelectFundToFormulate(selectedFundForRoadmap);
+        setTimeout(() => {
+          onNavigateTab('my-application');
+        }, 700);
+      } else {
+        const suggested = matchResult?.primaryFund ? CHILEAN_FUNDS.find(f => f.id === matchResult.primaryFund.fundId) || null : null;
+        onSuggestFund?.(suggested);
+        onNavigateTab('my-applications');
+      }
     } catch (err: any) {
       setAuthError(getFirebaseAuthErrorMessage(err));
     } finally {

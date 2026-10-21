@@ -125,9 +125,12 @@ export function useApplications(profile: CompanyProfile) {
         });
 
         // Requirement 3: Data Migration if no applications exist but user has old saved formulation/audit
-        if (firestoreApps.length === 0) {
-          const oldFormulation = loadActiveFormulation(effectiveUid);
-          const oldAudit = loadActiveAudit(effectiveUid);
+        // Solo se migra si había trabajo anterior guardado; una cuenta nueva parte sin postulaciones
+        const oldFormulationCheck = firestoreApps.length === 0 ? loadActiveFormulation(effectiveUid) : null;
+        const oldAuditCheck = firestoreApps.length === 0 ? loadActiveAudit(effectiveUid) : null;
+        if (firestoreApps.length === 0 && (oldFormulationCheck || oldAuditCheck)) {
+          const oldFormulation = oldFormulationCheck;
+          const oldAudit = oldAuditCheck;
 
           // Find fund for old formulation, or default to first fund
           const targetFund = (oldFormulation?.fundId 
