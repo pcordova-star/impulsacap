@@ -513,6 +513,11 @@ export const NewApplicationModal: React.FC<NewApplicationModalProps> = ({
             <p className="text-xs text-slate-600 leading-relaxed">
               Tu plan incluye hasta 3 postulaciones simultáneas en preparación. Para iniciar una nueva postulación, puedes <strong>archivar</strong> una de las postulaciones que ya no utilices. Archivar libera el cupo de inmediato y conserva todos tus datos resguardados por si deseas reactivarla más adelante.
             </p>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              ¿Trabajas con varias empresas o necesitas más cupos?{' '}
+              <a href="mailto:contacto@impulsacap.cl?subject=Plan%20para%20consultoras" className="text-blue-700 font-semibold underline underline-offset-2">Escríbenos</a>{' '}
+              y te armamos un plan a tu medida.
+            </p>
 
             <div className="space-y-2 border border-slate-200 rounded-2xl p-3 bg-slate-50">
               <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-1">

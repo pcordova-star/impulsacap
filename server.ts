@@ -11,6 +11,8 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { CHILEAN_FUNDS } from './src/data/chileanFunds';
+import { parseCarpetaTributaria } from './src/utils/carpetaTributaria';
+import { buildTaxDiagnosis, type TaxDiagnosis } from './src/utils/taxDiagnosis';
 import { evaluateChileanGrantMatch, isNonActivityQuery, normalizeText } from './src/utils/grantMatcher';
 import { calculateDaysRemaining } from './src/utils/convocatorias';
 import { validateRut, formatRut } from './src/utils/rutValidator';
@@ -57,6 +59,8 @@ app.use('/api/gemini/parse-tax-folder', express.json({ limit: '15mb' }));
 // comparten un mismo límite de solicitudes (req.ip sería la del balanceador).
 app.set('trust proxy', 1);
 
+// La Carpeta Tributaria puede pesar varios MB en base64 (hasta 36 F29 y 5 F22)
+app.use('/api/gemini/parse-tax-folder', express.json({ limit: '15mb' }));
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ limit: '2mb', extended: true }));
 
@@ -628,6 +632,57 @@ Responde ÚNICAMENTE en JSON con este formato estricto:
 
 
 // 0.1 Lector Inteligente de Carpeta Tributaria Electrónica SII (PDF o Texto)
+// Valor de la UF del día (mindicador.cl, sin clave). Se guarda 12 horas; si falla, se usa UF_CLP o un valor aproximado.
+let ufCache: { value: number; at: number } | null = null;
+async function getUfValue(): Promise<{ value: number; isEstimate: boolean }> {
+  if (ufCache && Date.now() - ufCache.at < 12 * 36e5) return { value: ufCache.value, isEstimate: false };
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 3500);
+    const r = await fetch('https://mindicador.cl/api/uf', { signal: ctrl.signal });
+    clearTimeout(t);
+    if (r.ok) {
+      const j: any = await r.json();
+      const v = Number(j?.serie?.[0]?.valor);
+      if (v > 20000 && v < 100000) {
+        ufCache = { value: v, at: Date.now() };
+        return { value: v, isEstimate: false };
+      }
+    }
+  } catch (e: any) {
+    console.warn('[uf] No se pudo obtener la UF del día:', e?.message);
+  }
+  const fallback = Number(process.env.UF_CLP) || 40000;
+  return { value: fallback, isEstimate: true };
+}
+
+function legacyTaxFieldsFromDiagnosis(d: TaxDiagnosis) {
+  const eligible = d.funds.filter(f => f.verdict === 'cumple').map(f => f.name);
+  const parts: string[] = [];
+  if (d.company.rut) parts.push(`RUT: ${formatRut(d.company.rut)}`);
+  if (d.company.name) parts.push(`Razón Social: ${d.company.name}`);
+  if (d.company.startDate) parts.push(`Inicio de actividades: ${d.company.startDate} (${d.company.ageText})`);
+  parts.push(`${d.compliance.f29Declared} F29 declarados`);
+  parts.push(`Ventas 12 meses: $${Math.round(d.sales.last12Total).toLocaleString('es-CL')} CLP`);
+  return {
+    rut: d.company.rut ? formatRut(d.company.rut) : '',
+    companyName: d.company.name,
+    companyType: d.company.companyType,
+    startDate: d.company.startDate || undefined,
+    monthsActive: d.company.ageMonths,
+    annualSalesCLP: d.sales.last12Total,
+    salesBracket: d.sales.salesBracket,
+    periodsFound: d.compliance.f29Declared,
+    hasMissingF29: d.compliance.f29Missing.length > 0,
+    siiStatusObservations: `Datos leídos de la Carpeta Tributaria: ${parts.join(' | ')}.`,
+    admissibilityVerdict: d.compliance.f29Missing.length > 0 || d.compliance.observations.length > 0 ? 'Observaciones en F29 detectadas' : 'Datos tributarios extraídos',
+    bestFitFundRecommendation: eligible.slice(0, 3).join(' / '),
+    firstCategory: d.company.firstCategory,
+    analizadoCon: 'lector-sii',
+    diagnosis: d
+  };
+}
+
 app.post('/api/gemini/parse-tax-folder', requireAuth, async (req, res) => {
   try {
     const { rawText, fileBase64, mimeType, fileName } = req.body || {};
@@ -648,7 +703,15 @@ app.post('/api/gemini/parse-tax-folder', requireAuth, async (req, res) => {
       extractedText = rawText;
     }
 
-    // Extracción determinista de base sin valores inventados (Requirement 1, 2, 3)
+    // 1. Carpeta Tributaria Electrónica del SII: lector propio, exacto y sin IA
+    const cte = parseCarpetaTributaria(extractedText || rawText || '');
+    if (cte && (cte.f29.length > 0 || cte.f22.length > 0)) {
+      const uf = await getUfValue();
+      const diagnosis = buildTaxDiagnosis(cte, CHILEAN_FUNDS, { ufValue: uf.value, ufIsEstimate: uf.isEstimate });
+      return res.json(legacyTaxFieldsFromDiagnosis(diagnosis));
+    }
+
+    // 2. Otros documentos (F29 sueltos, PDF escaneados): extracción básica + IA como respaldo
     const deterministicData = extractTaxFolderData(extractedText || rawText || '', fileName);
     let finalResult: any = { ...deterministicData, analizadoCon: 'sii-parser' };
 

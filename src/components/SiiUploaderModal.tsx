@@ -1,8 +1,11 @@
 import { apiFetch } from '../utils/apiFetch';
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { CompanyProfile } from '../types/funds';
 import { validateRut, formatRut } from '../utils/rutValidator';
 import { syncTaxFolderToFirestore } from '../utils/firebaseSync';
+import { TaxDiagnosisView } from './TaxDiagnosisView';
+import { buildSampleCarpetaText } from '../utils/sampleCarpeta';
+import type { TaxDiagnosis } from '../utils/taxDiagnosis';
 import { 
   FileText, 
   Upload, 
@@ -22,30 +25,20 @@ import {
   RotateCcw
 } from 'lucide-react';
 
+const LOADING_STEPS = [
+  'Leyendo los datos del contribuyente',
+  'Revisando tus F29 mes a mes',
+  'Revisando tus declaraciones de renta',
+  'Calculando el tamaño de tu empresa',
+  'Comparando con los requisitos de cada fondo'
+];
+
 interface SiiUploaderModalProps {
   isOpen: boolean;
   onClose: () => void;
   onApplyProfile: (updated: Partial<CompanyProfile>) => void;
 }
 
-const SAMPLE_SII_DATA = `SERVICIO DE IMPUESTOS INTERNOS - CARPETA TRIBUTARIA ELECTRÓNICA
-CODIGO VERIFICADOR: 9B8F21A47C
-RUT: 77.842.109-K
-RAZÓN SOCIAL: PREDICTFLOW SPA
-FECHA INICIO ACTIVIDADES: 14/03/2024
-REGIMEN: GENERAL PRIMERA CATEGORIA
-ACTIVIDAD ECONOMICA: 620100 - ACTIVIDADES DE PROGRAMACION INFORMATICA
-
-RESUMEN FORMULARIO 29 (ÚLTIMOS 12 PERIODOS):
-- PERIODO 2024-03: VENTAS NETAS AFECTAS $1.200.000 / ESTADO: DECLARADO Y PAGADO
-- PERIODO 2024-04: VENTAS NETAS AFECTAS $1.450.000 / ESTADO: DECLARADO Y PAGADO
-- PERIODO 2024-05: VENTAS NETAS AFECTAS $1.800.000 / ESTADO: DECLARADO Y PAGADO
-- PERIODO 2024-06: VENTAS NETAS AFECTAS $1.900.000 / ESTADO: DECLARADO Y PAGADO
-- PERIODO 2024-07: VENTAS NETAS AFECTAS $2.100.000 / ESTADO: DECLARADO Y PAGADO
-- PERIODO 2024-08: VENTAS NETAS AFECTAS $2.300.000 / ESTADO: DECLARADO Y PAGADO
-TOTAL FACTURACION NETA ACUMULADA: $18.500.000 CLP (Aprox. 480 UF)
-SITUACION MOROSIDAD TGR: NO REGISTRA DEUDAS
-`;
 
 export const SiiUploaderModal: React.FC<SiiUploaderModalProps> = ({
   isOpen,
@@ -60,7 +53,16 @@ export const SiiUploaderModal: React.FC<SiiUploaderModalProps> = ({
   const [applied, setApplied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [isSample, setIsSample] = useState(false);
+  const [loadingStep, setLoadingStep] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Pasos visibles mientras se lee la carpeta (el lector demora unos segundos con 36 F29)
+  useEffect(() => {
+    if (!loading) { setLoadingStep(0); return; }
+    const t = setInterval(() => setLoadingStep(s => Math.min(s + 1, LOADING_STEPS.length - 1)), 900);
+    return () => clearInterval(t);
+  }, [loading]);
 
   // Editable confirmation fields (Requirement 4)
   const [editCompanyName, setEditCompanyName] = useState('');
@@ -114,6 +116,7 @@ export const SiiUploaderModal: React.FC<SiiUploaderModalProps> = ({
   };
 
   const processUploadedFile = async (file: File) => {
+    setIsSample(false);
     setLoading(true);
     setParsedData(null);
     setApplied(false);
@@ -271,7 +274,14 @@ export const SiiUploaderModal: React.FC<SiiUploaderModalProps> = ({
     const cleanRutVal = editRut.trim();
     const formattedRut = cleanRutVal && validateRut(cleanRutVal) ? formatRut(cleanRutVal) : cleanRutVal;
 
+    const diag: TaxDiagnosis | undefined = parsedData?.diagnosis;
+    const regionName = diag?.company.region
+      ? (diag.company.region === 'Metropolitana' ? 'Región Metropolitana' : `Región de ${diag.company.region}`)
+      : undefined;
+    const firstRep = diag?.company.legalRepresentatives[0];
     onApplyProfile({
+      ...(regionName ? { region: regionName } : {}),
+      ...(firstRep ? { representativeName: firstRep.name, representativeRut: formatRut(firstRep.rut) } : {}),
       rut: formattedRut || undefined,
       companyName: editCompanyName.trim() || undefined,
       companyType: (editCompanyType as any) || 'spa',
@@ -304,210 +314,22 @@ export const SiiUploaderModal: React.FC<SiiUploaderModalProps> = ({
   };
 
   const handleLoadSample = () => {
-    setActiveTab('text');
-    setInputText(SAMPLE_SII_DATA.trim());
-    handleProcessText(SAMPLE_SII_DATA.trim());
+    setIsSample(true);
+    setSelectedFile(null);
+    handleProcessText(buildSampleCarpetaText());
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/50 backdrop-blur-xs animate-fade-in">
-      <div className="w-full max-w-xl rounded-3xl bg-white border border-slate-200 p-5 sm:p-7 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
-              <Upload className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-slate-900">Subir Carpeta Tributaria Electrónica SII</h3>
-              <p className="text-[11px] text-slate-500">Sube el PDF o XML oficial descargado de www.sii.cl para autovalidar tu postulación</p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+  const resetToUpload = () => {
+    setParsedData(null);
+    setSelectedFile(null);
+    setInputText('');
+    setIsSample(false);
+    setApplied(false);
+    setActiveTab('upload');
+  };
 
-        {/* Tab Selector */}
-        <div className="flex items-center p-1 rounded-xl bg-slate-100 border border-slate-200">
-          <button
-            onClick={() => setActiveTab('upload')}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              activeTab === 'upload'
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Upload className="w-3.5 h-3.5" />
-            <span>Subir Archivo (PDF / XML)</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('text')}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              activeTab === 'text'
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <FileText className="w-3.5 h-3.5" />
-            <span>Pegar Texto o F29</span>
-          </button>
-        </div>
-
-        {/* Option 1: File Drag & Drop Upload */}
-        {activeTab === 'upload' && (
-          <div className="space-y-3">
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              accept=".pdf,.xml,.txt,.csv"
-              className="hidden"
-            />
-
-            <div
-              onDragEnter={handleDrag}
-              onDragLeave={handleDrag}
-              onDragOver={handleDrag}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              className={`p-6 sm:p-8 rounded-2xl border-2 border-dashed transition-all cursor-pointer text-center flex flex-col items-center justify-center gap-3 ${
-                dragActive 
-                  ? 'border-blue-500 bg-blue-50/70' 
-                  : 'border-slate-300 hover:border-blue-400 bg-slate-50/70 hover:bg-slate-50'
-              }`}
-            >
-              <div className="w-14 h-14 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform">
-                <Upload className="w-7 h-7" />
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm font-bold text-slate-800">
-                  Arrastra tu Carpeta Tributaria aquí o <span className="text-blue-600 underline">haz clic para examinar</span>
-                </p>
-                <p className="text-xs text-slate-500">
-                  Formatos soportados: <strong>PDF</strong> (Carpeta para Créditos/Subsidios), <strong>XML</strong>, TXT o F29
-                </p>
-              </div>
-
-              {selectedFile && (
-                <div className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-slate-300 text-xs text-slate-700 shadow-xs">
-                  <FileCheck className="w-4 h-4 text-emerald-600" />
-                  <span className="font-semibold text-slate-900 truncate max-w-[220px]">{selectedFile.name}</span>
-                  <span className="text-[10px] text-slate-500 font-mono">({Math.round(selectedFile.size / 1024)} KB)</span>
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center justify-between text-[11px] text-slate-500 px-1">
-              <span>¿No tienes tu archivo a mano?</span>
-              <button
-                onClick={handleLoadSample}
-                className="text-blue-600 hover:text-blue-700 font-semibold underline cursor-pointer"
-              >
-                Cargar datos de prueba F29
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Option 2: Raw Text Box */}
-        {activeTab === 'text' && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-slate-700">
-                Texto de la Carpeta Tributaria o Formulario 29:
-              </label>
-              <button
-                onClick={handleLoadSample}
-                className="text-[11px] text-blue-600 hover:text-blue-700 font-semibold underline cursor-pointer"
-              >
-                Cargar Ejemplo Real F29
-              </button>
-            </div>
-            <textarea
-              rows={4}
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              placeholder="Pega aquí el texto copiado de tu Carpeta Tributaria SII o los resúmenes de tu F29..."
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs font-mono leading-relaxed focus:bg-white focus:border-blue-500 focus:outline-hidden"
-            />
-            <div className="flex justify-end pt-1">
-              <button
-                onClick={() => handleProcessText(inputText)}
-                disabled={loading || !inputText.trim()}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-600/20 transition-all disabled:opacity-50 cursor-pointer"
-              >
-                {loading ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Analizando F29...</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Analizar Texto con IA</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Error Banner with Retry */}
-        {error && (
-          <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
-            <div className="flex items-center gap-2.5 text-xs font-semibold">
-              <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
-              <span>{error}</span>
-            </div>
-            <button
-              onClick={() => {
-                setError(null);
-                if (activeTab === 'upload' && selectedFile) {
-                  processUploadedFile(selectedFile);
-                } else if (inputText) {
-                  handleProcessText(inputText);
-                }
-              }}
-              disabled={loading}
-              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-all cursor-pointer shrink-0"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Reintentar</span>
-            </button>
-          </div>
-        )}
-
-        {/* Loading Spinner Indicator */}
-        {loading && (
-          <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center gap-3 text-blue-700 animate-pulse">
-            <RefreshCw className="w-5 h-5 animate-spin text-blue-600" />
-            <span className="text-xs font-bold">Extrayendo datos de la Carpeta Tributaria con Inteligencia Artificial...</span>
-          </div>
-        )}
-
-        {/* Confirmation Screen with Editable Fields (Requirement 4) */}
-        {parsedData && !loading && (
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-4 animate-fade-in">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                <span className="text-xs font-bold text-slate-900">
-                  Confirmación de Datos Extraídos
-                </span>
-              </div>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 font-semibold">
-                Revisa y edita si es necesario
-              </span>
-            </div>
-
-            <p className="text-[11px] text-slate-600">
-              Verifica los datos obtenidos de la Carpeta Tributaria. Nada se guardará en tu perfil hasta que presiones <strong>"Confirmar datos"</strong>.
-            </p>
-
+  const diagnosis: TaxDiagnosis | undefined = !loading ? parsedData?.diagnosis : undefined;
+  const correctionFields = (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               {/* Razón Social */}
               <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-1">
@@ -592,6 +414,254 @@ export const SiiUploaderModal: React.FC<SiiUploaderModalProps> = ({
                 />
               </div>
             </div>
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/50 backdrop-blur-xs animate-fade-in">
+      <div className={`w-full ${diagnosis ? 'max-w-5xl' : 'max-w-xl'} rounded-3xl bg-white border border-slate-200 p-5 sm:p-7 shadow-2xl space-y-4 max-h-[94vh] overflow-y-auto`}>
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
+              <Upload className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-900">{diagnosis ? 'Diagnóstico tributario' : 'Diagnóstico tributario gratuito'}</h3>
+              <p className="text-xs text-slate-500">
+                {diagnosis
+                  ? 'Calculado solo con lo que dice tu Carpeta Tributaria'
+                  : 'Sube tu Carpeta Tributaria del SII y te mostramos a qué fondos calificas, tus ventas y qué regularizar antes de postular'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {diagnosis && (
+              <button
+                type="button"
+                onClick={resetToUpload}
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" /> Subir otra carpeta
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              aria-label="Cerrar"
+              className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {!diagnosis && !loading && (<>
+        {/* Cómo obtener la carpeta */}
+        <p className="text-xs text-slate-600 leading-relaxed rounded-xl bg-slate-50 border border-slate-200 px-3.5 py-2.5">
+          Descárgala en <strong>sii.cl</strong>: Servicios online, Situación tributaria, <strong>Carpeta tributaria electrónica</strong>. Elige la de <strong>acreditar tamaño de empresa</strong>, la regular o una personalizada con F29 y F22.
+        </p>
+
+        {/* Tab Selector */}
+        <div className="flex items-center p-1 rounded-xl bg-slate-100 border border-slate-200">
+          <button
+            onClick={() => setActiveTab('upload')}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              activeTab === 'upload'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Upload className="w-3.5 h-3.5" />
+            <span>Subir Archivo (PDF / XML)</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('text')}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              activeTab === 'text'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>Pegar Texto o F29</span>
+          </button>
+        </div>
+
+        {/* Option 1: File Drag & Drop Upload */}
+        {activeTab === 'upload' && (
+          <div className="space-y-3">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              accept=".pdf,.xml,.txt,.csv"
+              className="hidden"
+            />
+
+            <div
+              onDragEnter={handleDrag}
+              onDragLeave={handleDrag}
+              onDragOver={handleDrag}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              className={`p-6 sm:p-8 rounded-2xl border-2 border-dashed transition-all cursor-pointer text-center flex flex-col items-center justify-center gap-3 ${
+                dragActive 
+                  ? 'border-blue-500 bg-blue-50/70' 
+                  : 'border-slate-300 hover:border-blue-400 bg-slate-50/70 hover:bg-slate-50'
+              }`}
+            >
+              <div className="w-14 h-14 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                <Upload className="w-7 h-7" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-bold text-slate-800">
+                  Arrastra tu Carpeta Tributaria aquí o <span className="text-blue-600 underline">haz clic para examinar</span>
+                </p>
+                <p className="text-xs text-slate-500">
+                  Formatos soportados: <strong>PDF</strong> (Carpeta para Créditos/Subsidios), <strong>XML</strong>, TXT o F29
+                </p>
+              </div>
+
+              {selectedFile && (
+                <div className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-slate-300 text-xs text-slate-700 shadow-xs">
+                  <FileCheck className="w-4 h-4 text-emerald-600" />
+                  <span className="font-semibold text-slate-900 truncate max-w-[220px]">{selectedFile.name}</span>
+                  <span className="text-[10px] text-slate-500 font-mono">({Math.round(selectedFile.size / 1024)} KB)</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between text-[11px] text-slate-500 px-1">
+              <span>¿No tienes tu carpeta a mano?</span>
+              <button
+                onClick={handleLoadSample}
+                className="text-blue-600 hover:text-blue-700 font-semibold underline cursor-pointer"
+              >
+                Ver un ejemplo con una empresa ficticia
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Option 2: Raw Text Box */}
+        {activeTab === 'text' && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-slate-700">
+                Texto de la Carpeta Tributaria o Formulario 29:
+              </label>
+              <button
+                onClick={handleLoadSample}
+                className="text-[11px] text-blue-600 hover:text-blue-700 font-semibold underline cursor-pointer"
+              >
+                Ver un ejemplo
+              </button>
+            </div>
+            <textarea
+              rows={4}
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              placeholder="Pega aquí el texto copiado de tu Carpeta Tributaria SII o los resúmenes de tu F29..."
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs font-mono leading-relaxed focus:bg-white focus:border-blue-500 focus:outline-hidden"
+            />
+            <div className="flex justify-end pt-1">
+              <button
+                onClick={() => { setIsSample(false); handleProcessText(inputText); }}
+                disabled={loading || !inputText.trim()}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-600/20 transition-all disabled:opacity-50 cursor-pointer"
+              >
+                {loading ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Analizando F29...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Analizar Texto con IA</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+
+        </>)}
+
+        {/* Error Banner with Retry */}
+        {error && (
+          <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
+            <div className="flex items-center gap-2.5 text-xs font-semibold">
+              <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
+              <span>{error}</span>
+            </div>
+            <button
+              onClick={() => {
+                setError(null);
+                if (activeTab === 'upload' && selectedFile) {
+                  processUploadedFile(selectedFile);
+                } else if (inputText) {
+                  handleProcessText(inputText);
+                }
+              }}
+              disabled={loading}
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-all cursor-pointer shrink-0"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reintentar</span>
+            </button>
+          </div>
+        )}
+
+        {/* Loading Spinner Indicator */}
+        {loading && (
+          <div className="p-5 rounded-2xl bg-blue-50 border border-blue-200 space-y-3" role="status">
+            <p className="text-sm font-bold text-blue-900 flex items-center gap-2">
+              <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
+              Analizando tu carpeta tributaria
+            </p>
+            <ul className="space-y-1.5">
+              {LOADING_STEPS.map((step, i) => (
+                <li key={step} className={`flex items-center gap-2 text-sm ${i < loadingStep ? 'text-blue-900' : i === loadingStep ? 'text-blue-900 font-semibold' : 'text-blue-900/40'}`}>
+                  {i < loadingStep ? <Check className="w-4 h-4 text-emerald-600" /> : <span className={`w-4 h-4 rounded-full border-2 ${i === loadingStep ? 'border-blue-600 border-t-transparent animate-spin' : 'border-blue-200'}`} />}
+                  {step}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Diagnóstico completo (Carpeta Tributaria Electrónica reconocida) */}
+        {diagnosis && (
+          <TaxDiagnosisView
+            diagnosis={diagnosis}
+            isSample={isSample}
+            correctionForm={isSample ? undefined : correctionFields}
+            onPrimaryAction={isSample ? resetToUpload : handleConfirmSave}
+            primaryLabel={isSample ? 'Subir mi carpeta' : applied ? 'Datos guardados en tu perfil' : 'Guardar estos datos en mi perfil'}
+            primaryDisabled={!isSample && applied}
+          />
+        )}
+
+        {/* Confirmation Screen with Editable Fields (Requirement 4) */}
+        {parsedData && !loading && !diagnosis && (
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-4 animate-fade-in">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <span className="text-xs font-bold text-slate-900">
+                  Confirmación de Datos Extraídos
+                </span>
+              </div>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 font-semibold">
+                Revisa y edita si es necesario
+              </span>
+            </div>
+
+            <p className="text-[11px] text-slate-600">
+              Verifica los datos obtenidos de la Carpeta Tributaria. Nada se guardará en tu perfil hasta que presiones <strong>"Confirmar datos"</strong>.
+            </p>
+
+            {correctionFields}
 
             {parsedData.siiStatusObservations && (
               <p className="text-[11px] text-slate-600 italic bg-white p-2.5 rounded-lg border border-slate-200">
@@ -633,9 +703,9 @@ export const SiiUploaderModal: React.FC<SiiUploaderModalProps> = ({
           </div>
         )}
 
-        <div className="pt-1 text-center">
+        <div className={`pt-1 text-center ${diagnosis ? 'hidden' : ''}`}>
           <p className="text-[10px] text-slate-400">
-            🔒 Protocolo de Privacidad: La Carpeta Tributaria se procesa bajo cifrado para el cálculo exclusivo de admisibilidad de tu empresa.
+            El archivo no se guarda: se procesa en el momento y solo guardamos los datos que confirmes.
           </p>
         </div>
       </div>

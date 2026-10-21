@@ -175,9 +175,14 @@ const PLAN_FEATURES = [
   'Cartas y documentos',
   'Auditoría simulada antes de enviar',
   'Expediente PDF',
-  'Asesor experto en cada postulación',
-  'Hasta 3 postulaciones a la vez'
+  'Asesor experto en cada postulación'
 ];
+
+const CONSULTORA_MAILTO =
+  'mailto:contacto@impulsacap.cl?subject=' +
+  encodeURIComponent('Plan para consultoras') +
+  '&body=' +
+  encodeURIComponent('Hola, soy de una consultora y me interesa un plan para varias empresas.\n\nNombre de la consultora:\nCuántas empresas asesoramos:\nCuántas postulaciones preparamos al año (aprox.):\nTeléfono de contacto:\n');
 
 const formatCLP = (n: number) => `$${n.toLocaleString('es-CL')}`;
 
@@ -265,6 +270,12 @@ export const PlanComparison: React.FC<{ onStartFree: () => void }> = ({ onStartF
             </div>
             <p className="text-sm text-slate-300">Pago único por 6 meses, IVA incluido. No se renueva solo.</p>
           </div>
+          <div className="rounded-2xl bg-white/5 border border-white/10 px-4 py-3 space-y-1">
+            <p className="text-sm font-bold text-white">Para 1 empresa, hasta 3 postulaciones activas a la vez</p>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Cuando terminas una postulación o la archivas, se libera el cupo y puedes empezar otra dentro de los 6 meses.
+            </p>
+          </div>
           <ul className="space-y-2.5 flex-1">
             <li className="text-sm text-cyan-200">Todo lo gratis, más:</li>
             {PLAN_FEATURES.map(f => (
@@ -299,6 +310,22 @@ export const PlanComparison: React.FC<{ onStartFree: () => void }> = ({ onStartF
           )}
         </div>
       </div>
+
+      <div className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <h3 className="text-base font-black text-slate-900">¿Eres consultora o asesoras a varias empresas?</h3>
+          <p className="text-sm text-slate-600 leading-relaxed max-w-2xl">
+            Armamos un plan a tu medida, con más postulaciones a la vez y una cuenta para trabajar con tus clientes.
+          </p>
+        </div>
+        <a
+          href={CONSULTORA_MAILTO}
+          className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+        >
+          Conversemos
+          <ArrowRight className="w-4 h-4" />
+        </a>
+      </div>
     </section>
   );
 };
@@ -319,6 +346,10 @@ const FAQS = [
   {
     q: '¿Qué fondos cubre?',
     a: 'Hoy el monitor revisa a diario las convocatorias de CORFO. Pronto sumaremos Sercotec, ANID y gobiernos regionales. Igual puedes elegir manualmente cualquier fondo del catálogo.'
+  },
+  {
+    q: '¿Cuántas postulaciones puedo preparar con el plan?',
+    a: 'El Plan Semestral es para una empresa y permite tener hasta 3 postulaciones activas a la vez. Cuando terminas una o la archivas, liberas el cupo y puedes empezar otra dentro de los 6 meses. Si eres consultora y trabajas con varias empresas, escríbenos a contacto@impulsacap.cl y armamos un plan a tu medida.'
   },
   {
     q: '¿El plan se renueva automáticamente?',
