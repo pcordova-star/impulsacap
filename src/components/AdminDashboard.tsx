@@ -542,6 +542,41 @@ const SellersPanel: React.FC = () => {
   );
 };
 
+
+/** Prueba en vivo de la IA: muestra el error real de Gemini si falla. */
+const AiStatus: React.FC = () => {
+  const [r, setR] = useState<{ ok: boolean; model: string; key: string; ms: number; status?: number | null; error?: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const run = useCallback(async () => {
+    setBusy(true);
+    try {
+      const res = await apiFetch('/api/admin/diagnostico-ia');
+      setR(await res.json());
+    } catch (e: any) {
+      setR({ ok: false, model: '', key: '', ms: 0, error: e?.message || 'No se pudo probar' });
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+  useEffect(() => { run(); }, [run]);
+  return (
+    <div className="space-y-1">
+      {!r ? <span className="text-slate-500">Probando…</span> : (
+        <Status ok={r.ok} okText={`Responde (${r.model}, ${r.ms} ms)`} badText={`No responde${r.status ? ` (error ${r.status})` : ''}`} />
+      )}
+      {r && !r.ok && (
+        <div className="text-xs text-slate-600 space-y-1">
+          <p>Clave GEMINI_API_KEY: {r.key}</p>
+          {r.error && <p className="font-mono break-words bg-slate-50 border border-slate-200 rounded p-2">{r.error}</p>}
+        </div>
+      )}
+      <button type="button" onClick={run} disabled={busy} className="text-xs font-semibold text-blue-700 hover:underline cursor-pointer disabled:opacity-60">
+        {busy ? 'Probando…' : 'Probar de nuevo'}
+      </button>
+    </div>
+  );
+};
+
 export const AdminDashboard: React.FC = () => {
   const [data, setData] = useState<Summary | null>(null);
   const [showAllUsers, setShowAllUsers] = useState(false);
@@ -644,6 +679,35 @@ export const AdminDashboard: React.FC = () => {
         </button>
       </header>
 
+      <Card title="Estado del sistema">
+        <ul className="grid gap-3 sm:grid-cols-2 text-sm">
+          <li className="space-y-0.5">
+            <p className="text-slate-500">Monitor de convocatorias</p>
+            <Status
+              ok={Boolean(data.system.lastConvocatoriasSyncAt && Date.now() - new Date(data.system.lastConvocatoriasSyncAt).getTime() < 36 * 36e5)}
+              okText={`Sincronizado ${fmtDate(data.system.lastConvocatoriasSyncAt, true)} · ${data.system.convocatoriasVigentes ?? '—'} vigentes`}
+              badText={data.system.lastConvocatoriasSyncAt ? `Última sincronización ${fmtDate(data.system.lastConvocatoriasSyncAt, true)}` : 'Sin sincronizaciones registradas'}
+            />
+          </li>
+          <li className="space-y-0.5">
+            <p className="text-slate-500">Correos (Resend)</p>
+            <Status ok={data.system.emailConfigured} okText="Configurado" badText="Falta RESEND_API_KEY" />
+          </li>
+          <li className="space-y-0.5">
+            <p className="text-slate-500">Mercado Pago</p>
+            <Status ok={data.system.mercadoPagoConfigured} okText="Configurado" badText="Falta MP_ACCESS_TOKEN" />
+          </li>
+          <li className="space-y-0.5">
+            <p className="text-slate-500">IA (Gemini)</p>
+            <AiStatus />
+          </li>
+          <li className="space-y-0.5">
+            <p className="text-slate-500">Base de datos</p>
+            <Status ok okText="Conectada" badText="" />
+          </li>
+        </ul>
+      </Card>
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Kpi label="Ingresos totales" value={clp(k.revenueTotal)} detail={`${clp(k.revenueThisMonth)} este mes · ${num(k.approvedPayments)} pagos`} />
         <Kpi label="Planes activos" value={num(k.activePlans)} detail={k.expiringIn7d > 0 ? `${k.expiringIn7d} vencen en 7 días` : 'Ninguno vence esta semana'} />
@@ -744,30 +808,6 @@ export const AdminDashboard: React.FC = () => {
 
       <SupportInbox />
 
-      <Card title="Estado del sistema">
-        <ul className="grid gap-3 sm:grid-cols-2 text-sm">
-          <li className="space-y-0.5">
-            <p className="text-slate-500">Monitor de convocatorias</p>
-            <Status
-              ok={Boolean(data.system.lastConvocatoriasSyncAt && Date.now() - new Date(data.system.lastConvocatoriasSyncAt).getTime() < 36 * 36e5)}
-              okText={`Sincronizado ${fmtDate(data.system.lastConvocatoriasSyncAt, true)} · ${data.system.convocatoriasVigentes ?? '—'} vigentes`}
-              badText={data.system.lastConvocatoriasSyncAt ? `Última sincronización ${fmtDate(data.system.lastConvocatoriasSyncAt, true)}` : 'Sin sincronizaciones registradas'}
-            />
-          </li>
-          <li className="space-y-0.5">
-            <p className="text-slate-500">Correos (Resend)</p>
-            <Status ok={data.system.emailConfigured} okText="Configurado" badText="Falta RESEND_API_KEY" />
-          </li>
-          <li className="space-y-0.5">
-            <p className="text-slate-500">Mercado Pago</p>
-            <Status ok={data.system.mercadoPagoConfigured} okText="Configurado" badText="Falta MP_ACCESS_TOKEN" />
-          </li>
-          <li className="space-y-0.5">
-            <p className="text-slate-500">Base de datos</p>
-            <Status ok okText="Conectada" badText="" />
-          </li>
-        </ul>
-      </Card>
     </div>
   );
 };

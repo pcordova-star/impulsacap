@@ -2634,6 +2634,25 @@ app.post('/api/admin/acceso-anticipado/avisar', requireAuth, requireAdminUser, a
   }
 });
 
+// Admin: prueba en vivo de la IA (Gemini). Devuelve el error real para diagnosticar clave, cuota o modelo.
+app.get('/api/admin/diagnostico-ia', requireAuth, requireAdminUser, async (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const keyInfo = apiKey ? `presente (${apiKey.length} caracteres, termina en …${apiKey.slice(-4)})` : 'NO configurada';
+  const started = Date.now();
+  try {
+    const r = await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: [{ role: 'user', parts: [{ text: 'Responde solo: OK' }] }],
+      config: { maxOutputTokens: 20, temperature: 0 }
+    });
+    return res.json({ ok: true, model: MODEL_NAME, key: keyInfo, ms: Date.now() - started, sample: (r.text || '').trim().slice(0, 40) });
+  } catch (err: any) {
+    const message = String(err?.message || err).replace(/AIza[0-9A-Za-z_\-]{20,}/g, '[clave oculta]').slice(0, 600);
+    console.error('[diagnostico-ia]', err?.status, message);
+    return res.json({ ok: false, model: MODEL_NAME, key: keyInfo, ms: Date.now() - started, status: err?.status ?? null, error: message });
+  }
+});
+
 app.get('/api/admin/resumen', requireAuth, requireAdminUser, async (req, res) => {
   try {
     if (!isFirestoreAdminAuthorized) {
