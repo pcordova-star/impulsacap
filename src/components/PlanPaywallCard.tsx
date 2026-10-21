@@ -35,7 +35,8 @@ export const PlanPaywallCard: React.FC<PlanPaywallCardProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [paymentsEnabled, setPaymentsEnabled] = useState(true);
-  useEffect(() => { getPaymentsMode().then(m => setPaymentsEnabled(m.paymentsEnabled)); }, []);
+  const [testMode, setTestMode] = useState(false);
+  useEffect(() => { getPaymentsMode().then(m => { setPaymentsEnabled(m.paymentsEnabled); setTestMode(Boolean(m.testMode)); }); }, []);
 
   const handleCheckout = async () => {
     setLoading(true);
@@ -233,6 +234,12 @@ export const PlanPaywallCard: React.FC<PlanPaywallCardProps> = ({
             </button>
           </div>
         </div>
+
+        {testMode && (
+          <div className="p-3 rounded-xl bg-amber-400/15 border border-amber-400/40 text-amber-200 text-xs">
+            <strong>Modo prueba de pagos:</strong> solo tu cuenta de administrador ve el pago real con Mercado Pago. Los demás usuarios siguen viendo "Probar gratis 5 días".
+          </div>
+        )}
 
         {/* Error message if any */}
         {error && (

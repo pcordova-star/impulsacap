@@ -1761,9 +1761,35 @@ const isEarlyAccessMode = () => (process.env.PAGOS_MODO || '').trim().toLowerCas
 const EARLY_ACCESS_DAYS = () => Math.min(90, Math.max(1, Number(process.env.ACCESO_ANTICIPADO_DIAS) || 5));
 const PAYMENT_GRACE_DAYS = 7;
 
-app.get('/api/pagos/modo', (_req, res) => {
+// Prueba de pagos sin desarmar el lanzamiento: con PAGOS_MODO=anticipado, los correos de
+// PAGOS_PRUEBA_EMAILS (o, si no está, los de ADMIN_DASHBOARD_EMAILS / ADMIN_EMAIL) pagan de verdad
+// con Mercado Pago; el resto sigue recibiendo la prueba gratis.
+function getPaymentTesterEmails(): string[] {
+  const raw = process.env.PAGOS_PRUEBA_EMAILS || process.env.ADMIN_DASHBOARD_EMAILS || process.env.ADMIN_EMAIL || '';
+  return raw.split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+}
+function isPaymentTester(user?: { email?: string; emailVerified?: boolean } | null): boolean {
+  const email = (user?.email || '').toLowerCase();
+  return Boolean(email && user?.emailVerified && getPaymentTesterEmails().includes(email));
+}
+function canPayOnline(user?: { email?: string; emailVerified?: boolean } | null): boolean {
+  return !isEarlyAccessMode() || isPaymentTester(user);
+}
+async function optionalUser(req: express.Request) {
+  const h = req.headers.authorization;
+  if (!h || !h.startsWith('Bearer ')) return null;
+  try {
+    const d = await adminAuth.verifyIdToken(h.slice(7).trim());
+    return { uid: d.uid, email: d.email, emailVerified: d.email_verified === true };
+  } catch {
+    return null;
+  }
+}
+
+app.get('/api/pagos/modo', async (req, res) => {
   res.set('Cache-Control', 'no-store');
-  res.json({ paymentsEnabled: !isEarlyAccessMode() });
+  const user = await optionalUser(req);
+  res.json({ paymentsEnabled: canPayOnline(user), testMode: isEarlyAccessMode() && isPaymentTester(user) });
 });
 
 async function grantEarlyAccess(uid: string, email: string | undefined) {
@@ -1829,7 +1855,7 @@ app.get('/api/pagos/estado', requireAuth, async (req, res) => {
       return res.json({ isFirstPurchase: true, price: PRICE_FIRST, paymentsEnabled: !isEarlyAccessMode() });
     }
     const pricing = await resolvePricing(adminDb, user.uid);
-    return res.json({ ...pricing, paymentsEnabled: !isEarlyAccessMode() });
+    return res.json({ ...pricing, paymentsEnabled: canPayOnline(user) });
   } catch {
     return res.json({ isFirstPurchase: true, price: PRICE_FIRST });
   }
@@ -1878,12 +1904,13 @@ app.get('/api/pagos/historial', requireAuth, async (req, res) => {
 app.post('/api/pagos/crear', requireAuth, async (req, res) => {
   try {
     const user = (req as AuthenticatedRequest).user!;
-    if (isEarlyAccessMode()) {
+    if (isEarlyAccessMode() && !isPaymentTester(user)) {
       if (!(await ensureFirestoreAdmin())) {
         return res.status(503).json({ error: 'No pudimos activar tu acceso en este momento. Intenta en unos minutos.' });
       }
       return res.json(await grantEarlyAccess(user.uid, user.email));
     }
+    if (isEarlyAccessMode()) console.log(`[pagos] Pago de prueba real habilitado para ${user.email}`);
     if (!mpAccessToken) {
       return res.status(500).json({ error: 'Mercado Pago no está configurado (MP_ACCESS_TOKEN ausente).' });
     }
