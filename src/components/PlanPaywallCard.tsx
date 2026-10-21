@@ -211,12 +211,12 @@ export const PlanPaywallCard: React.FC<PlanPaywallCardProps> = ({
               {loading ? (
                 <>
                   <RefreshCw className="w-5 h-5 animate-spin" />
-                  <span>{paymentsEnabled ? 'Conectando con Mercado Pago...' : 'Activando tu acceso...'}</span>
+                  <span>{paymentsEnabled ? 'Conectando con Mercado Pago...' : 'Activando tu prueba...'}</span>
                 </>
               ) : (
                 <>
                   <Lock className="w-5 h-5" />
-                  <span>{paymentsEnabled ? 'Pagar con Mercado Pago' : 'Activar acceso anticipado'}</span>
+                  <span>{paymentsEnabled ? 'Pagar con Mercado Pago' : 'Probar gratis 5 días'}</span>
                   <ArrowRight className="w-5 h-5" />
                 </>
               )}

@@ -849,10 +849,10 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
           <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
             <span className="text-[10px] uppercase font-bold text-slate-500 block">Plan Actual</span>
             <p className="text-base font-black text-slate-900">
-              {hasActivePlan ? (provisional ? 'Acceso anticipado' : 'Plan Semestral') : 'Plan Gratuito'}
+              {hasActivePlan ? (provisional ? 'Prueba gratis' : 'Plan Semestral') : 'Plan Gratuito'}
             </p>
             <p className="text-[11px] text-slate-500">
-              {hasActivePlan ? (provisional ? 'Sin costo mientras habilitamos el pago; te avisaremos por correo' : 'Acceso completo a las herramientas') : 'Acceso limitado a diagnóstico'}
+              {hasActivePlan ? (provisional ? 'Beneficio de lanzamiento: Plan Semestral completo sin costo' : 'Acceso completo a las herramientas') : 'Acceso limitado a diagnóstico'}
             </p>
           </div>
 

@@ -350,20 +350,20 @@ export function supportTicketUserEmail(t: SupportTicketEmailData) {
 
 export function earlyAccessUserEmail(args: { expiresAt: string; price: number }) {
   const html = layout({
-    preheader: 'Ya tienes acceso al Plan Semestral',
-    heading: 'Ya tienes acceso al Plan Semestral',
+    preheader: 'Tu prueba gratis de ImpulsaCap está activa',
+    heading: 'Tu prueba gratis está activa',
     bodyHtml:
-      p('Gracias por contratar ImpulsaCap. Estamos terminando de habilitar el pago en línea, así que mientras tanto te dimos <strong>acceso completo sin costo</strong>.') +
+      p('Como beneficio de lanzamiento para pymes, tienes el <strong>Plan Semestral completo gratis</strong>: redacción de tu postulación con IA, documentos y cartas, auditoría simulada y expediente PDF.') +
       detailTable([
-        ['Acceso anticipado hasta', formatDateCL(args.expiresAt)],
-        ['Precio cuando habilitemos el pago', `${formatCLP(args.price)} (IVA incluido)`],
+        ['Prueba gratis hasta', formatDateCL(args.expiresAt)],
+        ['Precio de lanzamiento', `${formatCLP(args.price)} por 6 meses (IVA incluido)`],
       ]) +
-      p('Cuando el pago esté disponible te avisaremos por este correo. Desde ese aviso tendrás 7 días para completarlo y mantener tu acceso; con el pago comienzan tus 6 meses de plan.') +
-      p('No necesitas hacer nada más por ahora.'),
-    cta: { label: 'Empezar a usar ImpulsaCap', url: getAppUrl() }
+      p('Te enviaremos por este correo tu enlace para activar el plan y seguir trabajando sin perder nada. Tus datos y postulaciones quedan guardados.') +
+      p('Aprovecha estos días para subir tu carpeta tributaria y avanzar en tu postulación.'),
+    cta: { label: 'Empezar mi prueba', url: getAppUrl() }
   });
-  const text = `Ya tienes acceso al Plan Semestral sin costo hasta el ${formatDateCL(args.expiresAt)}. Cuando habilitemos el pago (${formatCLP(args.price)}) te avisaremos por correo y tendrás 7 días para completarlo.`;
-  return { subject: 'Ya tienes acceso al Plan Semestral de ImpulsaCap', html, text };
+  const text = `Tu prueba gratis del Plan Semestral está activa hasta el ${formatDateCL(args.expiresAt)}. Te enviaremos tu enlace para activarlo a ${formatCLP(args.price)} (precio de lanzamiento).`;
+  return { subject: 'Tu prueba gratis de ImpulsaCap está activa', html, text };
 }
 
 export function earlyAccessAdminEmail(args: { userEmail: string; companyName?: string; expiresAt: string; price: number }) {
@@ -384,18 +384,17 @@ export function earlyAccessAdminEmail(args: { userEmail: string; companyName?: s
 
 export function paymentAvailableEmail(args: { deadline: string; price: number }) {
   const html = layout({
-    preheader: 'Ya puedes completar tu pago',
-    heading: 'Ya puedes completar tu pago',
+    preheader: 'Activa tu Plan Semestral a precio de lanzamiento',
+    heading: 'Activa tu Plan Semestral',
     bodyHtml:
-      p('Habilitamos el pago en línea de ImpulsaCap. Gracias por esperar.') +
+      p('Gracias por probar ImpulsaCap. Ya puedes activar tu Plan Semestral a precio de lanzamiento y seguir con tu postulación.') +
       detailTable([
-        ['Monto', `${formatCLP(args.price)} (IVA incluido)`],
-        ['Paga antes del', formatDateCL(args.deadline)],
+        ['Precio de lanzamiento', `${formatCLP(args.price)} por 6 meses (IVA incluido)`],
+        ['Activa antes del', formatDateCL(args.deadline)],
       ]) +
-      p('Para mantener tu acceso, completa el pago antes de esa fecha desde "Mi empresa" o la sección de precios. Con el pago comienzan tus 6 meses de Plan Semestral.') +
-      p('Si no completas el pago, tu acceso anticipado terminará en esa fecha, pero tus datos y postulaciones quedan guardados.'),
-    cta: { label: 'Completar mi pago', url: `${getAppUrl()}/?pagar=1` }
+      p('Hasta esa fecha mantienes el acceso completo. Al activar el plan comienzan tus 6 meses; si no lo activas, el acceso a las herramientas termina en esa fecha, pero tus datos y postulaciones quedan guardados.'),
+    cta: { label: 'Activar mi plan', url: `${getAppUrl()}/?pagar=1` }
   });
-  const text = `Ya puedes completar tu pago de ${formatCLP(args.price)} antes del ${formatDateCL(args.deadline)} para mantener tu acceso: ${getAppUrl()}/?pagar=1`;
-  return { subject: 'Ya puedes completar tu pago en ImpulsaCap', html, text };
+  const text = `Ya puedes activar tu Plan Semestral a ${formatCLP(args.price)} (precio de lanzamiento) antes del ${formatDateCL(args.deadline)}: ${getAppUrl()}/?pagar=1`;
+  return { subject: 'Activa tu Plan Semestral a precio de lanzamiento', html, text };
 }

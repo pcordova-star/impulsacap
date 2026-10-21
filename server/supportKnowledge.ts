@@ -27,7 +27,7 @@ PAGOS (Mercado Pago)
 - Si el botón "Pagar" de Mercado Pago está gris: cambiar el medio de pago (una tarjeta prepago sin saldo no permite pagar), o pagar en una ventana de incógnito ingresando la tarjeta. No se puede pagar con la misma cuenta de Mercado Pago que recibe el pago.
 - Si pagó y el plan no aparece activo después de unos minutos: recargar la página y revisar "Mi empresa" > "Mi Plan y Suscripción". Si sigue sin activarse, crear un ticket con el número de operación de Mercado Pago.
 - Se emite boleta o factura por cada pago.
-- Lanzamiento: mientras se habilita el pago en línea, al presionar "Activar acceso anticipado" se da acceso completo sin costo por unos días (una sola vez por usuario). Cuando el pago esté disponible se avisa por correo y hay 7 días para pagar y mantener el acceso; los 6 meses del plan parten desde el pago. Los datos y postulaciones se conservan aunque el acceso termine.
+- Beneficio de lanzamiento para pymes: al presionar "Probar gratis 5 días" se activa el Plan Semestral completo sin costo por 5 días, sin tarjeta y una sola vez por usuario. Luego se envía por correo un enlace para activar el plan a precio de lanzamiento; desde ese aviso hay 7 días para activarlo. Los datos y postulaciones se conservan aunque la prueba termine.
 
 DERECHO A RETRACTO Y DEVOLUCIONES
 - Retracto dentro de 10 días desde el pago, siempre que no haya comenzado a usar el plan (Ley 19.496, art. 3 bis). El servicio comienza al usar por primera vez una herramienta del plan; la app pide confirmarlo antes.

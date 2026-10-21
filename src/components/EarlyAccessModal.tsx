@@ -20,26 +20,26 @@ export const EarlyAccessModal: React.FC<{ onStart: () => void }> = ({ onStart })
 
   if (!info) return null;
 
-  let title = '¡Listo! Ya tienes acceso al Plan Semestral';
+  let title = '¡Tu prueba gratis está activa!';
   let body: React.ReactNode = (
     <>
       <p>
-        Estamos terminando de habilitar el pago en línea. Mientras tanto, te damos <strong>acceso completo sin costo</strong>
-        {info.expiresAt ? <> hasta el <strong>{fmt(info.expiresAt)}</strong></> : null}.
+        Como <strong>beneficio de lanzamiento para pymes</strong>, tienes el Plan Semestral completo gratis
+        {info.expiresAt ? <> hasta el <strong>{fmt(info.expiresAt)}</strong></> : null}: redacción con IA, documentos y cartas, auditoría simulada y expediente.
       </p>
       <p>
-        Cuando el pago esté disponible te avisaremos por correo para que lo completes{info.price ? <> ({clp(info.price)}, IVA incluido)</> : null}. Desde ese aviso tendrás 7 días para pagar y mantener tu acceso.
+        Te enviaremos por correo tu enlace para activar el plan{info.price ? <> a <strong>{clp(info.price)}</strong> (precio de lanzamiento, IVA incluido)</> : null} y seguir sin perder nada. Tus datos y postulaciones quedan guardados.
       </p>
     </>
   );
   if (info.alreadyPaid) {
     title = 'Tu Plan Semestral ya está activo';
-    body = <p>Tu plan pagado sigue vigente{info.expiresAt ? <> hasta el <strong>{fmt(info.expiresAt)}</strong></> : null}. Podrás renovarlo cuando habilitemos el pago en línea.</p>;
+    body = <p>Tu plan sigue vigente{info.expiresAt ? <> hasta el <strong>{fmt(info.expiresAt)}</strong></> : null}.</p>;
   } else if (info.alreadyGranted) {
-    title = 'Ya tienes acceso anticipado';
+    title = info.expiresAt ? 'Tu prueba gratis sigue activa' : 'Ya usaste tu prueba gratis';
     body = info.expiresAt
-      ? <p>Tu acceso sin costo sigue vigente hasta el <strong>{fmt(info.expiresAt)}</strong>. Te avisaremos por correo cuando puedas completar el pago.</p>
-      : <p>Tu acceso anticipado ya terminó. Te avisaremos por correo cuando el pago en línea esté disponible; si tienes dudas, escríbenos a contacto@impulsacap.cl.</p>;
+      ? <p>Puedes usar el Plan Semestral completo hasta el <strong>{fmt(info.expiresAt)}</strong>. Te enviaremos por correo tu enlace para activarlo.</p>
+      : <p>Tu prueba gratis terminó, pero tus datos y postulaciones siguen guardados. Te enviaremos por correo tu enlace para activar el plan; si quieres activarlo antes, escríbenos a contacto@impulsacap.cl.</p>;
   }
 
   const Icon = info.alreadyPaid || info.alreadyGranted ? (info.expiresAt ? CheckCircle2 : Info) : PartyPopper;
@@ -63,7 +63,7 @@ export const EarlyAccessModal: React.FC<{ onStart: () => void }> = ({ onStart })
           onClick={() => { const ok = Boolean(info.expiresAt); setInfo(null); if (ok) onStart(); }}
           className="w-full px-5 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm cursor-pointer"
         >
-          {info.expiresAt ? 'Empezar a usar el plan' : 'Entendido'}
+          {info.expiresAt ? 'Empezar mi prueba' : 'Entendido'}
         </button>
       </div>
     </div>

@@ -303,12 +303,12 @@ export const PlanComparison: React.FC<{ onStartFree: () => void }> = ({ onStartF
                 className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-cyan-400 to-emerald-400 text-[#04131c] font-black text-sm hover:brightness-110 transition cursor-pointer disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F1E3A]"
               >
                 {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                {loading ? (paymentsEnabled ? 'Abriendo Mercado Pago…' : 'Activando tu acceso…') : (paymentsEnabled ? 'Activar Plan Semestral' : 'Activar acceso anticipado')}
+                {loading ? (paymentsEnabled ? 'Abriendo Mercado Pago…' : 'Activando tu prueba…') : (paymentsEnabled ? 'Activar Plan Semestral' : 'Probar gratis 5 días')}
               </button>
               {paymentsEnabled ? (
                 <p className="text-xs text-slate-400 text-center">Pagas de forma segura con Mercado Pago.</p>
               ) : (
-                <p className="text-xs text-emerald-200 text-center leading-relaxed">Lanzamiento: mientras habilitamos el pago en línea, te damos acceso sin costo y te avisamos por correo cuando puedas pagar.</p>
+                <p className="text-xs text-emerald-200 text-center leading-relaxed">Beneficio de lanzamiento para pymes: usa el Plan Semestral completo gratis por 5 días, sin tarjeta. Después te enviamos tu enlace para activarlo a precio de lanzamiento.</p>
               )}
               <p className="text-xs text-slate-400 text-center leading-relaxed">
                 Al pagar aceptas los{' '}
