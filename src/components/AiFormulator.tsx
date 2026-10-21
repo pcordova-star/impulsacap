@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { consume, onRequest } from '../utils/navFocus';
+import { BudgetWizard } from './BudgetWizard';
 import { ChileanFund, CompanyProfile, FormulationOutput, ProjectProfile } from '../types/funds';
 import { ExpedienteData } from '../types/expediente';
 import { apiFetch } from '../utils/apiFetch';
@@ -366,8 +367,9 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
       initialMap[acc.key] = {
         corfoContributionCLP: found ? found.corfoContributionCLP : 0,
         companyPecuniaryCLP: found ? found.companyPecuniaryCLP : 0,
-        item: found?.item || acc.defaultItem,
-        justification: found?.justification || acc.defaultJustification
+        // Sin texto genérico: el usuario escribe en qué gastará y por qué (no se inventa nada)
+        item: found?.item && found.item !== acc.defaultItem ? found.item : '',
+        justification: found?.justification && found.justification !== acc.defaultJustification ? found.justification : ''
       };
     });
     return initialMap;
@@ -725,11 +727,11 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
       const data = budgetAccounts[acc.key];
       return {
         account: acc.account,
-        item: data?.item || acc.defaultItem,
+        item: data?.item || acc.account,
         corfoContributionCLP: Number(data?.corfoContributionCLP || 0),
         companyPecuniaryCLP: Number(data?.companyPecuniaryCLP || 0),
         companyValuedCLP: 0,
-        justification: data?.justification || acc.defaultJustification
+        justification: data?.justification || '[COMPLETAR: por qué el proyecto necesita este gasto]'
       };
     }).filter(b => b.corfoContributionCLP > 0 || b.companyPecuniaryCLP > 0);
 
@@ -1042,185 +1044,15 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
 
         {/* SECTION 8: PRESUPUESTO OFICIAL (Requirement 10) */}
         {currentSection.id === 'budget' ? (
-          <div className="space-y-6">
-            <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-2">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Calculator className="w-4 h-4 text-emerald-400" />
-                <span>Desglose por Cuentas Presupuestarias Oficiales ({currentFund.agency})</span>
-              </h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Ingresa los montos netos (sin IVA) solicitados al organismo y el aporte pecuniario de tu empresa. El sistema valida automáticamente los topes de las bases concursales.
-              </p>
-            </div>
-
-            {/* Validation Feedback Banner */}
-            <div className={`p-4 rounded-2xl border text-xs flex items-start gap-3 ${
-              isSubsidyExceeded || isPctExceeded
-                ? 'bg-rose-500/10 border-rose-500/30 text-rose-300'
-                : totalSubsidio > 0
-                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-                : 'bg-slate-950/60 border-slate-800 text-slate-400'
-            }`}>
-              {isSubsidyExceeded || isPctExceeded ? (
-                <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
-              ) : totalSubsidio > 0 ? (
-                <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
-              ) : (
-                <AlertCircle className="w-5 h-5 text-slate-400 shrink-0 mt-0.5" />
-              )}
-              <div className="space-y-1">
-                <div className="font-bold text-sm">
-                  {isSubsidyExceeded
-                    ? `Tope de subsidio excedido en $${(totalSubsidio - maxAllowedSubsidy).toLocaleString('es-CL')} CLP`
-                    : isPctExceeded
-                    ? `Porcentaje de cofinanciamiento excedido (${currentSubsidioPct.toFixed(1)}% vs Máx ${maxAllowedPct}%)`
-                    : totalSubsidio > 0
-                    ? `Presupuesto válido y dentro de las bases de ${currentFund.name}`
-                    : 'Ingresa los montos por cuenta para calcular el presupuesto oficial'}
-                </div>
-                <div className="text-[11px] leading-relaxed">
-                  {isSubsidyExceeded && (
-                    <p>El subsidio solicitado (${totalSubsidio.toLocaleString('es-CL')} CLP) no puede superar el máximo de ${maxAllowedSubsidy.toLocaleString('es-CL')} CLP fijado en las bases.</p>
-                  )}
-                  {isPctExceeded && (
-                    <p>Debes aumentar el Aporte Pecuniario de tu empresa para que el subsidio no sobrepase el {maxAllowedPct}% del costo total del proyecto.</p>
-                  )}
-                  {isBudgetValid && (
-                    <p>Subsidio solicitado representa el {currentSubsidioPct.toFixed(1)}% del proyecto (tope: {maxAllowedPct}%). Aporte de tu empresa: ${totalAporteEmpresa.toLocaleString('es-CL')} CLP.</p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Live Financial Summary Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-              <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800">
-                <span className="text-[10px] text-slate-400 block">Subsidio Solicitado</span>
-                <strong className={`text-sm font-mono ${isSubsidyExceeded ? 'text-rose-400 font-bold' : 'text-cyan-400'}`}>
-                  ${totalSubsidio.toLocaleString('es-CL')} CLP
-                </strong>
-                <span className="text-[10px] text-slate-500 block">Máx: ${maxAllowedSubsidy.toLocaleString('es-CL')}</span>
-              </div>
-
-              <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800">
-                <span className="text-[10px] text-slate-400 block">Aporte Pecuniario (Caja)</span>
-                <strong className="text-sm font-mono text-emerald-400">
-                  ${totalAporteEmpresa.toLocaleString('es-CL')} CLP
-                </strong>
-                <span className="text-[10px] text-slate-500 block">Aporte privado obligatorio</span>
-              </div>
-
-              <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800">
-                <span className="text-[10px] text-slate-400 block">Costo Total Proyecto</span>
-                <strong className="text-sm font-mono text-white">
-                  ${totalProyecto.toLocaleString('es-CL')} CLP
-                </strong>
-                <span className="text-[10px] text-slate-500 block">Subsidio + Aporte</span>
-              </div>
-
-              <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800">
-                <span className="text-[10px] text-slate-400 block">% Cofinanciamiento</span>
-                <strong className={`text-sm font-mono ${isPctExceeded ? 'text-rose-400 font-bold' : 'text-amber-400'}`}>
-                  {currentSubsidioPct.toFixed(1)}% Estatal
-                </strong>
-                <span className="text-[10px] text-slate-500 block">Máx permitido: {maxAllowedPct}%</span>
-              </div>
-            </div>
-
-            {/* Budget Accounts Inputs Table */}
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-                Montos por Cuenta Presupuestaria
-              </h4>
-
-              <div className="space-y-3">
-                {STANDARD_BUDGET_ACCOUNTS.map(acc => {
-                  const data = budgetAccounts[acc.key] || {
-                    corfoContributionCLP: 0,
-                    companyPecuniaryCLP: 0,
-                    item: acc.defaultItem,
-                    justification: acc.defaultJustification
-                  };
-
-                  return (
-                    <div 
-                      key={acc.key}
-                      className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3 hover:border-slate-700 transition-colors"
-                    >
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                        <strong className="text-sm font-bold text-white">
-                          {acc.account}
-                        </strong>
-                        <span className="text-xs font-mono text-slate-400">
-                          Total cuenta: <strong className="text-slate-200">${((data.corfoContributionCLP || 0) + (data.companyPecuniaryCLP || 0)).toLocaleString('es-CL')} CLP</strong>
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <label className="text-[11px] font-semibold text-cyan-300 block mb-1">
-                            Subsidio Solicitado ({currentFund.agency}) en CLP:
-                          </label>
-                          <input
-                            type="number"
-                            min="0"
-                            step="100000"
-                            value={data.corfoContributionCLP || ''}
-                            onChange={(e) => handleBudgetAccountChange(acc.key, 'corfoContributionCLP', Math.max(0, parseInt(e.target.value) || 0))}
-                            placeholder="0"
-                            className="w-full bg-slate-900 border border-slate-700 text-cyan-300 font-mono text-sm rounded-xl px-3 py-2 focus:outline-none focus:border-cyan-500 placeholder:text-slate-500 placeholder:italic"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="text-[11px] font-semibold text-emerald-300 block mb-1">
-                            Aporte Pecuniario Empresa (Caja) en CLP:
-                          </label>
-                          <input
-                            type="number"
-                            min="0"
-                            step="100000"
-                            value={data.companyPecuniaryCLP || ''}
-                            onChange={(e) => handleBudgetAccountChange(acc.key, 'companyPecuniaryCLP', Math.max(0, parseInt(e.target.value) || 0))}
-                            placeholder="0"
-                            className="w-full bg-slate-900 border border-slate-700 text-emerald-300 font-mono text-sm rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500 placeholder:text-slate-500 placeholder:italic"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                        <div>
-                          <label className="text-[10px] text-slate-400 block mb-1">
-                            Detalle del gasto o actividad:
-                          </label>
-                          <input
-                            type="text"
-                            value={data.item}
-                            onChange={(e) => handleBudgetAccountChange(acc.key, 'item', e.target.value)}
-                            placeholder={acc.defaultItem}
-                            className="w-full bg-slate-900 border border-slate-800 text-slate-200 text-xs rounded-xl px-3 py-1.5 focus:outline-none focus:border-cyan-500 placeholder:text-slate-500 placeholder:italic"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="text-[10px] text-slate-400 block mb-1">
-                            Justificación técnica del gasto:
-                          </label>
-                          <input
-                            type="text"
-                            value={data.justification}
-                            onChange={(e) => handleBudgetAccountChange(acc.key, 'justification', e.target.value)}
-                            placeholder={acc.defaultJustification}
-                            className="w-full bg-slate-900 border border-slate-800 text-slate-200 text-xs rounded-xl px-3 py-1.5 focus:outline-none focus:border-cyan-500 placeholder:text-slate-500 placeholder:italic"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
+          <BudgetWizard
+            agency={currentFund.agency}
+            fundName={currentFund.name}
+            basesUrl={(currentFund as any).officialUrl || (currentFund as any).url || null}
+            maxSubsidyCLP={maxAllowedSubsidy}
+            maxPct={maxAllowedPct}
+            accounts={budgetAccounts}
+            onChange={(key, field, value) => handleBudgetAccountChange(key, field, value)}
+          />
         ) : (
           /* SECTIONS 1 TO 7: QUESTIONS & AI GENERATION */
           <div className="space-y-6">
