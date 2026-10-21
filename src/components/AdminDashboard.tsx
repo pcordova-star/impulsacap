@@ -21,7 +21,7 @@ interface Summary {
   activePlans: { uid: string; email: string; companyName: string; expiresAt: string; daysLeft: number; serviceStarted: boolean }[];
   users: { uid: string; email: string; companyName: string; displayName: string; createdAt: string | null; lastSignInAt: string | null; provider: string; hasActivePlan: boolean; applications: number }[];
   fundsTop: { fundName: string; count: number }[];
-  system: { lastConvocatoriasSyncAt: string | null; convocatoriasVigentes: number | null; emailConfigured: boolean; mercadoPagoConfigured: boolean };
+  system: { lastConvocatoriasSyncAt: string | null; convocatoriasVigentes: number | null; emailConfigured: boolean; mercadoPagoConfigured: boolean; authListAvailable?: boolean };
 }
 
 const clp = (n: number) => `$${Math.round(n).toLocaleString('es-CL')}`;
@@ -700,6 +700,10 @@ export const AdminDashboard: React.FC = () => {
           <li className="space-y-0.5">
             <p className="text-slate-500">IA (Gemini)</p>
             <AiStatus />
+          </li>
+          <li className="space-y-0.5">
+            <p className="text-slate-500">Permiso de cuentas (Firebase Authentication)</p>
+            <Status ok={data.system.authListAvailable !== false} okText="Con permiso" badText="Sin permiso: los correos usan el perfil guardado" />
           </li>
           <li className="space-y-0.5">
             <p className="text-slate-500">Base de datos</p>

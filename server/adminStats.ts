@@ -67,14 +67,22 @@ export async function buildAdminSummary(
   const days30Set = new Set(days30);
   const monthKey = chileDayKey(now).slice(0, 7);
 
-  // 1. Usuarios de Firebase Auth
-  const authUsers: UserRecord[] = [];
-  let pageToken: string | undefined;
-  do {
-    const page = await auth.listUsers(1000, pageToken);
-    authUsers.push(...page.users);
-    pageToken = page.pageToken;
-  } while (pageToken && authUsers.length < 20000);
+  // 1. Usuarios de Firebase Auth (si la cuenta de servicio no tiene permiso de Authentication,
+  //    se usan los perfiles users/{uid}: correo y fecha de creación del documento)
+  let authUsers: UserRecord[] = [];
+  let authListAvailable = true;
+  try {
+    let pageToken: string | undefined;
+    do {
+      const page = await auth.listUsers(1000, pageToken);
+      authUsers.push(...page.users);
+      pageToken = page.pageToken;
+    } while (pageToken && authUsers.length < 20000);
+  } catch (e: any) {
+    authListAvailable = false;
+    authUsers = [];
+    console.warn('[admin] listUsers sin permiso; se usan los perfiles de Firestore:', e?.code || e?.message);
+  }
 
   const [usersSnap, entSnap, paySnap, appsSnap, statsSnap, syncDoc] = await Promise.all([
     db.collection('users').get(),
@@ -84,6 +92,20 @@ export async function buildAdminSummary(
     db.collection('stats_daily').where('date', '>=', days30[0]).get(),
     db.collection('meta').doc('convocatoriasSync').get()
   ]);
+
+  if (!authListAvailable) {
+    authUsers = usersSnap.docs.map(d => {
+      const x = d.data();
+      const created = d.createTime ? d.createTime.toDate().toUTCString() : undefined;
+      return {
+        uid: d.id,
+        email: x.email || '',
+        displayName: x.displayName || '',
+        metadata: { creationTime: created, lastSignInTime: undefined },
+        providerData: []
+      } as unknown as UserRecord;
+    });
+  }
 
   const profileByUid = new Map<string, { companyName: string; displayName: string }>();
   usersSnap.docs.forEach(d => {
@@ -204,7 +226,7 @@ export async function buildAdminSummary(
       displayName: profileByUid.get(u.uid)?.displayName || u.displayName || '',
       createdAt: u.metadata.creationTime ? new Date(u.metadata.creationTime).toISOString() : null,
       lastSignInAt: u.metadata.lastSignInTime ? new Date(u.metadata.lastSignInTime).toISOString() : null,
-      provider: u.providerData.some(p => p.providerId === 'google.com') ? 'Google' : 'Correo',
+      provider: !authListAvailable ? '—' : u.providerData.some(p => p.providerId === 'google.com') ? 'Google' : 'Correo',
       hasActivePlan: activeUids.has(u.uid),
       applications: appsByOwner.get(u.uid) || 0
     }))
@@ -245,7 +267,8 @@ export async function buildAdminSummary(
       lastConvocatoriasSyncAt: sync?.lastSyncAt || null,
       convocatoriasVigentes: typeof sync?.totalVigentes === 'number' ? sync.totalVigentes : null,
       emailConfigured: opts.emailConfigured,
-      mercadoPagoConfigured: opts.mercadoPagoConfigured
+      mercadoPagoConfigured: opts.mercadoPagoConfigured,
+      authListAvailable
     }
   };
 }

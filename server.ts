@@ -265,6 +265,24 @@ const requireAdminToken = (req: express.Request, res: express.Response, next: ex
 };
 
 // Correos de compra (usuario + administrador). Nunca lanza errores ni bloquea el webhook.
+/**
+ * Correo de un usuario. Usa Firebase Auth y, si la cuenta de servicio no tiene permiso
+ * de Authentication (rol "Firebase Authentication Admin"), el correo guardado en users/{uid}.
+ */
+async function getUserEmail(uid: string): Promise<string> {
+  try {
+    const record = await adminAuth.getUser(uid);
+    if (record.email) return record.email;
+  } catch (e: any) {
+    console.warn(`[auth] getUser sin permiso o fallido (${uid}); se usa users/{uid}:`, e?.code || e?.message);
+  }
+  try {
+    return String((await adminDb.collection('users').doc(uid).get()).data()?.email || '');
+  } catch {
+    return '';
+  }
+}
+
 async function sendPurchaseNotifications(args: {
   uid: string;
   paymentId: string;
@@ -277,12 +295,7 @@ async function sendPurchaseNotifications(args: {
   try {
     const { uid, paymentId, amount, expiresAt, paymentDocRef, sellerCode, commission } = args;
 
-    let userEmail = '';
-    try {
-      userEmail = (await adminAuth.getUser(uid)).email || '';
-    } catch (e: any) {
-      console.warn(`[email] No se pudo obtener el correo del usuario ${uid}:`, e?.message);
-    }
+    const userEmail = await getUserEmail(uid);
 
     let companyName = '';
     try {
@@ -2002,7 +2015,7 @@ app.post('/api/pagos/webhook', async (req, res) => {
         commission = commissionFor(transactionAmount, Number(order.commissionPct ?? seller?.commissionPct ?? 0));
         let buyerEmail = '';
         let companyName = '';
-        try { buyerEmail = (await adminAuth.getUser(uid)).email || ''; } catch {}
+        buyerEmail = await getUserEmail(uid);
         try { companyName = String((await adminDb.collection('users').doc(uid).get()).data()?.companyName || ''); } catch {}
         const saleRef = adminDb.collection('seller_sales').doc(String(paymentId));
         const created = await adminDb.runTransaction(async tx => {
@@ -2352,12 +2365,28 @@ app.post('/api/cuenta/bienvenida', requireAuth, async (req, res) => {
     }
 
     // Solo cuentas creadas en los últimos 7 días (evita enviar bienvenidas a cuentas antiguas)
-    const record = await adminAuth.getUser(user.uid);
-    const createdAt = new Date(record.metadata.creationTime || 0).getTime();
+    // Fecha de creación y correo: Firebase Auth o, sin permiso de Authentication, el perfil users/{uid}
+    let createdAt = 0;
+    let toEmail = '';
+    let authName = '';
+    try {
+      const record = await adminAuth.getUser(user.uid);
+      createdAt = new Date(record.metadata.creationTime || 0).getTime();
+      toEmail = record.email || '';
+      authName = record.displayName || '';
+    } catch (e: any) {
+      console.warn('[email] getUser sin permiso; bienvenida con datos de users/{uid}:', e?.code || e?.message);
+      const profileSnap = await adminDb.collection('users').doc(user.uid).get();
+      if (!profileSnap.exists) {
+        return res.json({ sent: false, reason: 'perfil_pendiente', retry: true });
+      }
+      createdAt = profileSnap.createTime ? profileSnap.createTime.toMillis() : 0;
+      toEmail = String(profileSnap.data()?.email || user.email || '');
+    }
     if (!createdAt || Date.now() - createdAt > 7 * 86400000) {
       return res.json({ sent: false, reason: 'cuenta_antigua' });
     }
-    if (!record.email) {
+    if (!toEmail) {
       return res.json({ sent: false, reason: 'sin_correo' });
     }
 
@@ -2377,14 +2406,14 @@ app.post('/api/cuenta/bienvenida', requireAuth, async (req, res) => {
       return res.json({ sent: false, reason: claim, retry: claim === 'en_curso' });
     }
 
-    let name = record.displayName || '';
+    let name = authName;
     try {
       const userDoc = await adminDb.collection('users').doc(user.uid).get();
       name = String(userDoc.data()?.displayName || name || '');
     } catch {}
     const firstName = name.trim().split(/\s+/)[0] || '';
 
-    const sent = await sendEmail({ to: record.email, ...welcomeEmail(firstName), idempotencyKey: `welcome-${user.uid}` });
+    const sent = await sendEmail({ to: toEmail, ...welcomeEmail(firstName), idempotencyKey: `welcome-${user.uid}` });
     await logRef.set(sent
       ? { sentAt: new Date().toISOString(), lastError: null }
       : { sentAt: null, lastError: 'resend', lastErrorAt: new Date().toISOString() }, { merge: true });
@@ -2431,7 +2460,7 @@ app.post('/api/admin/recordatorios', requireAdminToken, async (req, res) => {
       if (!kind) { summary.omitidos++; continue; }
 
       try {
-        const email = (await adminAuth.getUser(uid)).email;
+        const email = await getUserEmail(uid);
         if (!email) { summary.omitidos++; continue; }
 
         const sent = await sendEmail({
