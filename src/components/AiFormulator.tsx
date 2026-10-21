@@ -406,6 +406,8 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
   const [savedNotice, setSavedNotice] = useState<string | null>(null);
 
   const currentSection = SECTIONS[currentSectionIndex];
+  // Concurso del monitor (fuera del catálogo): se agrega a la lista para mostrarlo bien
+  const fundOptions = CHILEAN_FUNDS.some(x => x.id === currentFund.id) ? CHILEAN_FUNDS : [currentFund, ...CHILEAN_FUNDS];
 
   // Cierre de la formulación (guardar) separado del paso siguiente (auditoría)
   const [showFinishSummary, setShowFinishSummary] = useState(false);
@@ -508,7 +510,8 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
     return tp > 0 ? tp : 1;
   }
 
-  const isSubsidyExceeded = totalSubsidio > maxAllowedSubsidy;
+  // Tope 0 = el concurso no informa un monto máximo legible (monitor): se valida solo el porcentaje
+  const isSubsidyExceeded = maxAllowedSubsidy > 0 && totalSubsidio > maxAllowedSubsidy;
   const isPctExceeded = totalProyecto > 0 && currentSubsidioPct > (maxAllowedPct + 0.05);
   const isBudgetValid = totalSubsidio > 0 && !isSubsidyExceeded && !isPctExceeded;
 
@@ -889,7 +892,7 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
           <select
             value={currentFund.id}
             onChange={(e) => {
-              const f = CHILEAN_FUNDS.find(x => x.id === e.target.value);
+              const f = fundOptions.find(x => x.id === e.target.value);
               if (f) {
                 setCurrentFund(f);
                 setSelectedFund(f);
@@ -897,7 +900,7 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
             }}
             className="w-full md:w-64 bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-cyan-500 cursor-pointer"
           >
-            {CHILEAN_FUNDS.map(f => (
+            {fundOptions.map(f => (
               <option key={f.id} value={f.id}>
                 {f.agency} - {f.name}
               </option>

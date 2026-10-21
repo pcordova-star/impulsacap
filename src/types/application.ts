@@ -20,6 +20,9 @@ export interface ApplicationItem {
   docStatuses?: DocChecklistStatuses;
   roadmapConfirmations?: RoadmapConfirmations;
   generatedDocs?: GeneratedDocument[];
+  /** Ficha del concurso cuando la postulación viene del monitor y no está en el catálogo */
+  fundSnapshot?: ChileanFund | null;
+  convocatoriaId?: string | null;
 }
 
 export interface ApplicationProgress {

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { ChileanFund, CompanyProfile, FormulationOutput, BlindAuditResult, GeneratedDocument } from '../types/funds';
 import { CHILEAN_FUNDS } from '../data/chileanFunds';
+import { resolveFund } from '../utils/convocatoriaFund';
 import { ApplicationItem, ApplicationStatus } from '../types/application';
 import { RoadmapConfirmations, DocChecklistStatuses } from '../types/expediente';
 import { auth, db } from '../firebase';
@@ -226,7 +227,7 @@ export function useApplications(profile: CompanyProfile) {
 
   const activeFund = useMemo(() => {
     if (!activeApplication) return CHILEAN_FUNDS[0];
-    const found = CHILEAN_FUNDS.find(f => f.id === activeApplication.fundId);
+    const found = resolveFund(activeApplication);
     return found || CHILEAN_FUNDS[0];
   }, [activeApplication]);
 
@@ -266,9 +267,13 @@ export function useApplications(profile: CompanyProfile) {
 
   // Create Application (Requirement 7, 8, 9, 10, 11)
   const createApplication = useCallback(async (
-    fundId: string
+    fundOrId: string | ChileanFund
   ): Promise<{ ok: boolean; application?: ApplicationItem; error?: string; limitReached?: boolean }> => {
-    const targetFund = CHILEAN_FUNDS.find(f => f.id === fundId) || CHILEAN_FUNDS[0];
+    const fundId = typeof fundOrId === 'string' ? fundOrId : fundOrId.id;
+    const catalogFund = CHILEAN_FUNDS.find(f => f.id === fundId);
+    // Fondo del catálogo o ficha de una convocatoria del monitor (se guarda en la postulación)
+    const targetFund = catalogFund || (typeof fundOrId === 'string' ? CHILEAN_FUNDS[0] : fundOrId);
+    const snapshot = !catalogFund && typeof fundOrId !== 'string' ? fundOrId : null;
 
     // Requirement 9: No permitir dos postulaciones activas al mismo fondo
     const existing = activeApplications.find(a => a.fundId === fundId);
@@ -291,13 +296,14 @@ export function useApplications(profile: CompanyProfile) {
     }
 
     const currentUid = currentUser?.uid || getCurrentUser()?.id || 'guest';
-    const newId = `app_${currentUid}_${fundId}_${Date.now()}`;
+    const newId = `app_${currentUid}_${fundId.slice(0, 40)}_${Date.now()}`.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 128);
 
     const newApp: ApplicationItem = {
       id: newId,
       ownerId: currentUid,
       fundId: targetFund.id,
-      fundName: targetFund.name,
+      fundName: targetFund.name.slice(0, 160),
+      ...(snapshot ? { fundSnapshot: JSON.parse(JSON.stringify(snapshot)), convocatoriaId: (snapshot as any).convocatoriaId || null } : {}),
       status: 'en_preparacion',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),

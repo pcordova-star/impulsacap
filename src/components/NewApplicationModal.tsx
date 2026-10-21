@@ -28,6 +28,8 @@ interface NewApplicationModalProps {
   onCreateApplication: (fundId: string) => Promise<{ ok: boolean; application?: ApplicationItem; error?: string; limitReached?: boolean }>;
   onOpenExistingApplication: (appId: string) => void;
   onArchiveApplication: (appId: string) => Promise<{ ok: boolean }>;
+  /** Ir al monitor para elegir entre todas las convocatorias abiertas */
+  onOpenMonitor?: () => void;
 }
 
 interface InadmissibilityWarning {
@@ -43,7 +45,8 @@ export const NewApplicationModal: React.FC<NewApplicationModalProps> = ({
   funds = CHILEAN_FUNDS,
   onCreateApplication,
   onOpenExistingApplication,
-  onArchiveApplication
+  onArchiveApplication,
+  onOpenMonitor
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [agencyFilter, setAgencyFilter] = useState<string>('todos');
@@ -200,8 +203,13 @@ export const NewApplicationModal: React.FC<NewApplicationModalProps> = ({
               </h2>
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              Elige el fondo concursable al que deseas postular. Puedes gestionar hasta 3 postulaciones activas simultáneas con tu Plan Trimestral.
+              Elige uno de los programas más usados, o busca entre todas las convocatorias abiertas. Puedes tener hasta 3 postulaciones activas.
             </p>
+            {onOpenMonitor && (
+              <button type="button" onClick={onOpenMonitor} className="mt-3 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-950 text-white text-xs font-black ring-1 ring-cyan-400/60 hover:ring-cyan-300 cursor-pointer">
+                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" /> Ver todas las convocatorias abiertas en el monitor →
+              </button>
+            )}
           </div>
 
           <button

@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { usePlan } from '../hooks/usePlan';
+import { resolveFund, fundFromConvocatoria } from '../utils/convocatoriaFund';
 import { apiFetch } from '../utils/apiFetch';
 import { announceEarlyAccess, getPaymentsMode } from '../utils/earlyAccess';
 import { ChileanFund, CompanyProfile, getFundVisibleStatus, CompanyUser, calculateProjectProfileCompletion } from '../types/funds';
@@ -138,7 +139,7 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
     const alerts: Array<{ app: ApplicationItem; fund: ChileanFund; daysLeft: number; alertId: string; closeDate: string }> = [];
 
     for (const app of activeApplications) {
-      const fund = funds.find(f => f.id === app.fundId);
+      const fund = resolveFund(app, funds);
       const matchingCall = convocatorias.find(c => c.fundId === app.fundId && c.vigente);
       const closeDate = matchingCall?.cierre || fund?.closeDate;
 
@@ -234,8 +235,8 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
   // Sort active applications: closing date closest first, without date at the end (Requirement 5)
   const sortedActiveApplications = useMemo(() => {
     return [...activeApplications].sort((a, b) => {
-      const fundA = funds.find(f => f.id === a.fundId);
-      const fundB = funds.find(f => f.id === b.fundId);
+      const fundA = resolveFund(a, funds);
+      const fundB = resolveFund(b, funds);
 
       const dateA = fundA?.closeDate ? new Date(fundA.closeDate).getTime() : NaN;
       const dateB = fundB?.closeDate ? new Date(fundB.closeDate).getTime() : NaN;
@@ -380,10 +381,13 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
           onClick={onOpenNewApplicationModal}
           disabled={freeSlots === 0}
           title={freeSlots === 0 ? 'Usaste tus 3 cupos: archiva una postulación para empezar otra' : undefined}
-          className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold shadow-md shadow-blue-600/20 active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+          className="group relative inline-flex items-center justify-center gap-2.5 px-5 py-3 rounded-2xl bg-slate-950 text-white text-sm font-black shadow-lg shadow-cyan-500/20 ring-1 ring-cyan-400/60 hover:ring-cyan-300 active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0 overflow-hidden"
         >
-          <Plus className="w-4 h-4" />
-          Nueva postulación
+          <span aria-hidden="true" className="absolute inset-0 bg-gradient-to-r from-cyan-500/0 via-cyan-400/25 to-cyan-500/0 -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+          <span className="relative flex h-2.5 w-2.5"><span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" /><span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400" /></span>
+          <span className="relative">Nueva postulación</span>
+          <span className="relative text-[11px] font-semibold text-cyan-300 hidden sm:inline">· {totalOpenConvocatorias} concursos abiertos</span>
+          <ArrowRight className="relative w-4 h-4 text-cyan-300" />
         </button>
       </header>
 
@@ -419,7 +423,7 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
 
         <div className={`grid gap-4 ${sortedActiveApplications.length + (freeSlots > 0 ? 1 : 0) > 1 ? 'lg:grid-cols-2' : ''}`}>
           {sortedActiveApplications.map(app => {
-            const fund = funds.find(f => f.id === app.fundId) || funds[0];
+            const fund = resolveFund(app, funds);
             const progress = computeApplicationProgress(app);
             const statusCfg = statusLabels[app.status] || statusLabels['en_preparacion'];
             return (
@@ -495,13 +499,22 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
             <button
               type="button"
               onClick={onOpenNewApplicationModal}
-              className={`rounded-3xl border-2 border-dashed border-slate-300 hover:border-blue-400 hover:bg-blue-50/40 text-slate-500 hover:text-blue-700 transition-all cursor-pointer p-6 flex flex-col items-center justify-center gap-2 text-center ${activeApplications.length === 0 ? 'min-h-[200px]' : 'min-h-[160px]'}`}
+              className={`group relative overflow-hidden rounded-3xl bg-slate-950 text-white ring-1 ring-cyan-500/40 hover:ring-cyan-300 shadow-lg shadow-cyan-900/20 transition-all cursor-pointer p-6 flex flex-col items-center justify-center gap-3 text-center ${activeApplications.length === 0 ? 'min-h-[220px]' : 'min-h-[180px]'}`}
             >
-              <span className="w-11 h-11 rounded-2xl bg-white border border-slate-200 flex items-center justify-center shadow-xs">
-                <Plus className="w-5 h-5" />
+              {/* Fondo tipo radar */}
+              <span aria-hidden="true" className="absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(34,211,238,.15)_1px,transparent_1px),linear-gradient(90deg,rgba(34,211,238,.15)_1px,transparent_1px)] [background-size:24px_24px]" />
+              <span aria-hidden="true" className="absolute -inset-x-10 top-1/2 h-px bg-gradient-to-r from-transparent via-cyan-300 to-transparent opacity-60 group-hover:animate-pulse" />
+              <span className="relative w-14 h-14 rounded-full border border-cyan-400/60 flex items-center justify-center">
+                <span className="absolute inset-0 rounded-full border border-cyan-400/40 animate-ping" />
+                <Sparkles className="w-6 h-6 text-cyan-300" />
               </span>
-              <span className="text-sm font-bold">{activeApplications.length === 0 ? 'Empieza tu primera postulación' : 'Agregar otra postulación'}</span>
-              <span className="text-xs">Te quedan {freeSlots} {freeSlots === 1 ? 'cupo' : 'cupos'} de 3. Elige un fondo y te guiamos paso a paso.</span>
+              <span className="relative text-base font-black">{activeApplications.length === 0 ? 'Elige tu primer concurso' : 'Agregar otra postulación'}</span>
+              <span className="relative text-xs text-cyan-100/90 max-w-sm">
+                Abre el monitor con <strong className="text-white">{totalOpenConvocatorias} concursos abiertos</strong>, elige uno y te guiamos paso a paso. Te quedan {freeSlots} {freeSlots === 1 ? 'cupo' : 'cupos'} de 3.
+              </span>
+              <span className="relative inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-400 text-slate-950 text-xs font-black group-hover:bg-cyan-300">
+                Ir al monitor de convocatorias <ArrowRight className="w-3.5 h-3.5" />
+              </span>
             </button>
           )}
         </div>
@@ -648,11 +661,7 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
                         Bases <ExternalLink className="w-3 h-3" />
                       </a>
                     )}
-                    {linkedFund ? (
-                      <button onClick={() => onSelectFundToFormulate(linkedFund)} className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer">Postular</button>
-                    ) : (
-                      <button onClick={() => onNavigateTab?.('convocatorias')} className="px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-bold cursor-pointer">Ver en el monitor</button>
-                    )}
+                    <button onClick={() => onSelectFundToFormulate(linkedFund || fundFromConvocatoria(conv))} className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer">Postular</button>
                     <button onClick={() => handleDismissAlert(`new_call_${conv.id}`)} aria-label="No me interesa" title="No me interesa" className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer">
                       <X className="w-4 h-4" />
                     </button>
@@ -686,7 +695,7 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
 
               <div className="space-y-2">
                 {archivedApplications.map(app => {
-                  const fund = funds.find(f => f.id === app.fundId) || funds[0];
+                  const fund = resolveFund(app, funds);
                   return (
                     <div
                       key={app.id}

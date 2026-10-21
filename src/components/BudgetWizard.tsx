@@ -109,7 +109,8 @@ export const BudgetWizard: React.FC<{
     return { sub, emp, total, pct: total > 0 ? (sub / total) * 100 : 0 };
   }, [accounts]);
 
-  const subExceeded = totals.sub > maxSubsidyCLP;
+  const hasMax = maxSubsidyCLP > 0;
+  const subExceeded = hasMax && totals.sub > maxSubsidyCLP;
   const pctExceeded = totals.total > 0 && totals.pct > maxPct + 0.05;
   const valid = totals.sub > 0 && !subExceeded && !pctExceeded;
   const missingTexts = BUDGET_GUIDES.filter(g => {
@@ -118,11 +119,11 @@ export const BudgetWizard: React.FC<{
   });
 
   // Ejemplo con los números del fondo
-  const exampleTotal = Math.max(1000000, round10k(maxSubsidyCLP / (maxPct / 100)));
-  const exampleSub = Math.min(maxSubsidyCLP, round10k(exampleTotal * maxPct / 100));
+  const exampleTotal = hasMax ? Math.max(1000000, round10k(maxSubsidyCLP / (maxPct / 100))) : 20000000;
+  const exampleSub = Math.min(hasMax ? maxSubsidyCLP : Infinity, round10k(exampleTotal * maxPct / 100));
 
   // Calculadora: con el costo total, cuánto pone el fondo y cuánto tu empresa
-  const calcSub = Math.min(maxSubsidyCLP, Math.floor((totalInput * maxPct) / 100 / 10000) * 10000);
+  const calcSub = Math.min(hasMax ? maxSubsidyCLP : Infinity, Math.floor((totalInput * maxPct) / 100 / 10000) * 10000);
   const calcEmp = Math.max(0, totalInput - calcSub);
 
   const applyDistribution = () => {
@@ -143,7 +144,7 @@ export const BudgetWizard: React.FC<{
 
   // Ajuste automático: sube el aporte de la empresa (y si hace falta baja el subsidio) para cumplir las bases
   const autoFix = () => {
-    const targetSub = Math.min(totals.sub, maxSubsidyCLP);
+    const targetSub = hasMax ? Math.min(totals.sub, maxSubsidyCLP) : totals.sub;
     const neededTotal = Math.ceil(targetSub / (maxPct / 100));
     const neededEmp = Math.max(totals.emp, neededTotal - targetSub);
     const subFactor = totals.sub > 0 ? targetSub / totals.sub : 0;
@@ -175,7 +176,7 @@ export const BudgetWizard: React.FC<{
           <div className="px-4 pb-4 space-y-3 text-xs text-slate-300 leading-relaxed">
             <div className="grid gap-2 sm:grid-cols-3">
               <div className="p-3 rounded-xl bg-slate-900 border border-slate-800"><p className="font-bold text-white">Costo total del proyecto</p><p>Todo lo que gastarás para ejecutarlo durante el proyecto.</p></div>
-              <div className="p-3 rounded-xl bg-slate-900 border border-cyan-500/30"><p className="font-bold text-cyan-300">Subsidio (lo que pone {agency})</p><p>No se devuelve. Puede ser hasta el {maxPct}% del total, con un máximo de {clp(maxSubsidyCLP)}.</p></div>
+              <div className="p-3 rounded-xl bg-slate-900 border border-cyan-500/30"><p className="font-bold text-cyan-300">Subsidio (lo que pone {agency})</p><p>No se devuelve. Puede ser hasta el {maxPct}% del total{hasMax ? <>, con un máximo de {clp(maxSubsidyCLP)}</> : <> (confirma el porcentaje y el monto máximo en las bases)</>}.</p></div>
               <div className="p-3 rounded-xl bg-slate-900 border border-emerald-500/30"><p className="font-bold text-emerald-300">Aporte de tu empresa</p><p>El resto, en dinero de tu empresa ("aporte pecuniario").</p></div>
             </div>
             <p className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-100">
@@ -211,7 +212,7 @@ export const BudgetWizard: React.FC<{
         {totalInput > 0 && (
           <p className="text-xs text-slate-200">
             Con ese total, {agency} puede poner <strong className="text-cyan-300">{clp(calcSub)}</strong> y tu empresa <strong className="text-emerald-300">{clp(calcEmp)}</strong>.
-            {calcSub >= maxSubsidyCLP && <> Llegaste al máximo del fondo: si el proyecto cuesta más, la diferencia la pone tu empresa.</>}
+            {hasMax && calcSub >= maxSubsidyCLP && <> Llegaste al máximo del fondo: si el proyecto cuesta más, la diferencia la pone tu empresa.</>}
             {' '}Al repartir, sugerimos: personas 50%, operación 30%, expertos externos 15% y administración 5%. Luego cambia los montos según tu caso.
           </p>
         )}
@@ -288,7 +289,7 @@ export const BudgetWizard: React.FC<{
       <section className={`rounded-2xl border p-4 sm:p-5 space-y-3 ${subExceeded || pctExceeded ? 'bg-rose-500/10 border-rose-500/40' : valid ? 'bg-emerald-500/10 border-emerald-500/40' : 'bg-slate-950/70 border-slate-800'}`}>
         <p className="text-sm font-bold text-white">Paso 3: revisión</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-          <div className="p-3 rounded-xl bg-slate-950 border border-slate-800"><p className="text-slate-400">Pides a {agency}</p><p className={`font-mono font-bold ${subExceeded ? 'text-rose-300' : 'text-cyan-300'}`}>{clp(totals.sub)}</p><p className="text-[10px] text-slate-500">Máximo {clp(maxSubsidyCLP)}</p></div>
+          <div className="p-3 rounded-xl bg-slate-950 border border-slate-800"><p className="text-slate-400">Pides a {agency}</p><p className={`font-mono font-bold ${subExceeded ? 'text-rose-300' : 'text-cyan-300'}`}>{clp(totals.sub)}</p><p className="text-[10px] text-slate-500">{hasMax ? `Máximo ${clp(maxSubsidyCLP)}` : "Máximo según bases"}</p></div>
           <div className="p-3 rounded-xl bg-slate-950 border border-slate-800"><p className="text-slate-400">Pone tu empresa</p><p className="font-mono font-bold text-emerald-300">{clp(totals.emp)}</p></div>
           <div className="p-3 rounded-xl bg-slate-950 border border-slate-800"><p className="text-slate-400">Costo total</p><p className="font-mono font-bold text-white">{clp(totals.total)}</p></div>
           <div className="p-3 rounded-xl bg-slate-950 border border-slate-800"><p className="text-slate-400">Parte del fondo</p><p className={`font-mono font-bold ${pctExceeded ? 'text-rose-300' : 'text-amber-300'}`}>{totals.pct.toFixed(1)}%</p><p className="text-[10px] text-slate-500">Máximo {maxPct}%</p></div>

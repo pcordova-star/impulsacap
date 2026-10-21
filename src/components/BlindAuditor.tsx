@@ -173,12 +173,12 @@ export const BlindAuditor: React.FC<BlindAuditorProps> = ({
               <select
                 value={selectedFund.id}
                 onChange={(e) => {
-                  const f = CHILEAN_FUNDS.find(item => item.id === e.target.value);
+                  const f = (CHILEAN_FUNDS.some(x => x.id === selectedFund.id) ? CHILEAN_FUNDS : [selectedFund, ...CHILEAN_FUNDS]).find(item => item.id === e.target.value);
                   if (f) setSelectedFund(f);
                 }}
                 className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs font-semibold focus:border-cyan-500 focus:outline-none"
               >
-                {CHILEAN_FUNDS.map((f) => (
+                {(CHILEAN_FUNDS.some(x => x.id === selectedFund.id) ? CHILEAN_FUNDS : [selectedFund, ...CHILEAN_FUNDS]).map((f) => (
                   <option key={f.id} value={f.id}>
                     {f.name}
                   </option>

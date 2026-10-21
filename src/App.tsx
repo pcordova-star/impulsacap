@@ -22,6 +22,7 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { SellerPanel } from './components/SellerPanel';
 import { showToast } from './utils/toast';
 import { splitTarget, goToTarget, setReturnContext } from './utils/navFocus';
+import { fundFromConvocatoria } from './utils/convocatoriaFund';
 import { ReturnBar } from './components/ReturnBar';
 import { captureRefFromUrl, previewCode, clearStoredRef, notifyReferralChanged } from './utils/referral';
 import { trackPageview } from './utils/pageviews';
@@ -148,6 +149,11 @@ export default function App() {
     });
   }, []);
 
+  // El modo "elige tu concurso" termina al salir del buscador
+  useEffect(() => {
+    if (!['search-funds', 'catalog', 'convocatorias'].includes(activeTab)) setMonitorPickMode(false);
+  }, [activeTab]);
+
   // Al salir de una página legal por la navegación de la app, la URL vuelve a "/"
   useEffect(() => {
     if (!(ROUTED_TABS as readonly string[]).includes(activeTab) && legalTabForPath(window.location.pathname)) {
@@ -231,6 +237,8 @@ export default function App() {
 
   const [showNewAppModal, setShowNewAppModal] = useState<boolean>(false);
   const [intendedConvocatoria, setIntendedConvocatoria] = useState<Convocatoria | null>(null);
+  // Modo "elige tu concurso" en el monitor (al crear una nueva postulación)
+  const [monitorPickMode, setMonitorPickMode] = useState<boolean>(false);
   const [highlightedConvocatoriaId, setHighlightedConvocatoriaId] = useState<string | null>(null);
 
   // Listen for login requests from components (PlanPaywallCard, PaymentResult) or 401 handler
@@ -478,7 +486,7 @@ export default function App() {
           return;
         }
       }
-      setShowNewAppModal(true);
+      handleSelectFundToFormulate(fundFromConvocatoria(conv));
     }
   };
 
@@ -501,6 +509,7 @@ export default function App() {
       return;
     }
 
+    setMonitorPickMode(false);
     if (conv.fundId) {
       const fund = liveFunds.find(f => f.id === conv.fundId) || CHILEAN_FUNDS.find(f => f.id === conv.fundId);
       if (fund) {
@@ -508,7 +517,8 @@ export default function App() {
         return;
       }
     }
-    setShowNewAppModal(true);
+    // Cualquier convocatoria del monitor se puede postular: se arma la ficha del concurso
+    handleSelectFundToFormulate(fundFromConvocatoria(conv));
   };
 
   const handleLogout = () => {
@@ -539,15 +549,24 @@ export default function App() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
-    const res = await createApplication(fund.id);
+    const res = await createApplication(fund);
     if (res.ok && res.application) {
       setActiveApplicationId(res.application.id);
       setActiveTab('postulation');
       setPostulationSubTab('roadmap');
       window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (res.limitReached) {
+      showToast({ id: `limite-${Date.now()}`, level: 'warning', title: 'Usaste tus 3 cupos', message: 'Archiva una postulación en "Mis postulaciones" para empezar otra.', action: { label: 'Ir a Mis postulaciones', onClick: () => setActiveTab('my-applications') } });
     } else {
       setShowNewAppModal(true);
     }
+  };
+
+  // "Nueva postulación": lleva al monitor para elegir un concurso abierto
+  const openMonitorToPick = () => {
+    setMonitorPickMode(true);
+    setActiveTab('convocatorias');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleSelectFundToViewDocs = async (fund: ChileanFund) => {
@@ -798,7 +817,7 @@ export default function App() {
               }}
               onArchiveApplication={archiveApplication}
               onReactivateApplication={reactivateApplication}
-              onOpenNewApplicationModal={() => setShowNewAppModal(true)}
+              onOpenNewApplicationModal={openMonitorToPick}
               onOpenProfile={() => setActiveTab('my-company')}
               onOpenSiiModal={() => setShowSiiModal(true)}
               onSelectFundToFormulate={handleSelectFundToFormulate}
@@ -876,11 +895,14 @@ export default function App() {
             onRefreshConvocatorias={refreshConvocatorias}
             onSelectFundToFormulate={handleSelectFundToFormulate}
             onSelectFundToViewDocs={handleSelectFundToViewDocs}
-            onOpenNewApplicationModal={() => setShowNewAppModal(true)}
+            onOpenNewApplicationModal={openMonitorToPick}
             onQualifyCall={handleQualifyCall}
             onPostularCall={handlePostularConvocatoria}
             onOpenAuthModal={(mode) => { setAuthModalMode(mode || 'login'); setShowAuthModal(true); }}
             initialTab={activeTab === 'convocatorias' ? 'calls' : 'programs'}
+            pickMode={monitorPickMode && Boolean(currentUser)}
+            freeSlots={Math.max(0, 3 - activeApplications.length)}
+            onCancelPick={() => { setMonitorPickMode(false); setActiveTab('my-applications'); }}
           />
         )}
 
@@ -940,6 +962,7 @@ export default function App() {
         profile={profile}
         activeApplications={activeApplications}
         funds={liveFunds}
+        onOpenMonitor={() => { setShowNewAppModal(false); openMonitorToPick(); }}
         onCreateApplication={async (fundId) => {
           const res = await createApplication(fundId);
           if (res.ok && res.application) {
@@ -994,7 +1017,7 @@ export default function App() {
         suggestedFund={suggestedFund}
         onStartWithFund={(fund) => { closeWelcome(); handleSelectFundToFormulate(fund); }}
         onUploadTaxFolder={() => { closeWelcome(); setShowSiiModal(true); }}
-        onBrowseFunds={() => { closeWelcome(); setActiveTab('my-applications'); setShowNewAppModal(true); }}
+        onBrowseFunds={() => { closeWelcome(); openMonitorToPick(); }}
         onClose={closeWelcome}
       />
 

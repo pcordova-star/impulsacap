@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ChileanFund, CompanyUser } from '../types/funds';
 import { Convocatoria } from '../types/convocatoria';
 import { FundCatalog } from './FundCatalog';
@@ -20,6 +20,10 @@ interface SearchFundsViewProps {
   onPostularCall?: (conv: Convocatoria) => void;
   onOpenAuthModal?: (mode?: 'login' | 'register') => void;
   initialTab?: 'programs' | 'calls';
+  /** Elegir un concurso para una nueva postulación */
+  pickMode?: boolean;
+  freeSlots?: number;
+  onCancelPick?: () => void;
 }
 
 export const SearchFundsView: React.FC<SearchFundsViewProps> = ({
@@ -36,14 +40,34 @@ export const SearchFundsView: React.FC<SearchFundsViewProps> = ({
   onQualifyCall,
   onPostularCall,
   onOpenAuthModal,
-  initialTab = 'programs'
+  initialTab = 'programs',
+  pickMode = false,
+  freeSlots = 3,
+  onCancelPick
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'programs' | 'calls'>(initialTab);
+  // Si se llega desde otro botón ("Nueva postulación", "Ver convocatorias"), mostrar la pestaña pedida
+  useEffect(() => { setActiveSubTab(initialTab); }, [initialTab]);
 
   const activeCallsCount = convocatorias.filter(c => c.vigente).length;
 
   return (
     <div className="space-y-6 animate-fade-in max-w-6xl mx-auto">
+      {pickMode && (
+        <div className="sticky top-20 z-30 rounded-2xl bg-gradient-to-r from-blue-700 via-indigo-700 to-cyan-700 text-white p-4 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-black">Elige el concurso para tu nueva postulación</p>
+            <p className="text-xs text-blue-100">
+              Busca o filtra las convocatorias abiertas y presiona <strong>"Postular con ImpulsaCap"</strong>. {freeSlots > 0 ? `Te quedan ${freeSlots} ${freeSlots === 1 ? 'cupo' : 'cupos'} de 3.` : 'Usaste tus 3 cupos: archiva una postulación para empezar otra.'}
+            </p>
+          </div>
+          {onCancelPick && (
+            <button type="button" onClick={onCancelPick} className="shrink-0 px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-xs font-bold cursor-pointer">
+              Volver a Mis postulaciones
+            </button>
+          )}
+        </div>
+      )}
       {/* Top Tab Bar: Programas vs Convocatorias Abiertas (Requirement 1 & 2) */}
       <div className="flex items-center justify-center">
         <div className="inline-flex p-1.5 rounded-2xl bg-slate-100 border border-slate-200 shadow-xs">
