@@ -164,6 +164,14 @@ export const saveActiveProfile = (profile: CompanyProfile, userId?: string): voi
   }
 };
 
+/** Momento del último guardado local del perfil (para decidir si vale más el de Firestore). */
+export const getProfileSavedAt = (userId?: string): string => {
+  try { return localStorage.getItem(getUserKey('profile_saved_at', userId)) || ''; } catch { return ''; }
+};
+export const setProfileSavedAt = (iso: string, userId?: string): void => {
+  try { localStorage.setItem(getUserKey('profile_saved_at', userId), iso); } catch { /* sin almacenamiento */ }
+};
+
 export const loadActiveProfile = (defaultProfile?: CompanyProfile, explicitUserId?: string): CompanyProfile => {
   try {
     const targetUserId = explicitUserId || auth.currentUser?.uid;

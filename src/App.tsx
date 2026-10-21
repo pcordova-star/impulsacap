@@ -33,6 +33,8 @@ import { ExpedienteData } from './types/expediente';
 import { Convocatoria } from './types/convocatoria';
 import { 
   saveActiveProfile, 
+  getProfileSavedAt,
+  setProfileSavedAt,
   loadActiveProfile, 
   saveActiveFormulation, 
   loadActiveFormulation, 
@@ -42,7 +44,7 @@ import {
   logoutCompanyUser,
   getCleanDefaultProfile
 } from './utils/storage';
-import { initFirebaseService, syncCompanyToFirestore } from './utils/firebaseSync';
+import { initFirebaseService, syncCompanyToFirestore, loadCompanyFromFirestore } from './utils/firebaseSync';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
@@ -170,6 +172,7 @@ export default function App() {
 
   // Track the user ID that owns the currently active in-memory profile
   const activeUserIdRef = useRef<string | undefined>(undefined);
+  const profileHydratedRef = useRef<boolean>(false);
 
   // Applications & Multi-Fund Management
   const {
@@ -286,7 +289,26 @@ export default function App() {
 
           activeUserIdRef.current = user.id;
           setCurrentUser(user);
+          // Perfil: primero el del navegador y luego el de Firestore si es más reciente.
+          // Hasta tenerlo no se guarda nada, para que un perfil vacío (otro dispositivo) no pise el bueno.
+          profileHydratedRef.current = false;
           setProfile(loadActiveProfile(getCleanDefaultProfile(user), user.id));
+          const hydratingUid = user.id;
+          loadCompanyFromFirestore(hydratingUid)
+            .then(remote => {
+              if (!remote || activeUserIdRef.current !== hydratingUid) return;
+              const localSavedAt = getProfileSavedAt(hydratingUid);
+              if (!localSavedAt || (remote.updatedAt && remote.updatedAt > localSavedAt)) {
+                const merged = { ...getCleanDefaultProfile(user), ...remote.profile } as CompanyProfile;
+                saveActiveProfile(merged, hydratingUid);
+                if (remote.updatedAt) setProfileSavedAt(remote.updatedAt, hydratingUid);
+                setProfile(merged);
+              }
+            })
+            .catch(err => console.warn('No se pudo leer el perfil desde Firestore:', err))
+            .finally(() => {
+              if (activeUserIdRef.current === hydratingUid) profileHydratedRef.current = true;
+            });
           setActiveFormulation(loadActiveFormulation(user.id));
           setAuditResult(loadActiveAudit(user.id));
           setActiveTab(prev => (prev === 'diagnostic' ? 'my-applications' : prev));
@@ -308,13 +330,16 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Auto-save changes strictly under current user scope
+  // Auto-save changes strictly under current user scope (solo después de cargar el perfil de Firestore)
   useEffect(() => {
-    if (activeUserIdRef.current === currentUser?.id) {
-      saveActiveProfile(profile, currentUser?.id);
-      if (currentUser?.id) {
-        syncCompanyToFirestore(profile, currentUser.id).catch(() => {});
-      }
+    if (activeUserIdRef.current !== currentUser?.id) return;
+    if (currentUser?.id && !profileHydratedRef.current) return;
+    saveActiveProfile(profile, currentUser?.id);
+    if (currentUser?.id) {
+      const now = new Date().toISOString();
+      setProfileSavedAt(now, currentUser.id);
+      const t = setTimeout(() => { syncCompanyToFirestore(profile, currentUser.id, now).catch(() => {}); }, 600);
+      return () => clearTimeout(t);
     }
   }, [profile, currentUser]);
 

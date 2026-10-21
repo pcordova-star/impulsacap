@@ -50,11 +50,12 @@ export async function syncUserProfileToFirestore(user: CompanyUser) {
  * Sync company profile to Firestore at companies/{companyId}
  * Strictly complies with isValidCompany in firestore.rules
  */
-export async function syncCompanyToFirestore(profile: CompanyProfile, customOwnerId?: string) {
+export async function syncCompanyToFirestore(profile: CompanyProfile, customOwnerId?: string, updatedAt?: string) {
   const uid = customOwnerId || auth.currentUser?.uid;
   if (!uid) return;
   const cleanRut = (profile.rut || '').trim();
-  const companyDocId = cleanRut ? cleanRut.replace(/[^a-zA-Z0-9_-]/g, '_') : `comp_${uid}`;
+  // Un documento fijo por usuario (antes dependía del RUT y cambiaba al corregirlo)
+  const companyDocId = `comp_${uid}`;
   const path = `companies/${companyDocId}`;
   try {
     const compPayload: Record<string, any> = {
@@ -83,10 +84,37 @@ export async function syncCompanyToFirestore(profile: CompanyProfile, customOwne
         websiteOrSocial: (profile.projectProfile.websiteOrSocial || '').slice(0, 500)
       };
     }
-    await setDoc(doc(db, 'companies', companyDocId), compPayload, { merge: true });
+    // Perfil completo (carpeta tributaria, representante, cartas, etc.) para recuperarlo en cualquier dispositivo
+    compPayload.profileData = sanitizeForFirestore(profile);
+    compPayload.updatedAt = updatedAt || new Date().toISOString();
+    await setDoc(doc(db, 'companies', companyDocId), compPayload);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
+}
+
+/** Quita undefined y funciones (Firestore no los acepta) y limita textos muy largos. */
+function sanitizeForFirestore(value: any): any {
+  return JSON.parse(JSON.stringify(value ?? {}, (_k, v) => (typeof v === 'string' && v.length > 20000 ? v.slice(0, 20000) : v)));
+}
+
+/**
+ * Lee el perfil de empresa guardado en Firestore (el más reciente del usuario).
+ * Incluye documentos antiguos (id por RUT, sin profileData): de esos se recuperan los campos básicos.
+ */
+export async function loadCompanyFromFirestore(uid: string): Promise<{ profile: Partial<CompanyProfile>; updatedAt: string } | null> {
+  const snap = await getDocs(query(collection(db, 'companies'), where('ownerId', '==', uid)));
+  if (snap.empty) return null;
+  const docs = snap.docs.map(d => d.data() as any);
+  docs.sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+  const best = docs[0];
+  if (best.profileData && typeof best.profileData === 'object') {
+    return { profile: best.profileData as Partial<CompanyProfile>, updatedAt: String(best.updatedAt || '') };
+  }
+  const legacy: Partial<CompanyProfile> = {};
+  (['companyName', 'rut', 'companyType', 'sector', 'region', 'salesBracket', 'annualSalesCLP', 'isFemaleLed', 'trlStage', 'projectProfile'] as const)
+    .forEach(k => { if (best[k] !== undefined && best[k] !== '') (legacy as any)[k] = best[k]; });
+  return { profile: legacy, updatedAt: String(best.updatedAt || '') };
 }
 
 /**
