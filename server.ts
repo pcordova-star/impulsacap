@@ -2089,8 +2089,9 @@ function calendarDaysBetween(fromKey: string, toKey: string): number {
 app.post('/api/cuenta/bienvenida', requireAuth, async (req, res) => {
   const user = (req as AuthenticatedRequest).user!;
   try {
-    if (!isFirestoreAdminAuthorized) {
-      return res.json({ sent: false, reason: 'firestore_no_autorizado' });
+    if (!(await ensureFirestoreAdmin())) {
+      console.warn(`[email] Bienvenida pendiente para ${user.uid}: Firestore Admin no autorizado`);
+      return res.json({ sent: false, reason: 'firestore_no_autorizado', retry: true });
     }
 
     // Solo cuentas creadas en los últimos 7 días (evita enviar bienvenidas a cuentas antiguas)
@@ -2103,12 +2104,20 @@ app.post('/api/cuenta/bienvenida', requireAuth, async (req, res) => {
       return res.json({ sent: false, reason: 'sin_correo' });
     }
 
-    // create() falla si el registro ya existe: garantiza un solo envío aunque la app llame varias veces
+    // Un solo envío por usuario: se reserva el envío en una transacción. Si un intento anterior falló
+    // (sin sentAt) y pasaron más de 2 minutos, se permite reintentar.
     const logRef = adminDb.collection('email_log').doc(`welcome_${user.uid}`);
-    try {
-      await logRef.create({ uid: user.uid, type: 'welcome', requestedAt: new Date().toISOString() });
-    } catch {
-      return res.json({ sent: false, reason: 'ya_enviado' });
+    const claim = await adminDb.runTransaction(async (tx) => {
+      const snap = await tx.get(logRef);
+      const data = snap.exists ? snap.data() : null;
+      if (data?.sentAt) return 'ya_enviado';
+      const last = data?.requestedAt ? new Date(data.requestedAt).getTime() : 0;
+      if (last && Date.now() - last < 2 * 60 * 1000) return 'en_curso';
+      tx.set(logRef, { uid: user.uid, type: 'welcome', requestedAt: new Date().toISOString(), attempts: (data?.attempts || 0) + 1 }, { merge: true });
+      return 'ok';
+    });
+    if (claim !== 'ok') {
+      return res.json({ sent: false, reason: claim, retry: claim === 'en_curso' });
     }
 
     let name = record.displayName || '';
@@ -2119,11 +2128,14 @@ app.post('/api/cuenta/bienvenida', requireAuth, async (req, res) => {
     const firstName = name.trim().split(/\s+/)[0] || '';
 
     const sent = await sendEmail({ to: record.email, ...welcomeEmail(firstName), idempotencyKey: `welcome-${user.uid}` });
-    await logRef.set({ sentAt: sent ? new Date().toISOString() : null }, { merge: true });
-    return res.json({ sent });
+    await logRef.set(sent
+      ? { sentAt: new Date().toISOString(), lastError: null }
+      : { sentAt: null, lastError: 'resend', lastErrorAt: new Date().toISOString() }, { merge: true });
+    console.log(`[email] Bienvenida ${sent ? 'enviada' : 'NO enviada (Resend)'} a usuario ${user.uid}`);
+    return res.json({ sent, retry: !sent });
   } catch (err: any) {
     console.error('[email] Error en /api/cuenta/bienvenida:', err?.message);
-    return res.json({ sent: false, reason: 'error' });
+    return res.json({ sent: false, reason: 'error', retry: true });
   }
 });
 
