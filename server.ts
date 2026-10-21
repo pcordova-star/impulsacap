@@ -55,6 +55,14 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 // Límite de express.json: 15mb para subida de Carpeta Tributaria / F29 y 2mb en general (Requirement 7)
 app.use('/api/gemini/parse-tax-folder', express.json({ limit: '15mb' }));
+// Reintenta la conexión de Firestore Admin antes de atender la API si aún no está autorizada
+app.use('/api', async (_req, _res, next) => {
+  if (!isFirestoreAdminAuthorized) {
+    try { await ensureFirestoreAdmin(); } catch { /* el endpoint responde según el estado */ }
+  }
+  next();
+});
+
 // Cloud Run pasa la IP real del visitante en X-Forwarded-For: sin esto, todos los visitantes
 // comparten un mismo límite de solicitudes (req.ip sería la del balanceador).
 app.set('trust proxy', 1);
@@ -145,7 +153,23 @@ async function testFirestoreAdminConnection(): Promise<boolean> {
   }
 }
 
+// Si la prueba inicial falla (por ejemplo, credenciales aún no disponibles al encender la instancia),
+// se vuelve a intentar: en segundo plano cada 30 s y antes de atender cualquier /api, como máximo cada 10 s.
+let lastFirestoreAdminCheck = Date.now();
+async function ensureFirestoreAdmin(): Promise<boolean> {
+  if (isFirestoreAdminAuthorized) return true;
+  if (Date.now() - lastFirestoreAdminCheck < 10_000) return false;
+  lastFirestoreAdminCheck = Date.now();
+  return testFirestoreAdminConnection();
+}
+
 testFirestoreAdminConnection();
+const firestoreAdminRetry = setInterval(() => {
+  if (isFirestoreAdminAuthorized) return;
+  lastFirestoreAdminCheck = Date.now();
+  testFirestoreAdminConnection();
+}, 30_000);
+firestoreAdminRetry.unref?.();
 
 const mpAccessToken = process.env.MP_ACCESS_TOKEN || '';
 const mpClient = new MercadoPagoConfig({ accessToken: mpAccessToken });
