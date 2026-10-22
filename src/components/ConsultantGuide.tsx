@@ -32,6 +32,9 @@ interface Stage {
   detail?: string;
   action: { label: string; target: string };
   locked?: boolean;
+  /** No cumple un requisito excluyente del fondo: hay que decidir si seguir con este fondo */
+  blocker?: boolean;
+  alt?: { label: string; target: string };
 }
 
 const HIDDEN_TABS = new Set(['admin', 'vendedor', 'terminos', 'privacidad', 'pago-resultado']);
@@ -110,21 +113,32 @@ export const ConsultantGuide: React.FC<Props> = ({ currentUser, profile, hasActi
       };
       rm.steps.forEach(st => {
         const pending = st.items.find(i => !i.done);
-        const go = pending?.go || (pending?.confirmable ? { label: 'Revisar y marcar en la hoja de ruta', target: 'my-application' } : st.action);
-        const target = go.target;
         const needsPlan = st.number >= 3 && !hasActivePlan;
-        list.push({
-          id: st.id,
-          title: st.title,
-          why: WHY[st.id] || st.subtitle,
-          done: st.done,
-          next: pending?.label,
-          detail: pending?.detail,
-          locked: needsPlan,
-          action: needsPlan
-            ? { label: 'Activar Plan Trimestral', target: 'my-company#mi-plan' }
-            : { label: go.label, target }
-        });
+        const base = { id: st.id, title: st.title, why: WHY[st.id] || st.subtitle, done: st.done, locked: needsPlan };
+        if (needsPlan) {
+          list.push({ ...base, next: pending?.label, detail: pending?.detail, action: { label: 'Activar Plan Trimestral', target: 'my-company#mi-plan' } });
+          return;
+        }
+        if (pending?.warn && st.id === 'step_requirements') {
+          // Requisito excluyente no cumplido: no tiene sentido "revisar datos"; hay que decidir el fondo
+          list.push({
+            ...base,
+            blocker: true,
+            why: `Según los datos de tu empresa, no cumples un requisito obligatorio de ${fund.name}. Si tus datos están bien, este fondo no es para tu empresa: te conviene elegir otro que sí calce.`,
+            next: pending.label,
+            detail: pending.detail,
+            action: { label: 'Buscar un fondo que calce', target: 'search-funds' },
+            alt: { label: 'Ver todos los requisitos de este fondo', target: 'my-application' }
+          });
+          return;
+        }
+        let next = pending?.label;
+        let action = pending?.go || st.action;
+        if (pending && !pending.go && pending.confirmable) {
+          next = `Confirma que cumples: ${pending.label}`;
+          action = { label: 'Ir a la hoja de ruta y marcarlo', target: 'my-application' };
+        }
+        list.push({ ...base, next, detail: pending?.detail, action });
       });
     }
     return list;
@@ -180,17 +194,35 @@ export const ConsultantGuide: React.FC<Props> = ({ currentUser, profile, hasActi
             </div>
           </div>
           {current && (
-            <div className="rounded-2xl bg-blue-50 border border-blue-100 p-3.5">
-              <p className="text-[11px] font-bold text-blue-700 uppercase tracking-wider">Siguiente paso · {currentIdx + 1} de {total}</p>
-              <p className="text-sm font-bold text-slate-900">{current.title}</p>
-              <p className="text-xs text-slate-600 mt-0.5">{current.next ? `Ahora: ${current.next}` : current.why}</p>
+            <div className={`rounded-2xl p-3.5 border ${current.blocker ? 'bg-rose-50 border-rose-200' : 'bg-blue-50 border-blue-100'}`}>
+              <p className={`text-[11px] font-bold uppercase tracking-wider ${current.blocker ? 'text-rose-700' : 'text-blue-700'}`}>
+                {current.blocker ? 'Atención' : 'Siguiente paso'} · {currentIdx + 1} de {total}{hasActiveApplication && currentIdx >= 4 ? ` · ${fund.name}` : ''}
+              </p>
+              <p className="text-sm font-bold text-slate-900">{current.blocker ? `No cumples un requisito de ${fund.name}` : current.title}</p>
+              {current.blocker ? (
+                <>
+                  <p className="text-xs text-slate-700 mt-1"><strong>Requisito:</strong> {current.next}</p>
+                  {current.detail && <p className="text-xs text-rose-700 mt-0.5">{current.detail}</p>}
+                  <p className="text-xs text-slate-600 mt-1.5">Si tus datos están bien, con este fondo no podrías postular. Te conviene buscar uno que calce con tu empresa.</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs text-slate-600 mt-0.5">{current.why}</p>
+                  {current.next && <p className="text-xs text-slate-800 font-semibold mt-1.5">Lo que falta: {current.next}</p>}
+                </>
+              )}
             </div>
           )}
         </div>
         <div className="px-5 sm:px-6 pb-5 sm:pb-6 flex flex-col gap-2">
           {current && (
             <button type="button" onClick={() => { setPrompt(null); onGo(current.action.target); }} className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold cursor-pointer">
-              Seguir: {current.action.label} <ArrowRight className="w-4 h-4" />
+              {current.blocker ? current.action.label : `Siguiente: ${current.action.label}`} <ArrowRight className="w-4 h-4" />
+            </button>
+          )}
+          {current?.alt && (
+            <button type="button" onClick={() => { setPrompt(null); onGo(current.alt!.target); }} className="w-full px-4 py-2.5 rounded-2xl border border-slate-300 text-slate-700 text-xs font-bold hover:bg-slate-50 cursor-pointer">
+              {current.alt.label}
             </button>
           )}
           <div className="grid grid-cols-2 gap-2">
@@ -248,13 +280,13 @@ export const ConsultantGuide: React.FC<Props> = ({ currentUser, profile, hasActi
           <>
             <div>
               <p className="text-[11px] font-bold text-blue-700 uppercase tracking-wider">Paso {currentIdx + 1} de {total}{hasActiveApplication && currentIdx >= 4 ? ` · ${fund.name}` : ''}</p>
-              <p className="text-base font-black text-slate-900 leading-snug">{current.title}</p>
+              <p className="text-base font-black text-slate-900 leading-snug">{current.blocker ? `No cumples un requisito de este fondo` : current.title}</p>
               <p className="text-[13px] text-slate-600 leading-relaxed mt-1">{current.why}</p>
             </div>
             {(current.next || current.detail) && (
-              <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3 text-[13px]">
-                {current.next && <p className="font-semibold text-slate-800">Ahora: {current.next}</p>}
-                {current.detail && <p className="text-slate-500 text-xs mt-0.5">{current.detail}</p>}
+              <div className={`rounded-2xl border p-3 text-[13px] ${current.blocker ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-200'}`}>
+                {current.next && <p className="font-semibold text-slate-800">{current.blocker ? 'Requisito: ' : 'Lo que falta: '}{current.next}</p>}
+                {current.detail && <p className={`text-xs mt-0.5 ${current.blocker ? 'text-rose-700' : 'text-slate-500'}`}>{current.detail}</p>}
               </div>
             )}
             {current.locked && (
@@ -267,6 +299,11 @@ export const ConsultantGuide: React.FC<Props> = ({ currentUser, profile, hasActi
             >
               {current.action.label} <ArrowRight className="w-4 h-4" />
             </button>
+            {current.alt && (
+              <button type="button" onClick={() => onGo(current.alt!.target)} className="w-full px-4 py-2.5 rounded-2xl border border-slate-300 text-slate-700 text-xs font-bold hover:bg-slate-50 cursor-pointer">
+                {current.alt.label}
+              </button>
+            )}
           </>
         ) : (
           <div className="text-center space-y-2 py-2">
