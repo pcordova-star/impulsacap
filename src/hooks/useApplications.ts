@@ -398,10 +398,10 @@ export function useApplications(profile: CompanyProfile) {
     build: (app: ApplicationItem) => { local: Partial<ApplicationItem>; remote?: Record<string, any> }
   ) => {
     const id = activeAppIdRef.current;
-    if (!id) return;
+    if (!id) return false;
     const list = applicationsRef.current;
     const app = list.find(a => a.id === id);
-    if (!app) return;
+    if (!app) return false;
     const { local, remote } = build(app);
     const now = new Date().toISOString();
     const updated: ApplicationItem = { ...app, ...local, updatedAt: now };
@@ -421,12 +421,14 @@ export function useApplications(profile: CompanyProfile) {
         }, { merge: true });
       } catch (err) {
         console.warn('Could not sync application patch to Firestore:', err);
+        return false;
       }
     }
+    return true;
   }, [currentUser, persistLocal]);
 
   const updateActiveFormulation = useCallback(async (formulation: FormulationOutput) => {
-    await patchActive(() => ({ local: { formulation } }));
+    return patchActive(() => ({ local: { formulation } }));
   }, [patchActive]);
 
   const updateActiveAuditResult = useCallback(async (auditResult: BlindAuditResult) => {

@@ -51,6 +51,8 @@ import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { Lock, Sparkles, Building2, Upload } from 'lucide-react';
 import { apiFetch } from './utils/apiFetch';
+import { ConsultantGuide } from './components/ConsultantGuide';
+import { usePlan } from './hooks/usePlan';
 import { 
   onRequestLogin, 
   executePendingPostLoginAction, 
@@ -202,6 +204,9 @@ export default function App() {
   const profileHydratedRef = useRef<boolean>(false);
 
   // Applications & Multi-Fund Management
+  const { hasActivePlan: planActive } = usePlan();
+  // Aviso de guardado: solo cuando el cambio lo hizo el usuario (no al cargar datos)
+  const saveToastRef = React.useRef<string | null>(null);
   const {
     applications,
     activeApplications,
@@ -394,7 +399,17 @@ export default function App() {
     if (currentUser?.id) {
       const now = new Date().toISOString();
       setProfileSavedAt(now, currentUser.id);
-      const t = setTimeout(() => { syncCompanyToFirestore(profile, currentUser.id, now).catch(() => {}); }, 600);
+      const t = setTimeout(() => {
+        const label = saveToastRef.current;
+        saveToastRef.current = null;
+        syncCompanyToFirestore(profile, currentUser.id, now)
+          .then(() => {
+            if (label) showToast({ id: 'guardado', level: 'success', silent: true, title: 'Cambios guardados', message: `${label} quedó guardado en tu cuenta.`, durationMs: 3500 });
+          })
+          .catch(() => {
+            if (label) showToast({ id: 'guardado', level: 'error', title: 'No pudimos guardar en la nube', message: 'Tus cambios quedaron en este equipo. Revisa tu conexión: se volverá a intentar al editar.', durationMs: 8000 });
+          });
+      }, 600);
       return () => clearTimeout(t);
     }
   }, [profile, currentUser]);
@@ -880,7 +895,9 @@ export default function App() {
               onSaveFormulation={(f) => {
                 setActiveFormulation(f);
                 saveActiveFormulation(f, currentUser?.id);
-                updateActiveFormulation(f);
+                Promise.resolve(updateActiveFormulation(f))
+                  .then((ok) => ok === false ? showToast({ id: 'guardado', level: 'error', title: 'No pudimos guardar en la nube', message: 'Tu avance quedó en este equipo. Revisa tu conexión.', durationMs: 8000 }) : showToast({ id: 'guardado', level: 'success', silent: true, title: 'Avance guardado', message: 'Tu formulación quedó guardada en esta postulación.', durationMs: 3000 }))
+                  .catch(() => showToast({ id: 'guardado', level: 'error', title: 'No pudimos guardar', message: 'Revisa tu conexión e inténtalo de nuevo.', durationMs: 8000 }));
               }}
               onSendToAudit={handleSendToAudit}
               onSaveAudit={(res) => {
@@ -936,6 +953,7 @@ export default function App() {
                 setProfile(updated);
                 saveActiveProfile(updated, currentUser?.id);
                 if (currentUser?.id) setProfileSavedAt(new Date().toISOString(), currentUser.id);
+                saveToastRef.current = 'Mi empresa';
               }}
               onOpenSiiModal={() => setShowSiiModal(true)}
               onLogout={handleLogout}
@@ -1016,6 +1034,21 @@ export default function App() {
       />
 
       {/* Avisos emergentes (burbujas con sonido) */}
+      <ConsultantGuide
+        currentUser={currentUser}
+        profile={profile}
+        hasActiveApplication={Boolean(activeApplication)}
+        fund={activeFund}
+        expediente={activeExpediente}
+        hasActivePlan={planActive}
+        activeTab={activeTab}
+        onGo={(target) => {
+          if (target === 'sii') { setShowSiiModal(true); return; }
+          if (target.startsWith('url:')) { window.open(target.slice(4), '_blank', 'noopener,noreferrer'); return; }
+          if (target === 'dossier' || target === 'guarantees') { handleNavigateTab('my-application'); return; }
+          handleNavigateTab(target);
+        }}
+      />
       <ToastCenter />
 
       {/* Acceso anticipado (lanzamiento sin pago en línea) */}

@@ -25,7 +25,7 @@ export const ToastCenter: React.FC = () => {
   useEffect(() => onToast(t => {
     const key = ++counter.current;
     setItems(prev => [...prev.filter(i => i.id !== t.id), { ...t, key }].slice(-3));
-    playToastSound(t.level || 'info');
+    if (!t.silent) playToastSound(t.level || 'info');
     const ms = t.durationMs ?? 10000;
     if (ms > 0) setTimeout(() => dismiss(key), ms);
   }), [dismiss]);

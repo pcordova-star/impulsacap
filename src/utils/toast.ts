@@ -14,6 +14,8 @@ export interface ToastOptions {
   /** Milisegundos antes de cerrarse solo (0 = no se cierra solo). Por defecto 10 s. */
   durationMs?: number;
   oncePerSession?: boolean;
+  /** Sin sonido (avisos frecuentes como 'guardado') */
+  silent?: boolean;
 }
 
 type Listener = (t: ToastOptions) => void;
