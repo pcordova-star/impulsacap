@@ -7,7 +7,7 @@
 import dns from 'node:dns/promises';
 import net from 'node:net';
 import { PDFParse } from 'pdf-parse';
-import JSZip from 'jszip';
+import zlib from 'node:zlib';
 
 const MAX_HTML_BYTES = 1_500_000;
 const FETCH_TIMEOUT_MS = 10_000;
@@ -142,6 +142,40 @@ export async function readCompanySite(raw: string): Promise<{ pages: string[]; c
   return { pages, content };
 }
 
+
+/** Lee un archivo dentro de un .zip (como word/document.xml de un .docx) sin librerías externas. */
+function readZipEntry(buf: Buffer, wanted: string): Buffer | null {
+  let eocd = -1;
+  for (let i = buf.length - 22; i >= Math.max(0, buf.length - 66000); i--) {
+    if (buf.readUInt32LE(i) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) return null;
+  const count = buf.readUInt16LE(eocd + 10);
+  let p = buf.readUInt32LE(eocd + 16);
+  for (let n = 0; n < count && p + 46 <= buf.length; n++) {
+    if (buf.readUInt32LE(p) !== 0x02014b50) return null;
+    const method = buf.readUInt16LE(p + 10);
+    const compSize = buf.readUInt32LE(p + 20);
+    const nameLen = buf.readUInt16LE(p + 28);
+    const extraLen = buf.readUInt16LE(p + 30);
+    const commentLen = buf.readUInt16LE(p + 32);
+    const localOff = buf.readUInt32LE(p + 42);
+    const name = buf.subarray(p + 46, p + 46 + nameLen).toString('utf8');
+    if (name === wanted) {
+      if (buf.readUInt32LE(localOff) !== 0x04034b50) return null;
+      const lName = buf.readUInt16LE(localOff + 26);
+      const lExtra = buf.readUInt16LE(localOff + 28);
+      const start = localOff + 30 + lName + lExtra;
+      const data = buf.subarray(start, start + compSize);
+      if (method === 0) return data;
+      if (method === 8) return zlib.inflateRawSync(data, { maxOutputLength: 20 * 1024 * 1024 } as any);
+      return null;
+    }
+    p += 46 + nameLen + extraLen + commentLen;
+  }
+  return null;
+}
+
 export interface CvFile { name?: string; mimeType?: string; base64: string }
 
 /** Texto de un currículum; si es un PDF escaneado sin texto, se devuelve el PDF para que lo lea la IA. */
@@ -161,8 +195,7 @@ export async function cvToText(f: CvFile): Promise<{ name: string; text: string;
   }
   if (isDocx) {
     try {
-      const zip = await JSZip.loadAsync(buf);
-      const xml = await zip.file('word/document.xml')?.async('string');
+      const xml = readZipEntry(buf, 'word/document.xml')?.toString('utf8');
       const text = decode(String(xml || '').replace(/<\/w:p>/g, '\n').replace(/<[^>]+>/g, '')).replace(/\n\s*\n+/g, '\n').trim();
       if (text) return { name, text: text.slice(0, 15000) };
     } catch { /* cae al error de abajo */ }
