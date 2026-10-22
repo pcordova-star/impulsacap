@@ -7,6 +7,8 @@ export interface ApiFetchOptions extends RequestInit {
   requireAuth?: boolean;
   /** Uso interno: evita pedir dos veces la confirmación de inicio del plan. */
   skipServiceStartConfirmation?: boolean;
+  /** Tiempo máximo de espera (ms). Por defecto 160 s en las funciones de IA, para que nada quede "cargando" para siempre. */
+  timeoutMs?: number;
 }
 
 /**
@@ -59,11 +61,26 @@ export async function apiFetch(input: RequestInfo | URL, init: ApiFetchOptions =
     }
   }
 
-  const { requireAuth: _requireAuth, skipServiceStartConfirmation, ...fetchInit } = init;
-  const response = await fetch(input, {
-    ...fetchInit,
-    headers
-  });
+  const { requireAuth: _requireAuth, skipServiceStartConfirmation, timeoutMs, ...fetchInit } = init;
+  const limit = timeoutMs ?? (url.includes('/api/gemini/') ? 160_000 : 0);
+  const ctrl = limit > 0 ? new AbortController() : null;
+  const timer = ctrl ? setTimeout(() => ctrl.abort(), limit) : null;
+  if (ctrl && fetchInit.signal) fetchInit.signal.addEventListener('abort', () => ctrl.abort(), { once: true });
+  let response: Response;
+  try {
+    response = await fetch(input, {
+      ...fetchInit,
+      ...(ctrl ? { signal: ctrl.signal } : {}),
+      headers
+    });
+  } catch (err: any) {
+    if (ctrl?.signal.aborted && !fetchInit.signal?.aborted) {
+      throw new Error('La IA está tardando más de lo normal. Tu trabajo quedó guardado: intenta de nuevo en un momento.');
+    }
+    throw err;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 
   // Primer uso de una herramienta del plan tras una compra: pedir confirmación (derecho a retracto)
   if (response.status === 409 && !skipServiceStartConfirmation) {

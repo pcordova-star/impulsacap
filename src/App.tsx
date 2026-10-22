@@ -337,6 +337,7 @@ export default function App() {
           profileHydratedRef.current = false;
           setProfile(loadActiveProfile(getCleanDefaultProfile(user), user.id));
           const hydratingUid = user.id;
+          let mergedFromRemote = false;
           loadCompanyFromFirestore(hydratingUid)
             .then(remote => {
               if (!remote || activeUserIdRef.current !== hydratingUid) return;
@@ -351,13 +352,18 @@ export default function App() {
                 merged = { ...getCleanDefaultProfile(user), ...remote.profile } as CompanyProfile;
               }
               if (merged) {
+                mergedFromRemote = true;
                 saveActiveProfile(merged, hydratingUid);
                 setProfile(merged);
               }
             })
             .catch(err => console.warn('No se pudo leer el perfil desde Firestore:', err))
             .finally(() => {
-              if (activeUserIdRef.current === hydratingUid) profileHydratedRef.current = true;
+              if (activeUserIdRef.current !== hydratingUid) return;
+              profileHydratedRef.current = true;
+              // Si el perfil del navegador es el más reciente (por ejemplo, se editó mientras cargaba),
+              // se sube a la nube ahora para no perder esos cambios
+              if (!mergedFromRemote) setProfile(p => ({ ...p }));
             });
           setActiveFormulation(loadActiveFormulation(user.id));
           setAuditResult(loadActiveAudit(user.id));
@@ -929,6 +935,7 @@ export default function App() {
               onUpdateProfile={(updated) => {
                 setProfile(updated);
                 saveActiveProfile(updated, currentUser?.id);
+                if (currentUser?.id) setProfileSavedAt(new Date().toISOString(), currentUser.id);
               }}
               onOpenSiiModal={() => setShowSiiModal(true)}
               onLogout={handleLogout}

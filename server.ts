@@ -191,17 +191,31 @@ ai.models.generateContent = async function resilientGenerateContent(params: any)
   const modelsToTry = [primaryModel, ...FALLBACK_MODELS.filter(m => m !== primaryModel)];
 
   let lastError: any = null;
+  // Tiempo máximo: 70 s por intento y 140 s en total (antes una llamada colgada dejaba "Redactando…" para siempre)
+  const PER_CALL_MS = 70_000;
+  const deadline = Date.now() + 140_000;
 
   for (let mIdx = 0; mIdx < modelsToTry.length; mIdx++) {
     const currentModel = modelsToTry[mIdx];
     const maxRetries = 2;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      const remaining = deadline - Date.now();
+      if (remaining < 5_000) {
+        throw lastError || new Error('La IA tardó demasiado en responder. Intenta de nuevo en unos minutos.');
+      }
       try {
-        const result = await originalGenerateContent({
-          ...params,
-          model: currentModel,
-        });
+        const ctrl = new AbortController();
+        const ms = Math.min(PER_CALL_MS, remaining);
+        let timer: NodeJS.Timeout | undefined;
+        const result: any = await Promise.race([
+          originalGenerateContent({
+            ...params,
+            model: currentModel,
+            config: { ...(params.config || {}), abortSignal: ctrl.signal },
+          }),
+          new Promise((_, reject) => { timer = setTimeout(() => { ctrl.abort(); reject(Object.assign(new Error(`timeout ${ms}ms`), { isTimeout: true })); }, ms); })
+        ]).finally(() => { if (timer) clearTimeout(timer); });
         (result as any).usedModel = currentModel;
         if (mIdx > 0 || attempt > 1) {
           console.log(`[Gemini Resilient] Éxito con modelo ${currentModel} (intento ${attempt})`);
@@ -209,6 +223,10 @@ ai.models.generateContent = async function resilientGenerateContent(params: any)
         return result;
       } catch (err: any) {
         lastError = err;
+        if (err?.isTimeout) {
+          console.warn(`[Gemini] ${currentModel} no respondió a tiempo; se prueba el modelo alternativo`);
+          break;
+        }
         if (isRetryableGeminiError(err)) {
           const waitMs = attempt * 2000;
           console.warn(`[Gemini 503] Modelo ${currentModel} en alta demanda (intento ${attempt}/${maxRetries}). Esperando ${waitMs}ms...`);

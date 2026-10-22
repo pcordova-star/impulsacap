@@ -164,11 +164,16 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
   const headerSentinelRef = useRef<HTMLDivElement | null>(null);
   const [compactHeader, setCompactHeader] = useState(false);
   useEffect(() => {
-    const el = headerSentinelRef.current;
-    if (!el || typeof IntersectionObserver === 'undefined') return;
-    const obs = new IntersectionObserver(([entry]) => setCompactHeader(!entry.isIntersecting), { rootMargin: '-72px 0px 0px 0px' });
-    obs.observe(el);
-    return () => obs.disconnect();
+    // Apenas el encabezado queda fijo arriba, pasa a la versión compacta (así nunca tapa el contenido)
+    const update = () => {
+      const el = headerSentinelRef.current;
+      const top = el ? el.getBoundingClientRect().top : 0;
+      setCompactHeader(top < 76);
+    };
+    update();
+    window.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    return () => { window.removeEventListener('scroll', update); window.removeEventListener('resize', update); };
   }, []);
 
   const tabs: { id: PostulationSubTab; label: string; icon: React.FC<{ className?: string }> }[] = [
@@ -184,7 +189,7 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
     <div className="space-y-4 animate-fade-in max-w-7xl mx-auto">
       {/* 1. ENCABEZADO: completo arriba; al bajar queda fijo y compacto (solo pestañas) */}
       <div ref={headerSentinelRef} aria-hidden="true" className="h-px -mb-4" />
-      <div className={`sticky top-16 z-30 bg-white/95 backdrop-blur-md border border-slate-200 shadow-sm transition-all ${compactHeader ? 'rounded-2xl px-3 py-2 sm:px-4 space-y-0' : 'rounded-3xl p-4 sm:p-5 space-y-3'}`}>
+      <div className={`sticky top-16 z-30 bg-white border border-slate-200 shadow-sm transition-all ${compactHeader ? 'rounded-2xl px-3 py-2 sm:px-4 space-y-0' : 'rounded-3xl p-4 sm:p-5 space-y-3'}`}>
         {compactHeader && (
           <div className="flex items-center gap-2 px-1 pb-1 min-w-0">
             <button

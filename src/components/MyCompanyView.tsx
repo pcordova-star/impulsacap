@@ -95,10 +95,13 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
   const [femaleEquityPct, setFemaleEquityPct] = useState<number>(profile.femaleEquityPct || 0);
 
   // Representative state
-  const [representativeName, setRepresentativeName] = useState(currentUser?.representativeName || profile.representativeName || '');
-  const [representativeRut, setRepresentativeRut] = useState(currentUser?.representativeRut || profile.representativeRut || '');
-  const [representativeEmail, setRepresentativeEmail] = useState(currentUser?.email || '');
-  const [representativePhone, setRepresentativePhone] = useState(currentUser?.phone || '');
+  // Lo guardado en el perfil manda; la cuenta solo sirve de valor inicial
+  // (antes la cuenta tenía prioridad y mostraba el nombre de la empresa como representante)
+  const repNameFromAccount = currentUser?.representativeName && currentUser.representativeName !== currentUser.companyName ? currentUser.representativeName : '';
+  const [representativeName, setRepresentativeName] = useState(profile.representativeName || repNameFromAccount || '');
+  const [representativeRut, setRepresentativeRut] = useState(profile.representativeRut || currentUser?.representativeRut || '');
+  const [representativeEmail, setRepresentativeEmail] = useState(profile.representativeEmail || currentUser?.email || '');
+  const [representativePhone, setRepresentativePhone] = useState(profile.representativePhone || currentUser?.phone || '');
 
   // Project Profile state (Requirement A.1)
   const initialProject = profile.projectProfile || ({} as Partial<ProjectProfile>);
@@ -158,9 +161,57 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
     return () => { isMounted = false; };
   }, []);
 
+  // Cambios sin guardar: si el perfil llega después (desde la nube) y no has editado, se muestra el guardado
+  const dirtyRef = React.useRef(false);
+  const selfSaveRef = React.useRef(false);
+  const [autoSavedAt, setAutoSavedAt] = useState<string | null>(null);
+  useEffect(() => {
+    if (selfSaveRef.current) { selfSaveRef.current = false; return; }
+    if (dirtyRef.current) return;
+    setCompanyName(profile.companyName || currentUser?.companyName || '');
+    setRut(profile.rut || currentUser?.rut || '');
+    if (profile.companyType) setCompanyType(profile.companyType);
+    if (profile.sector) setSector(profile.sector);
+    if (profile.region) setRegion(profile.region);
+    if (profile.salesBracket) setSalesBracket(profile.salesBracket);
+    setIsFemaleLed(Boolean(profile.isFemaleLed));
+    setFemaleEquityPct(profile.femaleEquityPct || 0);
+    if (profile.representativeName) setRepresentativeName(profile.representativeName);
+    if (profile.representativeRut) setRepresentativeRut(profile.representativeRut);
+    if (profile.representativeEmail) setRepresentativeEmail(profile.representativeEmail);
+    if (profile.representativePhone) setRepresentativePhone(profile.representativePhone);
+    const pp = profile.projectProfile || ({} as Partial<ProjectProfile>);
+    setWhatItDoes(pp.whatItDoes || profile.projectSummary || '');
+    setProblemAndTarget(pp.problemAndTarget || '');
+    setCurrentSolutionAndDiff(pp.currentSolutionAndDiff || '');
+    setCurrentProgress(pp.currentProgress || '');
+    setTeamDetails(pp.teamDetails || '');
+    setBusinessModel(pp.businessModel || '');
+    setFundingPurpose(pp.fundingPurpose || '');
+    setWebsiteOrSocial(pp.websiteOrSocial || '');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile]);
+
+  // Guardado automático: 1,2 s después de dejar de escribir (no hace falta apretar "Guardar")
+  const saveRef = React.useRef<() => void>(() => {});
+  const markDirty = () => {
+    dirtyRef.current = true;
+    setAutoSavedAt(null);
+  };
+  useEffect(() => {
+    if (!dirtyRef.current) return;
+    const t = setTimeout(() => { saveRef.current(); }, 1200);
+    return () => clearTimeout(t);
+  }, [companyName, rut, companyType, sector, region, salesBracket, isFemaleLed, femaleEquityPct, representativeName, representativeRut, representativeEmail, representativePhone, currentProjectProfile]);
+  // Al salir de la pantalla con cambios pendientes, se guardan igual
+  useEffect(() => () => { if (dirtyRef.current) saveRef.current(); }, []);
+
   // Save handler for company & project profile
   const handleSave = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    dirtyRef.current = false;
+    selfSaveRef.current = true;
+    setAutoSavedAt(new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }));
     const updated: CompanyProfile = {
       ...profile,
       companyName: companyName.trim() || 'Mi Empresa',
@@ -173,6 +224,8 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
       femaleEquityPct: isFemaleLed ? (femaleEquityPct || 100) : 0,
       representativeName: representativeName.trim(),
       representativeRut: representativeRut.trim(),
+      representativeEmail: representativeEmail.trim(),
+      representativePhone: representativePhone.trim(),
       projectProfile: currentProjectProfile,
       projectSummary: whatItDoes.trim() || profile.projectSummary
     };
@@ -180,6 +233,8 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 3000);
   };
+
+  saveRef.current = () => handleSave();
 
   // Renew / Upgrade plan handler (Mercado Pago Checkout Pro)
   const handleRenewPlan = async () => {
@@ -288,7 +343,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
         </div>
       </div>
 
-      <form onSubmit={handleSave} className="space-y-6">
+      <form onSubmit={handleSave} onInputCapture={markDirty} onChangeCapture={markDirty} onClickCapture={(e) => { const t = e.target as HTMLElement; if (t.closest('[role="radio"],[role="switch"],[type="checkbox"],[data-dirty]')) markDirty(); }} className="space-y-6">
         
         {/* ========================================================================= */}
         {/* SECCIÓN A: PERFIL DEL PROYECTO (Requirement A.1) */}
@@ -792,11 +847,13 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
             {savedSuccess ? (
               <span className="text-xs font-bold text-emerald-700 flex items-center gap-1.5 animate-fade-in">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                <span>¡Datos de la empresa y perfil del proyecto guardados en Firestore!</span>
+                <span>Guardado{autoSavedAt ? ` a las ${autoSavedAt}` : ''}</span>
               </span>
+            ) : autoSavedAt ? (
+              <span className="text-xs text-slate-500 flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-emerald-600" />Cambios guardados a las {autoSavedAt}</span>
             ) : (
               <span className="text-xs text-slate-500">
-                Guarda los cambios para que la IA disponga de tus antecedentes actualizados.
+                Tus cambios se guardan solos mientras escribes.
               </span>
             )}
           </div>
@@ -806,7 +863,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-600/20 active:scale-95 transition-all cursor-pointer"
           >
             <Save className="w-4 h-4" />
-            <span>Guardar Datos de Mi Empresa y Proyecto</span>
+            <span>Guardar ahora</span>
           </button>
         </div>
       </form>
