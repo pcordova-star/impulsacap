@@ -17,6 +17,7 @@ import { buildTaxDiagnosis, type TaxDiagnosis } from './src/utils/taxDiagnosis';
 import { evaluateChileanGrantMatch, isNonActivityQuery, normalizeText } from './src/utils/grantMatcher';
 import { rankCatalogFunds, rankLiveCalls, type MatchAnswers, type RankedFund } from './src/utils/fundRanking';
 import { getFundRules, FAMILY_BLOCKS } from './src/data/fundStandards';
+import { readCompanySite, cvToText, AutofillError, type CvFile } from './server/profileAutofill';
 import { calculateDaysRemaining } from './src/utils/convocatorias';
 import { validateRut, formatRut } from './src/utils/rutValidator';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
@@ -85,6 +86,8 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 // Límite de express.json: 15mb para subida de Carpeta Tributaria / F29 y 2mb en general (Requirement 7)
 app.use('/api/gemini/parse-tax-folder', express.json({ limit: '15mb' }));
+// Currículums para el perfil del equipo (hasta 5 archivos de 5 MB)
+app.use('/api/perfil/desde-cv', express.json({ limit: '36mb' }));
 // Reintenta la conexión de Firestore Admin antes de atender la API si aún no está autorizada
 app.use('/api', async (_req, _res, next) => {
   if (!isFirestoreAdminAuthorized) {
@@ -2708,6 +2711,95 @@ app.post('/api/admin/pase-libre', requireAuth, requireAdminUser, async (req, res
     return res.json({ ok: true });
   } catch (err: any) {
     return res.status(500).json({ error: err?.message || 'No se pudo guardar.' });
+  }
+});
+
+
+// ---------------------------------------------------------------------------
+// Completar el perfil del proyecto desde el sitio web o los currículums (opcional)
+// ---------------------------------------------------------------------------
+const perUserLimiter = (max: number, message: string) => rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max,
+  standardHeaders: true,
+  legacyHeaders: false,
+  statusCode: 429,
+  keyGenerator: (req) => (req as AuthenticatedRequest).user?.uid || ipKeyGenerator(req.ip || ''),
+  message: { error: message }
+});
+const cleanField = (v: any, max = 1500) => (typeof v === 'string' ? v.replace(/\[COMPLETAR[^\]]*\]/gi, '').trim().slice(0, max) : '');
+
+app.post('/api/perfil/desde-web', requireAuth, perUserLimiter(10, 'Leíste muchos sitios en la última hora. Intenta más tarde.'), guardAi('perfil-web'), async (req, res) => {
+  try {
+    const { pages, content } = await readCompanySite(String(req.body?.url || ''));
+    const prompt = `Este es el texto público del sitio web de una empresa chilena:
+"""
+${content}
+"""
+
+Con SOLO lo que dice el sitio, propone respuestas para el perfil de su proyecto. Reglas:
+- No inventes nada: ni cifras, ni clientes, ni logros, ni equipo. Si el sitio no lo dice, deja el campo vacío ("").
+- Escribe en español de Chile, en primera persona plural ("Desarrollamos…", "Atendemos a…"), claro y concreto, 1 a 3 oraciones por campo.
+- "currentProgress" solo si el sitio menciona clientes, ventas, proyectos realizados, años de experiencia o hitos concretos.
+- "teamDetails" solo si el sitio nombra personas y sus roles.
+
+Responde SOLO este JSON:
+{"whatItDoes":"","problemAndTarget":"","currentSolutionAndDiff":"","currentProgress":"","businessModel":"","teamDetails":""}`;
+    const response = await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: prompt,
+      config: { responseMimeType: 'application/json', temperature: 0.1 }
+    });
+    const parsed = JSON.parse(response.text || '{}');
+    const suggestions: Record<string, string> = {};
+    for (const k of ['whatItDoes', 'problemAndTarget', 'currentSolutionAndDiff', 'currentProgress', 'businessModel', 'teamDetails']) {
+      const v = cleanField(parsed[k]);
+      if (v.length >= 10) suggestions[k] = v;
+    }
+    return res.json({ pages, suggestions });
+  } catch (err: any) {
+    if (err instanceof AutofillError) return res.status(err.status).json({ error: err.message });
+    console.error('[perfil-web]', err?.message);
+    return res.status(503).json({ error: 'No pudimos leer tu sitio ahora. Intenta en unos minutos o completa el perfil a mano.' });
+  }
+});
+
+app.post('/api/perfil/desde-cv', requireAuth, perUserLimiter(10, 'Subiste muchos currículums en la última hora. Intenta más tarde.'), guardAi('perfil-cv'), async (req, res) => {
+  try {
+    const files: CvFile[] = Array.isArray(req.body?.files) ? req.body.files.slice(0, 5) : [];
+    if (files.length === 0) return res.status(400).json({ error: 'Adjunta al menos un currículum.' });
+    const docs = [];
+    for (const f of files) docs.push(await cvToText(f));
+    const parts: any[] = [];
+    docs.forEach((d, i) => {
+      if (d.pdfBase64) {
+        parts.push({ text: `CURRÍCULUM ${i + 1} (${d.name}), en el PDF adjunto:` });
+        parts.push({ inlineData: { mimeType: 'application/pdf', data: d.pdfBase64 } });
+      } else {
+        parts.push({ text: `CURRÍCULUM ${i + 1} (${d.name}):\n${d.text}` });
+      }
+    });
+    const projectHint = String(req.body?.projectSummary || '').slice(0, 600);
+    parts.push({ text: `Extrae de cada currículum SOLO lo que está escrito, para describir al equipo de un proyecto que postula a fondos públicos${projectHint ? ` (el proyecto: ${projectHint})` : ''}.
+Reglas: no inventes cargos, años ni logros. Si algo no aparece, omítelo. No incluyas datos personales sensibles (RUT, dirección, teléfono, fecha de nacimiento).
+Responde SOLO este JSON:
+{"people":[{"name":"Nombre","role":"cargo o rol (actual o el que indique el CV)","summary":"1 o 2 oraciones: experiencia más relevante, años si están, formación principal"}]}` });
+    const response = await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: [{ role: 'user', parts }],
+      config: { responseMimeType: 'application/json', temperature: 0.1 }
+    });
+    const parsed = JSON.parse(response.text || '{}');
+    const people = (Array.isArray(parsed.people) ? parsed.people : [])
+      .map((p: any) => ({ name: cleanField(p?.name, 120), role: cleanField(p?.role, 160), summary: cleanField(p?.summary, 600) }))
+      .filter((p: any) => p.name);
+    if (people.length === 0) return res.status(422).json({ error: 'No pudimos identificar a las personas en esos archivos. Revisa que sean currículums legibles.' });
+    const teamDetails = people.map((p: any) => `${p.name}${p.role ? ` (${p.role})` : ''}: ${p.summary}`.trim()).join('\n');
+    return res.json({ people, teamDetails });
+  } catch (err: any) {
+    if (err instanceof AutofillError) return res.status(err.status).json({ error: err.message });
+    console.error('[perfil-cv]', err?.message);
+    return res.status(503).json({ error: 'No pudimos leer los currículums ahora. Intenta en unos minutos.' });
   }
 });
 

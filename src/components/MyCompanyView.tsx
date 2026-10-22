@@ -1,5 +1,6 @@
 import { ReferralCodeField } from './ReferralCodeField';
 import React, { useState, useEffect, useMemo } from 'react';
+import { ProfileAutofill } from './ProfileAutofill';
 import { 
   CompanyProfile, 
   CompanyUser, 
@@ -403,6 +404,19 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
               </div>
             </div>
           )}
+
+          <ProfileAutofill
+            values={{ whatItDoes, problemAndTarget, currentSolutionAndDiff, currentProgress, businessModel, teamDetails, websiteOrSocial }}
+            projectSummary={whatItDoes}
+            onApply={(field, value) => {
+              markDirty();
+              const setters: Record<string, (v: string) => void> = {
+                whatItDoes: setWhatItDoes, problemAndTarget: setProblemAndTarget, currentSolutionAndDiff: setCurrentSolutionAndDiff,
+                currentProgress: setCurrentProgress, businessModel: setBusinessModel, teamDetails: setTeamDetails, websiteOrSocial: setWebsiteOrSocial
+              };
+              setters[field]?.(value);
+            }}
+          />
 
           <div className="space-y-4 text-xs">
             {/* 1. ¿Qué hace tu empresa o proyecto? */}
