@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { consume, onRequest } from '../utils/navFocus';
 import { BudgetWizard } from './BudgetWizard';
+import { notifySaved } from '../utils/guideEvents';
 import { SectionHelper } from './SectionHelpers';
 import { ChileanFund, CompanyProfile, FormulationOutput, ProjectProfile, FormBlock } from '../types/funds';
 import { getFundRules, blockLabel, budgetAccountsFor, coFinancePctFor, maxSubsidyFor, questionOverride } from '../data/fundStandards';
@@ -802,6 +803,7 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
     } else {
       setSavedNotice('¡Excelente! Has completado todas las secciones de tu formulación técnica.');
       setTimeout(() => setSavedNotice(null), 5000);
+      notifySaved('Formulario del fondo');
     }
   };
 

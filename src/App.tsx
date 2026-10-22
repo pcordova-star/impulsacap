@@ -52,6 +52,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { Lock, Sparkles, Building2, Upload } from 'lucide-react';
 import { apiFetch } from './utils/apiFetch';
 import { ConsultantGuide } from './components/ConsultantGuide';
+import { notifySaved } from './utils/guideEvents';
 import { usePlan } from './hooks/usePlan';
 import { 
   onRequestLogin, 
@@ -572,6 +573,9 @@ export default function App() {
       saveActiveProfile(next, currentUser?.id);
       return next;
     });
+    if (currentUser?.id) setProfileSavedAt(new Date().toISOString(), currentUser.id);
+    saveToastRef.current = 'La carpeta tributaria';
+    notifySaved('Carpeta tributaria');
   };
 
   // Flow handlers
@@ -889,7 +893,11 @@ export default function App() {
               onUpdateRoadmapConfirmations={updateActiveRoadmapConfirmations}
               onUpdateDocStatuses={updateActiveDocStatuses}
               onAddGeneratedDoc={addActiveGeneratedDoc}
-              onUpdateGeneratedDocStatus={updateActiveGeneratedDocStatus}
+              onUpdateGeneratedDocStatus={(...args: any[]) => {
+                const r = (updateActiveGeneratedDocStatus as any)(...args);
+                if (args.includes('firmada')) notifySaved('Documento firmado');
+                return r;
+              }}
               onDeleteGeneratedDoc={deleteActiveGeneratedDoc}
               onSaveSectionAnswers={saveActiveSectionAnswers}
               onSaveFormulation={(f) => {
@@ -904,6 +912,7 @@ export default function App() {
                 setAuditResult(res);
                 saveActiveAudit(res, currentUser?.id);
                 updateActiveAuditResult(res);
+                notifySaved('Evaluación simulada');
               }}
               onUpdateProfile={setProfile}
               onOpenAuthModal={(mode) => { setAuthModalMode(mode || 'login'); setShowAuthModal(true); }}

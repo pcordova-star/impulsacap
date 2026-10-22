@@ -5,7 +5,7 @@ import type { ExpedienteData } from '../types/expediente';
 import { calculateProjectProfileCompletion } from '../types/funds';
 import { validateRut } from '../utils/rutValidator';
 import { computeRoadmap } from '../data/fundStandards';
-import { showToast } from '../utils/toast';
+import { onSaved } from '../utils/guideEvents';
 
 /**
  * El consultor: acompaña al usuario por la línea de pasos completa, siempre visible.
@@ -135,6 +135,15 @@ export const ConsultantGuide: React.FC<Props> = ({ currentUser, profile, hasActi
   const total = hasActiveApplication ? stages.length : 10;
   const doneCount = stages.filter(s => s.done).length;
 
+  // Diálogo "¿qué hacemos ahora?" después de guardar o de completar un paso
+  const [prompt, setPrompt] = useState<{ kind: 'done' | 'saved'; label: string } | null>(null);
+  const promptRef = useRef(prompt);
+  promptRef.current = prompt;
+  useEffect(() => onSaved(({ label }) => {
+    // Se espera un momento: si el guardado completó un paso, ya se muestra ese aviso
+    setTimeout(() => { if (!promptRef.current) setPrompt({ kind: 'saved', label }); }, 700);
+  }), []);
+
   // Al completar una etapa, felicita y propone la siguiente
   const lastRef = useRef<string | null>(null);
   useEffect(() => {
@@ -150,22 +159,55 @@ export const ConsultantGuide: React.FC<Props> = ({ currentUser, profile, hasActi
     const prevIdx = stages.findIndex(s => s.id === prev);
     const prevStage = stages[prevIdx];
     if (prevStage && prevStage.done && (currentIdx === -1 || currentIdx > prevIdx)) {
-      showToast({
-        id: 'consultor-avance',
-        level: 'success',
-        title: `¡Listo! ${prevStage.title}`,
-        message: current ? `Siguiente paso: ${current.title}.` : 'Completaste todos los pasos. Tu postulación está lista para enviar.',
-        action: current ? { label: current.action.label, onClick: () => onGo(current.action.target) } : undefined,
-        durationMs: 9000
-      });
+      setPrompt({ kind: 'done', label: prevStage.title });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.id, currentUser]);
+
+  const modal = prompt && currentUser ? (
+    <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-3 bg-slate-950/40 animate-fade-in" role="dialog" aria-modal="true" aria-label="Siguiente paso">
+      <div className="w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
+        <div className="p-5 sm:p-6 space-y-3">
+          <div className="flex items-start gap-3">
+            <span className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0"><CheckCircle2 className="w-6 h-6" /></span>
+            <div>
+              <p className="text-base font-black text-slate-900 leading-snug">
+                {prompt.kind === 'done' ? `¡Paso completado! ${prompt.label}` : `${prompt.label}: guardado`}
+              </p>
+              <p className="text-[13px] text-slate-600 mt-0.5">
+                {current ? (prompt.kind === 'done' ? '¿Seguimos con el siguiente paso?' : 'Todo quedó guardado en tu cuenta. ¿Qué quieres hacer ahora?') : 'Completaste todos los pasos. Tu postulación está lista para enviar en el portal oficial.'}
+              </p>
+            </div>
+          </div>
+          {current && (
+            <div className="rounded-2xl bg-blue-50 border border-blue-100 p-3.5">
+              <p className="text-[11px] font-bold text-blue-700 uppercase tracking-wider">Siguiente paso · {currentIdx + 1} de {total}</p>
+              <p className="text-sm font-bold text-slate-900">{current.title}</p>
+              <p className="text-xs text-slate-600 mt-0.5">{current.next ? `Ahora: ${current.next}` : current.why}</p>
+            </div>
+          )}
+        </div>
+        <div className="px-5 sm:px-6 pb-5 sm:pb-6 flex flex-col gap-2">
+          {current && (
+            <button type="button" onClick={() => { setPrompt(null); onGo(current.action.target); }} className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold cursor-pointer">
+              Seguir: {current.action.label} <ArrowRight className="w-4 h-4" />
+            </button>
+          )}
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => { setPrompt(null); onGo('my-applications'); }} className="px-3 py-2.5 rounded-2xl border border-slate-300 text-slate-700 text-xs font-bold hover:bg-slate-50 cursor-pointer">Volver a mi panel</button>
+            <button type="button" onClick={() => setPrompt(null)} className="px-3 py-2.5 rounded-2xl border border-slate-200 text-slate-500 text-xs font-bold hover:bg-slate-50 cursor-pointer">Seguir aquí</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  ) : null;
 
   if (!currentUser || HIDDEN_TABS.has(activeTab)) return null;
 
   if (!open) {
     return (
+      <>
+      {modal}
       <button
         type="button"
         onClick={() => setOpenPersist(true)}
@@ -175,10 +217,13 @@ export const ConsultantGuide: React.FC<Props> = ({ currentUser, profile, hasActi
         <Compass className="w-4 h-4" />
         {current ? `Paso ${currentIdx + 1} de ${total}: ${current.title}` : 'Postulación lista'}
       </button>
+      </>
     );
   }
 
   return (
+    <>
+    {modal}
     <aside
       aria-label="Tu consultor"
       className="fixed z-40 left-3 right-3 sm:right-auto sm:left-6 bottom-20 md:bottom-6 sm:w-[380px] rounded-3xl bg-white border border-slate-200 shadow-2xl shadow-slate-900/15 overflow-hidden"
@@ -257,5 +302,6 @@ export const ConsultantGuide: React.FC<Props> = ({ currentUser, profile, hasActi
         )}
       </div>
     </aside>
+    </>
   );
 };

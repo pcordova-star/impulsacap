@@ -1,6 +1,7 @@
 import { ReferralCodeField } from './ReferralCodeField';
 import React, { useState, useEffect, useMemo } from 'react';
 import { ProfileAutofill } from './ProfileAutofill';
+import { notifySaved } from '../utils/guideEvents';
 import { 
   CompanyProfile, 
   CompanyUser, 
@@ -210,6 +211,8 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
   // Save handler for company & project profile
   const handleSave = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    // Guardado pedido por el usuario (botón): el consultor propone el siguiente paso
+    if (e) setTimeout(() => notifySaved('Mi empresa'), 0);
     dirtyRef.current = false;
     selfSaveRef.current = true;
     setAutoSavedAt(new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }));
