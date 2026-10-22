@@ -1,7 +1,8 @@
 import { guideFor } from '../data/requirementGuides';
 import { getFundRules, computeRoadmap, coFinancePctFor } from '../data/fundStandards';
+import { computeJourney } from '../data/journey';
 import { consume, onRequest } from '../utils/navFocus';
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   CompanyProfile, 
   ChileanFund, 
@@ -271,6 +272,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
     ? expediente.generatedDocs.filter((d: any) => d.status === 'firmada').length
     : (profile.customerValidationCount || 0);
 
+  const roadmapRef = useRef<number>(1);
   const runTarget = (target: string) => {
     if (target === 'sii') return onOpenSiiModal();
     if (target === 'dossier') return setShowDossierModal(true);
@@ -280,6 +282,12 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
       return;
     }
     if (target.startsWith('url:')) { window.open(target.slice(4), '_blank', 'noopener,noreferrer'); return; }
+    if (target === 'my-application') {
+      // Ya estamos en la hoja de ruta: abrimos el paso pendiente y bajamos hasta él
+      setExpandedStep(roadmapRef.current);
+      setTimeout(() => document.getElementById('roadmap-views')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+      return;
+    }
     onNavigateTab(target);
   };
 
@@ -296,6 +304,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
   }), [selectedFund, profile, activeRut, isRutValid, expediente, formulation, auditResult, JSON.stringify(checks), confirmedGarantia, signedLetters]);
 
   const currentStepNumber = roadmap.current;
+  roadmapRef.current = currentStepNumber;
 
   // Persist current active step for the user and auto-open next step
   useEffect(() => {
@@ -304,13 +313,14 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
     setExpandedStep(currentStepNumber);
   }, [currentStepNumber, userKey]);
 
-  const STEP_BADGES = ['Requisito excluyente', 'Antecedentes', 'Formulario oficial', 'Financiero', 'Simulación', 'Postulación final'];
+  const STEP_BADGES = ['Requisito excluyente', 'Formulario oficial', 'Financiero', 'Antecedentes', 'Simulación', 'Postulación final'];
   const steps = roadmap.steps.map((st, i) => ({
     stepNumber: st.number,
     id: st.id,
     title: st.title,
     subtitle: st.subtitle,
     badge: STEP_BADGES[i] || '',
+    needsPlan: Boolean(st.needsPlan),
     status: st.done ? ('completed' as const) : st.number === currentStepNumber ? ('in_progress' as const) : ('pending' as const),
     items: st.items.map(it => ({
       label: it.label,
@@ -331,6 +341,19 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
 
   // Identify the immediate next action to prevent user confusion
   const nextStep = steps.find(s => s.status === 'in_progress') || steps.find(s => s.status === 'pending') || steps[steps.length - 1];
+  // La siguiente acción sale del mismo recorrido que usa el consultor (incluye preparar la empresa y bloqueos)
+  const journey = computeJourney({
+    profile: { ...profile, rut: activeRut },
+    fund: selectedFund,
+    application: {
+      formulation: expediente?.formulation || formulation,
+      auditResult,
+      roadmapConfirmations: { checks, confirmedGarantia },
+      generatedDocs: expediente?.generatedDocs || []
+    },
+    hasActivePlan
+  });
+  const nextJ = journey.current;
 
   // Requirement 3: Only ONE step open at a time: the current step!
   useEffect(() => {
@@ -599,23 +622,25 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
                 Tu Siguiente Acción Inmediata:
               </span>
             </div>
+            {nextJ && <p className="text-[11px] font-semibold text-slate-500">{nextJ.phaseLabel}</p>}
             <h4 className="text-base sm:text-lg font-bold text-slate-900">
-              Paso {nextStep.stepNumber}: {nextStep.title}
+              {nextJ ? nextJ.title : 'Postulación lista para enviar'}
             </h4>
-            <p className="text-xs text-slate-600 mt-1 line-clamp-2">
-              {nextStep.subtitle}
+            {nextJ?.next && <p className={`text-sm mt-1 font-semibold ${nextJ.blocker ? 'text-red-700' : 'text-slate-800'}`}>{nextJ.blocker ? 'No cumples: ' : 'Falta: '}{nextJ.next}</p>}
+            <p className="text-xs text-slate-600 mt-1 line-clamp-3">
+              {nextJ ? nextJ.why : nextStep.subtitle}
             </p>
           </div>
 
           <div className="mt-4 pt-3 border-t border-slate-200 flex items-center justify-between gap-3">
-            <span className="text-[11px] text-slate-500 hidden sm:inline">
-              Sin desorden ni pasos confusos: avanza uno a la vez.
-            </span>
+            {nextJ?.alt && (
+              <button onClick={() => runTarget(nextJ.alt!.target)} className="text-xs font-bold text-blue-700 hover:underline cursor-pointer">{nextJ.alt.label}</button>
+            )}
             <button
-              onClick={nextStep.onAction}
+              onClick={() => nextJ ? runTarget(nextJ.action.target) : runTarget('dossier')}
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs sm:text-sm shadow-sm transition-all cursor-pointer active:scale-95"
             >
-              <span>{nextStep.actionLabel}</span>
+              <span>{nextJ ? nextJ.action.label : 'Abrir expediente'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
@@ -712,7 +737,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
 
           <div className="relative pl-6 sm:pl-8 space-y-4 before:content-[''] before:absolute before:left-3 sm:before:left-4 before:top-4 before:bottom-4 before:w-0.5 before:bg-slate-800">
             {steps.map((step) => {
-              const requiresPlan = step.stepNumber >= 3;
+              const requiresPlan = step.needsPlan;
               const isPlanLocked = requiresPlan && !hasActivePlan;
               const isCurrent = step.stepNumber === currentStepNumber && !isPlanLocked;
               const isCompleted = (step.stepNumber < currentStepNumber || step.status === 'completed') && !isPlanLocked;
@@ -723,7 +748,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
 
               return (
                 <React.Fragment key={step.id}>
-                  {step.stepNumber === 3 && !hasActivePlan && (
+                  {step.id === steps.find(x => x.needsPlan)?.id && !hasActivePlan && (
                     <div id="plan-paywall-step" className="my-6">
                       <PlanPaywallCard
                         highlightText="Desbloquea el Formulador Técnico por Secciones, la Auditoría Ciega oficial y la generación del Dossier Oficial para postular a este fondo."

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ChileanFund, CompanyUser } from '../types/funds';
+import { ChileanFund, CompanyUser, CompanyProfile } from '../types/funds';
 import { Convocatoria } from '../types/convocatoria';
 import { FundCatalog } from './FundCatalog';
 import { ConvocatoriasView } from './ConvocatoriasView';
@@ -24,6 +24,7 @@ interface SearchFundsViewProps {
   pickMode?: boolean;
   freeSlots?: number;
   onCancelPick?: () => void;
+  profile?: CompanyProfile | null;
 }
 
 export const SearchFundsView: React.FC<SearchFundsViewProps> = ({
@@ -43,7 +44,8 @@ export const SearchFundsView: React.FC<SearchFundsViewProps> = ({
   initialTab = 'programs',
   pickMode = false,
   freeSlots = 3,
-  onCancelPick
+  onCancelPick,
+  profile
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'programs' | 'calls'>(initialTab);
   // Si se llega desde otro botón ("Nueva postulación", "Ver convocatorias"), mostrar la pestaña pedida
@@ -109,6 +111,7 @@ export const SearchFundsView: React.FC<SearchFundsViewProps> = ({
           convocatorias={convocatorias}
           onSelectFundToFormulate={onSelectFundToFormulate}
           onSelectFundToViewDocs={onSelectFundToViewDocs}
+          profile={currentUser ? profile : null}
         />
       )}
 

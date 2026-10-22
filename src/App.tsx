@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'react';
+import { fundFit } from './data/journey';
 import { CompanyProfile, ChileanFund, FormulationOutput, BlindAuditResult, CompanyUser } from './types/funds';
 import { CHILEAN_FUNDS } from './data/chileanFunds';
 import { Navbar } from './components/Navbar';
@@ -579,7 +580,7 @@ export default function App() {
   };
 
   // Flow handlers
-  const handleSelectFundToFormulate = async (fund: ChileanFund) => {
+  const handleSelectFundToFormulate = async (fund: ChileanFund, force = false) => {
     const existing = activeApplications.find(a => a.fundId === fund.id);
     if (existing) {
       setActiveApplicationId(existing.id);
@@ -587,6 +588,11 @@ export default function App() {
       setPostulationSubTab('roadmap');
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
+    }
+    // Consultor: antes de gastar un cupo, avisamos si la empresa no cumple un requisito de las bases
+    if (!force) {
+      const fit = fundFit(fund, profile);
+      if (fit.status === 'no_cumple') { setFitGate({ fund, fails: fit.fails }); return; }
     }
     const res = await createApplication(fund);
     if (res.ok && res.application) {
@@ -607,6 +613,8 @@ export default function App() {
     setActiveTab('convocatorias');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  const [fitGate, setFitGate] = useState<{ fund: ChileanFund; fails: { label: string; note?: string }[] } | null>(null);
 
   const handleSelectFundToViewDocs = async (fund: ChileanFund) => {
     const existing = activeApplications.find(a => a.fundId === fund.id);
@@ -813,7 +821,7 @@ export default function App() {
             {/* 3. ASISTENTE DE 5 PREGUNTAS */}
             <div id="asistente-5-preguntas" className="min-w-0 max-w-full scroll-mt-24">
               <InstantWowMatcher
-                onSelectFundToFormulate={handleSelectFundToFormulate}
+                onSelectFundToFormulate={(f: ChileanFund) => handleSelectFundToFormulate(f)}
                 onNavigateTab={handleNavigateTab}
                 setProfile={setProfile}
                 currentUser={currentUser}
@@ -859,7 +867,7 @@ export default function App() {
               onOpenNewApplicationModal={openMonitorToPick}
               onOpenProfile={() => setActiveTab('my-company')}
               onOpenSiiModal={() => setShowSiiModal(true)}
-              onSelectFundToFormulate={handleSelectFundToFormulate}
+              onSelectFundToFormulate={(f: ChileanFund) => handleSelectFundToFormulate(f)}
               onNavigateTab={handleNavigateTab}
             />
           ) : (
@@ -939,7 +947,7 @@ export default function App() {
             loading={convocatoriasLoading}
             currentUser={currentUser}
             onRefreshConvocatorias={refreshConvocatorias}
-            onSelectFundToFormulate={handleSelectFundToFormulate}
+            onSelectFundToFormulate={(f: ChileanFund) => handleSelectFundToFormulate(f)}
             onSelectFundToViewDocs={handleSelectFundToViewDocs}
             onOpenNewApplicationModal={openMonitorToPick}
             onQualifyCall={handleQualifyCall}
@@ -949,6 +957,7 @@ export default function App() {
             pickMode={monitorPickMode && Boolean(currentUser)}
             freeSlots={Math.max(0, 3 - activeApplications.length)}
             onCancelPick={() => { setMonitorPickMode(false); setActiveTab('my-applications'); }}
+            profile={profile}
           />
         )}
 
@@ -983,7 +992,7 @@ export default function App() {
             <SmartDiagnostic
               profile={profile}
               setProfile={setProfile}
-              onSelectFundToFormulate={handleSelectFundToFormulate}
+              onSelectFundToFormulate={(f: ChileanFund) => handleSelectFundToFormulate(f)}
               onSelectFundToViewDocs={handleSelectFundToViewDocs}
             />
           </Suspense>
@@ -1002,6 +1011,29 @@ export default function App() {
           setShowAuthModal(true);
         }}
       />
+
+      {fitGate && (
+        <div className="fixed inset-0 z-[80] bg-slate-900/60 flex items-center justify-center p-4" role="dialog" aria-modal="true" onClick={() => setFitGate(null)}>
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <p className="text-xs font-black uppercase tracking-wider text-red-600">Antes de postular</p>
+            <h3 className="mt-1 text-lg font-bold text-slate-900">Según tus datos, no cumples {fitGate.fails.length === 1 ? 'un requisito' : 'requisitos'} de {fitGate.fund.name}</h3>
+            <ul className="mt-3 space-y-2">
+              {fitGate.fails.map(f => (
+                <li key={f.label} className="rounded-xl bg-red-50 border border-red-200 p-3 text-sm">
+                  <p className="font-semibold text-red-800">{f.label}</p>
+                  {f.note && <p className="text-xs text-red-700 mt-0.5">{f.note}</p>}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-3 text-sm text-slate-600">Las bases dicen que una postulación así queda fuera. Si tus datos están mal, corrígelos en Mi empresa; si están bien, te conviene elegir un fondo que sí calce. Iniciar la postulación usa uno de tus 3 cupos.</p>
+            <div className="mt-5 flex flex-col gap-2">
+              <button className="w-full rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 text-sm cursor-pointer" onClick={() => { setFitGate(null); setActiveTab('search-funds'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Ver fondos que calzan conmigo</button>
+              <button className="w-full rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-800 font-bold py-2.5 text-sm cursor-pointer" onClick={() => { setFitGate(null); handleNavigateTab('my-company#company-identity'); }}>Corregir mis datos</button>
+              <button className="w-full text-xs font-semibold text-slate-500 hover:text-slate-700 py-1 cursor-pointer" onClick={() => { const f = fitGate.fund; setFitGate(null); handleSelectFundToFormulate(f, true); }}>Postular igual</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* New Application Modal */}
       <NewApplicationModal

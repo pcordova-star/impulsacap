@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ChileanFund, Agency, getFundVisibleStatus } from '../types/funds';
+import { ChileanFund, Agency, getFundVisibleStatus, CompanyProfile } from '../types/funds';
+import { fundFit } from '../data/journey';
 import { Convocatoria } from '../types/convocatoria';
 import { CHILEAN_FUNDS } from '../data/chileanFunds';
 import { 
@@ -25,18 +26,23 @@ interface FundCatalogProps {
   convocatorias?: Convocatoria[];
   onSelectFundToFormulate: (fund: ChileanFund) => void;
   onSelectFundToViewDocs: (fund: ChileanFund) => void;
+  /** Con el perfil marcamos qué fondos calzan con la empresa y los mostramos primero */
+  profile?: CompanyProfile | null;
 }
 
 export const FundCatalog: React.FC<FundCatalogProps> = ({
   funds = CHILEAN_FUNDS,
   convocatorias = [],
   onSelectFundToFormulate,
-  onSelectFundToViewDocs
+  onSelectFundToViewDocs,
+  profile
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAgency, setSelectedAgency] = useState<string>('ALL');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
-  const [expandedFundId, setExpandedFundId] = useState<string | null>('corfo_semilla_inicia');
+  // Abrimos de entrada el primer fondo que calza con la empresa (no siempre el mismo)
+  const [expandedFundId, setExpandedFundId] = useState<string | null>(() =>
+    profile ? (funds.find(f => fundFit(f, profile).status === 'cumple')?.id ?? null) : null);
 
   const agencies: { id: string; label: string }[] = [
     { id: 'ALL', label: 'Todos los Organismos' },
@@ -65,6 +71,9 @@ export const FundCatalog: React.FC<FundCatalogProps> = ({
 
     return matchesSearch && matchesAgency && matchesCategory;
   });
+  const fitOf = (f: ChileanFund) => (profile ? fundFit(f, profile) : null);
+  const FIT_ORDER = { cumple: 0, por_confirmar: 1, no_cumple: 2 } as const;
+  if (profile) filteredFunds.sort((a, b) => FIT_ORDER[fitOf(a)!.status] - FIT_ORDER[fitOf(b)!.status]);
 
   return (
     <div className="space-y-6 animate-fade-in max-w-6xl mx-auto">
@@ -174,6 +183,7 @@ export const FundCatalog: React.FC<FundCatalogProps> = ({
             c.vigente && (c.fundId === fund.id || (c.programa && fund.name.toLowerCase().includes(c.programa.toLowerCase())))
           );
           const hasOpenCall = Boolean(matchingCall) || fund.callStatus === 'abierta';
+          const fit = fitOf(fund);
 
           return (
             <div
@@ -204,6 +214,11 @@ export const FundCatalog: React.FC<FundCatalogProps> = ({
                         {fund.category}
                       </span>
 
+                      {fit && (
+                        <span title={fit.fails.map(f => f.label).join(' · ')} className={`max-w-[18rem] truncate text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${fit.status === 'cumple' ? 'bg-emerald-600 text-white border-emerald-600' : fit.status === 'no_cumple' ? 'bg-red-50 text-red-700 border-red-300' : 'bg-amber-50 text-amber-800 border-amber-300'}`}>
+                          {fit.status === 'cumple' ? '✓ Calza con tus datos' : fit.status === 'no_cumple' ? `No cumples: ${fit.fails[0].label}` : 'Completa tus datos para confirmar'}
+                        </span>
+                      )}
                       {/* Open Call Indicator (Requirement 1) */}
                       {hasOpenCall ? (
                         <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 flex items-center gap-1.5 shadow-2xs">

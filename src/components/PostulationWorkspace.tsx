@@ -110,7 +110,7 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
       signedLetters: (expediente?.generatedDocs || []).filter((d: any) => d.status === 'firmada').length,
       submitted: (application as any)?.status === 'enviada'
     });
-    return { completedCount: rm.completed, percentage: rm.percentage };
+    return { completedCount: rm.completed, percentage: rm.percentage, steps: rm.steps };
   }, [fund, profile, application, expediente, formulation, auditResult]);
 
   // Project profile completion percentage (Requirement A.2)
@@ -138,6 +138,8 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
   const routeTab = (tab: string) => {
     const { base, target } = splitTarget(tab);
     if (base === 'sii') { onOpenSiiModal(); return; }
+    if (base === 'dossier' || base === 'guarantees') { if (base === 'dossier') setShowDossierModal(true); else onChangeSubTab('roadmap'); return; }
+    if (base.startsWith('url:')) { window.open(tab.slice(4), '_blank', 'noopener,noreferrer'); return; }
     const sub: PostulationSubTab | null =
       base === 'my-application' || base === 'roadmap' ? 'roadmap'
       : (['formulator', 'documents', 'auditor', 'advisor', 'expediente'] as const).includes(base as any) ? (base as PostulationSubTab)
@@ -178,11 +180,11 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
 
   const tabs: { id: PostulationSubTab; label: string; icon: React.FC<{ className?: string }> }[] = [
     { id: 'roadmap', label: 'Hoja de Ruta', icon: CheckCircle2 },
-    { id: 'formulator', label: 'Formulador', icon: Sparkles },
-    { id: 'documents', label: 'Documentos y cartas', icon: FileText },
-    { id: 'auditor', label: 'Auditoría', icon: ShieldCheck },
+    { id: 'formulator', label: 'Formulario y presupuesto', icon: Sparkles },
+    { id: 'documents', label: 'Documentos y anexos', icon: FileText },
+    { id: 'auditor', label: 'Evaluación simulada', icon: ShieldCheck },
+    { id: 'expediente', label: 'Expediente y envío', icon: Award },
     { id: 'advisor', label: 'Asesor', icon: MessageSquareCode },
-    { id: 'expediente', label: 'Expediente', icon: Award },
   ];
 
   return (
@@ -400,75 +402,29 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
               </button>
             </div>
 
-            {/* Checklist of Expediente */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">1. Ficha de Empresa</span>
-                <p className="font-bold text-xs text-slate-900 mt-1">{profile.companyName}</p>
-                <p className="text-[11px] text-slate-500">RUT: {profile.rut || 'Pendiente'}</p>
-                <button type="button" onClick={() => routeTab('my-company#company-identity')} className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:underline cursor-pointer">
-                  Editar datos →
-                </button>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">2. Carpeta Tributaria F29</span>
-                <p className="font-bold text-xs text-slate-900 mt-1">
-                  {profile.taxFolderUploaded ? 'Acreditada ante SII' : 'Pendiente de Cargar'}
-                </p>
-                <p className="text-[11px] text-slate-500">
-                  {profile.taxFolderUploaded ? `${profile.taxFolderF29Periods || 12} meses declarados` : 'Sube tu PDF F29'}
-                </p>
-                <button type="button" onClick={() => routeTab('sii')} className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:underline cursor-pointer">
-                  {profile.taxFolderUploaded ? 'Ver carpeta' : 'Subir carpeta'} →
-                </button>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">3. Formulación Técnica</span>
-                <p className="font-bold text-xs text-slate-900 mt-1">
-                  {formulation ? 'Redactada con IA' : 'Sin Formular'}
-                </p>
-                <p className="text-[11px] text-slate-500">
-                  {formulation ? `${formulation.projectTitle}` : 'Ve a la pestaña Formulador'}
-                </p>
-                <button type="button" onClick={() => routeTab('formulator#section:next')} className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:underline cursor-pointer">
-                  {formulation ? 'Editar formulación' : 'Redactar con IA'} →
-                </button>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">4. Cartas de Respaldo LOI</span>
-                <p className="font-bold text-xs text-slate-900 mt-1">
-                  {expediente.generatedDocs.length > 0 ? `${expediente.generatedDocs.length} generadas` : 'Sin cartas aún'}
-                </p>
-                <p className="text-[11px] text-slate-500">
-                  Validadas comercialmente
-                </p>
-                <button type="button" onClick={() => routeTab('documents#doc-generator')} className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:underline cursor-pointer">
-                  Generar carta →
-                </button>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">5. Simulación de Auditoría</span>
-                <p className="font-bold text-xs text-slate-900 mt-1">
-                  {auditResult ? `Nota: ${auditResult.overallScore}/5.0` : 'Sin auditar'}
-                </p>
-                <p className="text-[11px] text-slate-500">
-                  {auditResult ? (auditResult.overallScore >= 3.5 ? 'Aprobada' : 'Observada') : 'Simula antes de postular'}
-                </p>
-                <button type="button" onClick={() => routeTab('auditor')} className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:underline cursor-pointer">
-                  {auditResult ? 'Ver auditoría' : 'Simular evaluación'} →
-                </button>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">6. Fondo Seleccionado</span>
-                <p className="font-bold text-xs text-slate-900 mt-1">{fund.name}</p>
-                <p className="text-[11px] text-slate-500">{fund.subsidyFormatted}</p>
-              </div>
-            </div>
+            {/* Lo que tendrá el expediente: los mismos 6 pasos de la hoja de ruta */}
+            <ol className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {progress.steps.map(st => {
+                const pending = st.items.find(i => !i.done);
+                return (
+                  <li key={st.id} className={`p-4 rounded-2xl border ${st.done ? 'bg-emerald-50/60 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Paso {st.number} de {progress.steps.length}</span>
+                    <p className="font-bold text-xs text-slate-900 mt-1 flex items-center gap-1.5">
+                      {st.done ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> : <span className="w-3.5 h-3.5 rounded-full border-2 border-slate-300 inline-block" />}
+                      {st.title}
+                    </p>
+                    <p className={`text-[11px] mt-0.5 ${pending?.warn ? 'text-red-700 font-semibold' : 'text-slate-500'}`}>
+                      {st.done ? 'Listo' : pending ? `Falta: ${pending.label}` : 'Pendiente'}
+                    </p>
+                    {!st.done && (
+                      <button type="button" onClick={() => routeTab((pending?.go || st.action).target)} className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:underline cursor-pointer">
+                        {(pending?.go || st.action).label} →
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ol>
 
             <div className="pt-2 flex justify-center">
               <button

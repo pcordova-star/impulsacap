@@ -961,6 +961,8 @@ export interface RoadmapStep {
   items: RoadmapItem[];
   done: boolean;
   action: { label: string; target: string };
+  /** Usa herramientas del Plan Trimestral (IA, presupuesto guiado, auditoría) */
+  needsPlan?: boolean;
 }
 
 export interface RoadmapInput {
@@ -1011,7 +1013,7 @@ export function computeRoadmap(input: RoadmapInput): { steps: RoadmapStep[]; com
   });
 
   // 2. Documentos para postular
-  const docItems: RoadmapItem[] = r.applicationDocs.map(d => {
+  const docItems: RoadmapItem[] = r.applicationDocs.filter(d => d.link !== 'formulator').map(d => {
     const id = `doc_${d.id}`;
     const confirmed = Boolean(checks[id]);
     if (d.link === 'taxFolder') {
@@ -1072,18 +1074,20 @@ export function computeRoadmap(input: RoadmapInput): { steps: RoadmapStep[]; com
   // 6. Envío
   const sendItems: RoadmapItem[] = [
     { id: 'dossier', label: 'Expediente PDF para copiar al portal', done: formItems.every(x => x.done) && budgetDone, go: { label: 'Abrir expediente', target: 'dossier' } },
-    { id: 'portal', label: `Postular en ${r.portal.name}`, done: Boolean(submitted), detail: submitted ? 'Postulación enviada' : 'La postulación final la envías tú en el portal oficial', go: { label: 'Abrir portal', target: `url:${r.portal.url}` } }
+    { id: 'portal', label: `Postular en ${r.portal.name}`, done: Boolean(submitted || checks.portal), confirmable: !submitted, detail: submitted || checks.portal ? 'Postulación enviada' : 'La envías tú en el portal oficial. Cuando la envíes, márcala aquí.', go: { label: 'Abrir portal', target: `url:${r.portal.url}` } }
   ];
 
-  const mk = (number: number, id: string, title: string, subtitle: string, items: RoadmapItem[], action: { label: string; target: string }): RoadmapStep =>
-    ({ number, id, title, subtitle, items, done: items.length > 0 && items.every(i => i.done), action });
+  const mk = (number: number, id: string, title: string, subtitle: string, items: RoadmapItem[], action: { label: string; target: string }, needsPlan = false): RoadmapStep =>
+    ({ number, id, title, subtitle, items, done: items.length > 0 && items.every(i => i.done), action, needsPlan });
 
+  // Orden de trabajo de un consultor: primero confirmar que calzas, luego redactar, presupuestar,
+  // juntar anexos, simular la evaluación y enviar.
   const steps = [
-    mk(1, 'step_requirements', 'Requisitos para postular', 'Lo que exigen las bases de este fondo. Si no cumples uno, no puedes postular.', reqItems, { label: 'Revisar mis datos', target: profile.taxFolderUploaded ? 'my-company#company-identity' : 'sii' }),
-    mk(2, 'step_documents', 'Documentos para postular', 'Lo que se entrega junto al formulario.', docItems, { label: 'Ir a documentos', target: 'documents#doc-generator' }),
-    mk(3, 'step_form', 'Formulario del fondo', `Las secciones del formulario oficial de ${fund.agency}, en orden.`, formItems, { label: 'Ir al formulador', target: 'formulator#section:next' }),
-    mk(4, 'step_budget', 'Presupuesto y aportes', r.coFinance.text, budgetItems, { label: 'Ir al presupuesto', target: 'formulator#section:budget' }),
-    mk(5, 'step_audit', 'Evaluación simulada', `Con los criterios y la escala de las bases (${r.evaluation.scale}).`, auditItems, { label: hasAudit ? 'Volver a evaluar' : 'Simular evaluación', target: 'auditor' }),
+    mk(1, 'step_requirements', 'Requisitos para postular', 'Lo que exigen las bases de este fondo. Si no cumples uno, no puedes postular.', reqItems, { label: 'Ver requisitos', target: 'my-application' }),
+    mk(2, 'step_form', 'Formulario del fondo', `Las secciones del formulario oficial de ${fund.agency}, en orden.`, formItems, { label: 'Ir al formulario', target: 'formulator#section:next' }, true),
+    mk(3, 'step_budget', 'Presupuesto y aportes', r.coFinance.text, budgetItems, { label: 'Ir al presupuesto', target: 'formulator#section:budget' }, true),
+    mk(4, 'step_documents', 'Documentos y anexos', 'Lo que se entrega junto al formulario: video o pitch, cartas, certificados y anexos.', docItems, { label: 'Ir a documentos', target: 'documents#doc-generator' }),
+    mk(5, 'step_audit', 'Evaluación simulada', `Con los criterios y la escala de las bases (${r.evaluation.scale}).`, auditItems, { label: hasAudit ? 'Volver a evaluar' : 'Simular evaluación', target: 'auditor' }, true),
     mk(6, 'step_submit', 'Envío oficial', `Se postula en ${r.portal.name}.`, sendItems, { label: 'Abrir expediente', target: 'dossier' })
   ];
   const completed = steps.filter(s => s.done).length;

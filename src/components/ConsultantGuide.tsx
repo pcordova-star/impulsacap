@@ -2,9 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, CheckCircle2, ChevronDown, ChevronUp, Compass, Lock, X } from 'lucide-react';
 import type { ChileanFund, CompanyProfile, CompanyUser } from '../types/funds';
 import type { ExpedienteData } from '../types/expediente';
-import { calculateProjectProfileCompletion } from '../types/funds';
-import { validateRut } from '../utils/rutValidator';
-import { computeRoadmap } from '../data/fundStandards';
+import { computeJourney, type JourneyStage } from '../data/journey';
 import { onSaved } from '../utils/guideEvents';
 
 /**
@@ -23,19 +21,7 @@ interface Props {
   onGo: (target: string) => void;
 }
 
-interface Stage {
-  id: string;
-  title: string;
-  why: string;
-  done: boolean;
-  next?: string;
-  detail?: string;
-  action: { label: string; target: string };
-  locked?: boolean;
-  /** No cumple un requisito excluyente del fondo: hay que decidir si seguir con este fondo */
-  blocker?: boolean;
-  alt?: { label: string; target: string };
-}
+type Stage = JourneyStage;
 
 const HIDDEN_TABS = new Set(['admin', 'vendedor', 'terminos', 'privacidad', 'pago-resultado']);
 const STORAGE_OPEN = 'impulsacap_consultor_open';
@@ -56,98 +42,17 @@ export const ConsultantGuide: React.FC<Props> = ({ currentUser, profile, hasActi
     try { localStorage.setItem(STORAGE_OPEN, v ? '1' : '0'); } catch { /* sin almacenamiento */ }
   };
 
-  const stages = useMemo<Stage[]>(() => {
-    const isPerson = profile.companyType === 'sin_iniciar';
-    const rutOk = validateRut(profile.rut || '');
-    const projectPct = calculateProjectProfileCompletion(profile.projectProfile);
-    const list: Stage[] = [
-      {
-        id: 'empresa',
-        title: 'Completa los datos de tu empresa',
-        why: 'Los fondos piden quién postula: nombre, RUT, tipo de empresa y región. Con eso revisamos si cumples las bases.',
-        done: Boolean(profile.companyName?.trim() && profile.companyName !== 'Mi Empresa' && (rutOk || isPerson) && profile.region),
-        detail: !profile.companyName?.trim() || profile.companyName === 'Mi Empresa' ? 'Falta el nombre o razón social' : !(rutOk || isPerson) ? 'Falta un RUT válido' : !profile.region ? 'Falta la región' : undefined,
-        action: { label: 'Completar datos', target: 'my-company#company-identity' }
-      },
-      {
-        id: 'proyecto',
-        title: 'Cuéntanos tu proyecto',
-        why: 'La IA redacta tu postulación solo con lo que tú le cuentas, sin inventar. Responde las preguntas del perfil del proyecto (5 de 7 como mínimo).',
-        done: projectPct >= 70,
-        detail: `Perfil del proyecto al ${projectPct}%`,
-        action: { label: 'Completar perfil del proyecto', target: 'my-company#project-profile' }
-      },
-      {
-        id: 'carpeta',
-        title: 'Sube tu carpeta tributaria',
-        why: 'Con ella revisamos tus ventas, antigüedad e inicio de actividades contra los requisitos de cada fondo. Se descarga gratis en sii.cl.',
-        done: Boolean(profile.taxFolderUploaded) || isPerson,
-        action: { label: 'Subir carpeta', target: 'sii' }
-      },
-      {
-        id: 'fondo',
-        title: 'Elige el fondo al que vas a postular',
-        why: 'En el monitor ves las convocatorias abiertas y en el diagnóstico los fondos que calzan con tu empresa. Al elegir uno, se arma tu hoja de ruta según sus bases.',
-        done: hasActiveApplication,
-        action: { label: 'Ver convocatorias', target: 'convocatorias' }
-      }
-    ];
-    if (hasActiveApplication) {
-      const rm = computeRoadmap({
-        fund,
-        profile,
-        rutValid: rutOk,
-        formulation: expediente.formulation,
-        auditResult: expediente.auditResult,
-        checks: (expediente.roadmapConfirmations as any)?.checks || {},
-        confirmedGarantia: Boolean(expediente.roadmapConfirmations?.confirmedGarantia),
-        signedLetters: (expediente.generatedDocs || []).filter((d: any) => d.status === 'firmada').length
-      });
-      const WHY: Record<string, string> = {
-        step_requirements: 'Revisa que cumples cada requisito de las bases. Si uno no se cumple, no conviene seguir con este fondo.',
-        step_documents: 'Junta lo que se entrega con la postulación. Marca cada documento cuando lo tengas.',
-        step_form: 'Redacta cada sección del formulario oficial. Respondes preguntas simples y la IA escribe el texto; tú lo revisas.',
-        step_budget: 'Arma el presupuesto en las cuentas del fondo. Te guiamos con ejemplos y calculamos el aporte de tu empresa.',
-        step_audit: 'Simulamos la evaluación con los criterios del fondo para corregir lo débil antes de enviar.',
-        step_submit: 'Descarga el expediente y copia cada sección en el portal oficial. La postulación final la envías tú.'
-      };
-      rm.steps.forEach(st => {
-        const pending = st.items.find(i => !i.done);
-        const needsPlan = st.number >= 3 && !hasActivePlan;
-        const base = { id: st.id, title: st.title, why: WHY[st.id] || st.subtitle, done: st.done, locked: needsPlan };
-        if (needsPlan) {
-          list.push({ ...base, next: pending?.label, detail: pending?.detail, action: { label: 'Activar Plan Trimestral', target: 'my-company#mi-plan' } });
-          return;
-        }
-        if (pending?.warn && st.id === 'step_requirements') {
-          // Requisito excluyente no cumplido: no tiene sentido "revisar datos"; hay que decidir el fondo
-          list.push({
-            ...base,
-            blocker: true,
-            why: `Según los datos de tu empresa, no cumples un requisito obligatorio de ${fund.name}. Si tus datos están bien, este fondo no es para tu empresa: te conviene elegir otro que sí calce.`,
-            next: pending.label,
-            detail: pending.detail,
-            action: { label: 'Buscar un fondo que calce', target: 'search-funds' },
-            alt: { label: 'Ver todos los requisitos de este fondo', target: 'my-application' }
-          });
-          return;
-        }
-        let next = pending?.label;
-        let action = pending?.go || st.action;
-        if (pending && !pending.go && pending.confirmable) {
-          next = `Confirma que cumples: ${pending.label}`;
-          action = { label: 'Ir a la hoja de ruta y marcarlo', target: 'my-application' };
-        }
-        list.push({ ...base, next, detail: pending?.detail, action });
-      });
-    }
-    return list;
-  }, [profile, hasActiveApplication, fund, expediente, hasActivePlan]);
-
-  const currentIdx = stages.findIndex(s => !s.done);
-  const current = currentIdx >= 0 ? stages[currentIdx] : null;
-  const total = hasActiveApplication ? stages.length : 10;
-  const doneCount = stages.filter(s => s.done).length;
+  const journey = useMemo(() => computeJourney({
+    profile,
+    fund,
+    application: hasActiveApplication ? expediente : null,
+    hasActivePlan
+  }), [profile, hasActiveApplication, fund, expediente, hasActivePlan]);
+  const stages: Stage[] = journey.stages;
+  const currentIdx = journey.currentIdx;
+  const current = journey.current;
+  const total = journey.total;
+  const doneCount = journey.doneCount;
 
   // Diálogo "¿qué hacemos ahora?" después de guardar o de completar un paso
   const [prompt, setPrompt] = useState<{ kind: 'done' | 'saved'; label: string } | null>(null);
@@ -196,7 +101,7 @@ export const ConsultantGuide: React.FC<Props> = ({ currentUser, profile, hasActi
           {current && (
             <div className={`rounded-2xl p-3.5 border ${current.blocker ? 'bg-rose-50 border-rose-200' : 'bg-blue-50 border-blue-100'}`}>
               <p className={`text-[11px] font-bold uppercase tracking-wider ${current.blocker ? 'text-rose-700' : 'text-blue-700'}`}>
-                {current.blocker ? 'Atención' : 'Siguiente paso'} · {currentIdx + 1} de {total}{hasActiveApplication && currentIdx >= 4 ? ` · ${fund.name}` : ''}
+                {current.blocker ? 'Atención · ' : 'Siguiente: '}{current.phaseLabel}
               </p>
               <p className="text-sm font-bold text-slate-900">{current.blocker ? `No cumples un requisito de ${fund.name}` : current.title}</p>
               {current.blocker ? (
@@ -247,7 +152,7 @@ export const ConsultantGuide: React.FC<Props> = ({ currentUser, profile, hasActi
         aria-label="Abrir el consultor"
       >
         <Compass className="w-4 h-4" />
-        {current ? `Paso ${currentIdx + 1} de ${total}: ${current.title}` : 'Postulación lista'}
+        {current ? `Siguiente: ${current.title}` : 'Postulación lista'}
       </button>
       </>
     );
@@ -279,7 +184,7 @@ export const ConsultantGuide: React.FC<Props> = ({ currentUser, profile, hasActi
         {current ? (
           <>
             <div>
-              <p className="text-[11px] font-bold text-blue-700 uppercase tracking-wider">Paso {currentIdx + 1} de {total}{hasActiveApplication && currentIdx >= 4 ? ` · ${fund.name}` : ''}</p>
+              <p className="text-[11px] font-bold text-blue-700 uppercase tracking-wider">{current.phaseLabel}</p>
               <p className="text-base font-black text-slate-900 leading-snug">{current.blocker ? `No cumples un requisito de este fondo` : current.title}</p>
               <p className="text-[13px] text-slate-600 leading-relaxed mt-1">{current.why}</p>
             </div>
@@ -320,6 +225,11 @@ export const ConsultantGuide: React.FC<Props> = ({ currentUser, profile, hasActi
           <ol className="space-y-1">
             {stages.map((s, i) => (
               <li key={s.id}>
+                {(i === 0 || stages[i - 1].phase !== s.phase) && (
+                  <p className="px-2 pt-2 pb-0.5 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    {s.phase === 'empresa' ? 'A · Prepara tu empresa' : s.phase === 'fondo' ? 'B · Elige tu fondo' : `C · Postula a ${fund.name}`}
+                  </p>
+                )}
                 <button
                   type="button"
                   onClick={() => onGo(s.action.target)}
@@ -328,12 +238,12 @@ export const ConsultantGuide: React.FC<Props> = ({ currentUser, profile, hasActi
                   {s.done
                     ? <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                     : <span className={`w-4 h-4 rounded-full border-2 shrink-0 ${i === currentIdx ? 'border-blue-600' : 'border-slate-300'}`} />}
-                  <span className={s.done ? 'text-slate-400 line-through' : ''}>{i + 1}. {s.title}</span>
+                  <span className={s.done ? 'text-slate-400 line-through' : ''}>{s.title}</span>
                 </button>
               </li>
             ))}
             {!hasActiveApplication && (
-              <li className="px-2 py-1.5 text-xs text-slate-400">5 a 10. Hoja de ruta del fondo: requisitos, documentos, formulario, presupuesto, evaluación y envío</li>
+              <li className="px-2 py-1.5 text-xs text-slate-400">Después: la hoja de ruta del fondo en 6 pasos (requisitos, formulario, presupuesto, documentos, evaluación y envío)</li>
             )}
           </ol>
         )}

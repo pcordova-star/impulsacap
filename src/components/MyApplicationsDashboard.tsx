@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { usePlan } from '../hooks/usePlan';
 import { resolveFund, fundFromConvocatoria } from '../utils/convocatoriaFund';
-import { computeRoadmap } from '../data/fundStandards';
+import { computeJourney, fundFit } from '../data/journey';
 import { apiFetch } from '../utils/apiFetch';
 import { announceEarlyAccess, getPaymentsMode } from '../utils/earlyAccess';
 import { ChileanFund, CompanyProfile, getFundVisibleStatus, CompanyUser, calculateProjectProfileCompletion } from '../types/funds';
@@ -167,30 +167,27 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
   // Avance de cada postulación: la misma hoja de ruta estándar (según las bases de su fondo)
   function computeApplicationProgress(app: ApplicationItem) {
     const fund = resolveFund(app, funds);
-    const rm = computeRoadmap({
-      fund,
+    // Mismo recorrido que el consultor: si falta preparar la empresa o hay un requisito que no se cumple, eso va primero
+    const j = computeJourney({
       profile,
-      rutValid: isRutValid,
-      formulation: app.formulation,
-      auditResult: app.auditResult,
-      checks: (app.roadmapConfirmations as any)?.checks || {},
-      confirmedGarantia: Boolean(app.roadmapConfirmations?.confirmedGarantia),
-      signedLetters: (app.generatedDocs || []).filter((d: any) => d.status === 'firmada').length,
-      submitted: app.status === 'enviada'
+      fund,
+      application: app as any,
+      hasActivePlan
     });
+    const rm = j.roadmap!;
     const steps = rm.steps.map(st => st.done);
     const nextIndex = steps.findIndex(x => !x);
-    const nextStep = nextIndex >= 0 ? rm.steps[nextIndex] : null;
-    const pendingItem = nextStep?.items.find(i => !i.done && i.go) || null;
-    const next = pendingItem?.go || nextStep?.action || null;
+    const cur = j.current;
     return {
       completedCount: rm.completed,
       percentage: rm.percentage,
-      nextAction: rm.nextAction,
+      nextAction: cur ? (cur.next ? `${cur.title}: ${cur.next}` : cur.title) : 'Postulación lista',
+      phaseLabel: cur?.phaseLabel || '',
+      blocker: Boolean(cur?.blocker),
       steps,
       nextIndex,
-      nextTarget: next?.target || null,
-      nextLabel: next?.label || ''
+      nextTarget: cur?.action.target || null,
+      nextLabel: cur?.action.label || ''
     };
   }
 
@@ -217,12 +214,9 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
 
   // Recommended funds for empty state (Requirement 5)
   const recommendedFunds = useMemo(() => {
-    return funds.filter(f => {
-      const typeOk = f.beneficiaryTypes.includes(profile.companyType);
-      const trlOk = !profile.trlStage || f.trlEligible.includes(profile.trlStage);
-      const salesOk = !profile.salesBracket || f.salesBracketsEligible.includes(profile.salesBracket);
-      return typeOk && trlOk && salesOk;
-    }).slice(0, 3);
+    // Solo fondos cuyos requisitos de bases comprobables se cumplen con los datos de la empresa
+    const withFit = funds.map(f => ({ f, st: fundFit(f, profile).status })).filter(x => x.st !== 'no_cumple');
+    return [...withFit.filter(x => x.st === 'cumple'), ...withFit.filter(x => x.st === 'por_confirmar')].map(x => x.f).slice(0, 3);
   }, [profile, funds]);
 
   const handleArchive = async (appId: string) => {
@@ -316,7 +310,7 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
       : [];
   }, [convocatorias, activeApplications, profile.region, dismissedAlerts, newCallAlerts.length]);
 
-  const STEP_NAMES = ['Requisitos', 'Documentos', 'Formulario', 'Presupuesto', 'Evaluación', 'Envío'];
+  const STEP_NAMES = ['Requisitos', 'Formulario', 'Presupuesto', 'Documentos', 'Evaluación', 'Envío'];
 
   const goNext = (app: ApplicationItem, target: string) => {
     if (target === 'sii') { onOpenSiiModal(); return; }
@@ -432,7 +426,7 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
                   {/* Próximo paso */}
                   <div className="mt-auto p-3.5 rounded-2xl bg-blue-50 border border-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-blue-700">Próximo paso</p>
+                      <p className={`text-[10px] font-bold uppercase tracking-wider ${progress.blocker ? 'text-red-700' : 'text-blue-700'}`}>{progress.blocker ? 'Atención: no cumples un requisito' : 'Próximo paso'}{progress.phaseLabel ? ` · ${progress.phaseLabel}` : ''}</p>
                       <p className="text-sm font-bold text-slate-900">{progress.nextAction}</p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
