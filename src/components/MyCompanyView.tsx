@@ -344,7 +344,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
         </div>
       </div>
 
-      <form onSubmit={handleSave} onInputCapture={markDirty} onChangeCapture={markDirty} onClickCapture={(e) => { const t = e.target as HTMLElement; if (t.closest('[role="radio"],[role="switch"],[type="checkbox"],[data-dirty]')) markDirty(); }} className="space-y-6">
+      <form noValidate onSubmit={handleSave} onInputCapture={markDirty} onChangeCapture={markDirty} onClickCapture={(e) => { const t = e.target as HTMLElement; if (t.closest('[role="radio"],[role="switch"],[type="checkbox"],[data-dirty]')) markDirty(); }} className="space-y-6">
         
         {/* ========================================================================= */}
         {/* SECCIÓN A: PERFIL DEL PROYECTO (Requirement A.1) */}

@@ -119,9 +119,12 @@ export const ProfileAutofill: React.FC<Props> = ({ values, onApply, projectSumma
             <p className="text-xs font-bold text-slate-800 flex items-center gap-1.5"><Globe className="w-4 h-4 text-blue-600" /> Desde tu sitio web</p>
             <div className="flex flex-col sm:flex-row gap-2">
               <input
-                type="url"
+                type="text"
+                inputMode="url"
+                autoComplete="url"
                 value={url}
                 onChange={e => setUrl(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (url.trim() && !webBusy) readSite(); } }}
                 placeholder="www.miempresa.cl"
                 className="flex-1 px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-sm focus:bg-white focus:border-blue-500 focus:outline-hidden"
               />
