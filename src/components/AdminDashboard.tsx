@@ -21,7 +21,7 @@ interface Summary {
   activePlans: { uid: string; email: string; companyName: string; expiresAt: string; daysLeft: number; serviceStarted: boolean; freePass?: boolean }[];
   users: { uid: string; email: string; companyName: string; displayName: string; createdAt: string | null; lastSignInAt: string | null; provider: string; hasActivePlan: boolean; applications: number }[];
   fundsTop: { fundName: string; count: number }[];
-  system: { lastConvocatoriasSyncAt: string | null; convocatoriasVigentes: number | null; emailConfigured: boolean; mercadoPagoConfigured: boolean; authListAvailable?: boolean };
+  system: { lastConvocatoriasSyncAt: string | null; convocatoriasVigentes: number | null; emailConfigured: boolean; mercadoPagoConfigured: boolean; flowConfigured?: boolean; paymentProvider?: string; authListAvailable?: boolean };
 }
 
 const clp = (n: number) => `$${Math.round(n).toLocaleString('es-CL')}`;
@@ -906,7 +906,15 @@ export const AdminDashboard: React.FC = () => {
             <EmailTools />
           </li>
           <li className="space-y-0.5">
-            <p className="text-slate-500">Mercado Pago</p>
+            <p className="text-slate-500">Pasarela de pago activa</p>
+            <p className="font-bold text-slate-900">{data.system.paymentProvider === 'flow' ? 'Flow' : 'Mercado Pago'}</p>
+          </li>
+          <li className="space-y-0.5">
+            <p className="text-slate-500">Flow</p>
+            <Status ok={Boolean(data.system.flowConfigured)} okText="Configurado" badText="Faltan FLOW_API_KEY y FLOW_SECRET_KEY" />
+          </li>
+          <li className="space-y-0.5">
+            <p className="text-slate-500">Mercado Pago (respaldo)</p>
             <Status ok={data.system.mercadoPagoConfigured} okText="Configurado" badText="Falta MP_ACCESS_TOKEN" />
           </li>
           <li className="space-y-0.5">

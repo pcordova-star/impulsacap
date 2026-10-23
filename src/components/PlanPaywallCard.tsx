@@ -78,11 +78,11 @@ export const PlanPaywallCard: React.FC<PlanPaywallCardProps> = ({
         // Redirect user to Mercado Pago Checkout Pro
         window.location.href = data.init_point;
       } else {
-        throw new Error('No se recibió la URL de pago de Mercado Pago.');
+        throw new Error('No se recibió la URL de pago.');
       }
     } catch (err: any) {
       console.error('Checkout error:', err);
-      setError(err?.message || 'Error al conectar con Mercado Pago. Intenta nuevamente.');
+      setError(err?.message || 'Error al conectar con la pasarela de pago. Intenta nuevamente.');
       setLoading(false);
     }
   };
@@ -222,12 +222,12 @@ export const PlanPaywallCard: React.FC<PlanPaywallCardProps> = ({
               {loading ? (
                 <>
                   <RefreshCw className="w-5 h-5 animate-spin" />
-                  <span>Conectando con Mercado Pago...</span>
+                  <span>Abriendo el pago seguro...</span>
                 </>
               ) : (
                 <>
                   <Lock className="w-5 h-5" />
-                  <span>Pagar con Mercado Pago</span>
+                  <span>Pagar con Webpay o tarjeta</span>
                   <ArrowRight className="w-5 h-5" />
                 </>
               )}
@@ -247,7 +247,7 @@ export const PlanPaywallCard: React.FC<PlanPaywallCardProps> = ({
         <div className="flex flex-wrap items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-white/10">
           <span className="flex items-center gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-            Pago seguro procesado por Mercado Pago
+            Pago seguro procesado por Flow (Webpay, tarjetas y transferencia)
           </span>
           <span className="hidden sm:inline">Tarjetas de Crédito, Débito / Redcompra</span>
         </div>

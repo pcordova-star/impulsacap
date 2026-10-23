@@ -200,7 +200,7 @@ export const SellerPanel: React.FC = () => {
 
 
       <p className="text-xs text-slate-500">
-        La comisión se calcula sobre el monto pagado (IVA incluido), se registra cuando Mercado Pago aprueba el pago y se paga pasados 10 días (plazo de retracto del cliente). Si el cliente pide devolución, la comisión se anula. ¿Dudas sobre tus pagos? Escribe a contacto@impulsacap.cl.
+        La comisión se calcula sobre el monto pagado (IVA incluido), se registra cuando se aprueba el pago y se paga pasados 10 días (plazo de retracto del cliente). Si el cliente pide devolución, la comisión se anula. ¿Dudas sobre tus pagos? Escribe a contacto@impulsacap.cl.
       </p>
     </div>
   );

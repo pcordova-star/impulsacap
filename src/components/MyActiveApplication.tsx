@@ -139,7 +139,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
       if (res.ok && data.init_point) {
         window.location.href = data.init_point;
       } else {
-        alert(data.error || 'Error al conectar con Mercado Pago.');
+        alert(data.error || 'Error al conectar con la pasarela de pago.');
       }
     } catch (err: any) {
       alert(err?.message || 'Error de conexión.');

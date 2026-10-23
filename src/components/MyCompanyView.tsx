@@ -269,7 +269,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
       if (res.ok && data.init_point) {
         window.location.href = data.init_point;
       } else {
-        alert(data.error || 'No se pudo iniciar el proceso de renovación con Mercado Pago.');
+        alert(data.error || 'No se pudo iniciar el pago de renovación.');
       }
     } catch (err: any) {
       alert(err?.message || 'Error de conexión al renovar.');
@@ -904,7 +904,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
                 )}
               </h3>
               <p className="text-[11px] text-slate-500">
-                Información de vigencia, cupos de postulación e historial de transacciones de Mercado Pago
+                Información de vigencia, cupos de postulación e historial de pagos
               </p>
             </div>
           </div>
@@ -1002,7 +1002,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
             <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 text-center space-y-1 text-xs text-slate-500">
               <p className="font-semibold text-slate-700">No registras pagos previos</p>
               <p className="text-[11px]">
-                Cuando adquieras o renueves el Plan Trimestral, tus comprobantes oficiales de Mercado Pago aparecerán aquí.
+                Cuando adquieras o renueves el Plan Trimestral, tus comprobantes de pago aparecerán aquí.
               </p>
             </div>
           ) : (
@@ -1052,7 +1052,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
                           </span>
                         </td>
                         <td className="py-2.5 px-3.5 text-slate-500 uppercase font-mono text-[11px]">
-                          {pay.paymentMethodId || 'Mercado Pago'}
+                          {pay.paymentMethodId || 'Pago en línea'}
                         </td>
                       </tr>
                     );

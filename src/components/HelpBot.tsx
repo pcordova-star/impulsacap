@@ -32,7 +32,7 @@ const QUICK_ANSWERS: Record<string, string> = {
   '¿Cómo obtengo mi carpeta tributaria?':
     '1. Entra a sii.cl con tu RUT y clave.\n2. Ve a Servicios online > Situación tributaria > Carpeta tributaria electrónica.\n3. Elige "Acreditar tamaño de empresa", la regular o una personalizada con F29 y F22, y descárgala en PDF.\n4. Súbela en ImpulsaCap desde tu postulación (paso 1) o desde "Mi empresa".',
   'Pagué y no veo mi plan activo':
-    'Normalmente se activa en segundos. Recarga la página y revisa "Mi empresa" > "Mi Plan y Suscripción". Si después de unos minutos sigue sin activarse, toca "Hablar con una persona" y déjanos el número de operación de Mercado Pago para revisarlo.'
+    'Normalmente se activa en segundos. Recarga la página y revisa "Mi empresa" > "Mi Plan y Suscripción". Si después de unos minutos sigue sin activarse, toca "Hablar con una persona" y déjanos el número de orden de Flow (está en el comprobante que te llegó por correo) para revisarlo.'
 };
 
 const now = () => new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
@@ -319,7 +319,7 @@ export const HelpBot: React.FC<HelpBotProps> = ({ currentUser, onNavigateTab, on
             ) : (
               <form onSubmit={sendTicket} className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50">
                 <p className="text-[13px] text-slate-600 leading-relaxed">
-                  Cuéntanos qué necesitas y te responderemos por correo. Si es sobre un pago, incluye el número de operación de Mercado Pago.
+                  Cuéntanos qué necesitas y te responderemos por correo. Si es sobre un pago, incluye el número de orden de Flow.
                 </p>
                 <label className="block space-y-1">
                   <span className="text-xs font-semibold text-slate-700">Tu correo</span>

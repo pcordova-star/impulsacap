@@ -59,7 +59,7 @@ function toIso(v: any): string | null {
 export async function buildAdminSummary(
   db: Firestore,
   auth: Auth,
-  opts: { emailConfigured: boolean; mercadoPagoConfigured: boolean }
+  opts: { emailConfigured: boolean; mercadoPagoConfigured: boolean; flowConfigured?: boolean; paymentProvider?: string }
 ) {
   const now = new Date();
   const days30 = lastNDayKeys(30, now);
@@ -270,6 +270,8 @@ export async function buildAdminSummary(
       convocatoriasVigentes: typeof sync?.totalVigentes === 'number' ? sync.totalVigentes : null,
       emailConfigured: opts.emailConfigured,
       mercadoPagoConfigured: opts.mercadoPagoConfigured,
+      flowConfigured: Boolean(opts.flowConfigured),
+      paymentProvider: opts.paymentProvider || 'mercadopago',
       authListAvailable
     }
   };

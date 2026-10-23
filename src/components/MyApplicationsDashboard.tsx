@@ -565,7 +565,7 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
                 Contratar plan
               </button>
               {planError && <p role="alert" className="text-xs text-rose-200">{planError}</p>}
-              <p className="text-[11px] text-blue-100 text-center">Pago seguro con Mercado Pago · No se renueva solo</p>
+              <p className="text-[11px] text-blue-100 text-center">Pago seguro con Flow (Webpay o tarjeta) · No se renueva solo</p>
             </div>
           </div>
         )}

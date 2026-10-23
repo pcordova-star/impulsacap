@@ -217,7 +217,7 @@ export const PlanComparison: React.FC<{ onStartFree: () => void }> = ({ onStartF
       if (!res.ok || !data.init_point) throw new Error(data.error || 'No se pudo iniciar el pago.');
       window.location.href = data.init_point;
     } catch (err: any) {
-      setError(err?.message || 'No pudimos conectar con Mercado Pago. Intenta nuevamente.');
+      setError(err?.message || 'No pudimos conectar con la pasarela de pago. Intenta nuevamente.');
       setLoading(false);
     }
   };
@@ -303,9 +303,9 @@ export const PlanComparison: React.FC<{ onStartFree: () => void }> = ({ onStartF
                 className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-cyan-400 to-emerald-400 text-[#04131c] font-black text-sm hover:brightness-110 transition cursor-pointer disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F1E3A]"
               >
                 {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                {loading ? 'Abriendo Mercado Pago…' : 'Activar Plan Trimestral'}
+                {loading ? 'Abriendo el pago seguro…' : 'Activar Plan Trimestral'}
               </button>
-              <p className="text-xs text-slate-400 text-center">Pagas de forma segura con Mercado Pago.</p>
+              <p className="text-xs text-slate-400 text-center">Pagas de forma segura con Flow: Webpay, tarjetas o transferencia.</p>
               <p className="text-xs text-slate-400 text-center leading-relaxed">
                 Al pagar aceptas los{' '}
                 <a href="/terminos" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">Términos y Condiciones</a>. Tienes derecho a retracto dentro de 10 días desde el pago, mientras no comiences a usar el plan.

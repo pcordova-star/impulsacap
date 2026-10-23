@@ -25,7 +25,7 @@ const SUPPORT_EMAIL = 'contacto@impulsacap.cl';
 const CONFIRM_WINDOW_SECONDS = 60;
 
 /**
- * Pantalla de regreso desde Mercado Pago (/pago/resultado).
+ * Pantalla de regreso desde la pasarela de pago (/pago/resultado).
  *
  * La fuente de verdad es el plan en Firestore (entitlements/{uid}), que solo escribe el webhook.
  * Los parámetros de la URL (status, payment_id) son una pista: pueden faltar si el usuario vuelve
@@ -102,7 +102,7 @@ export const PaymentResult: React.FC<PaymentResultProps> = ({ onNavigateToRoadma
       if (res.ok && data.init_point) {
         window.location.href = data.init_point;
       } else {
-        alert(data.error || 'No pudimos conectar con Mercado Pago. Intenta nuevamente.');
+        alert(data.error || 'No pudimos conectar con la pasarela de pago. Intenta nuevamente.');
       }
     } catch (err: any) {
       alert(err?.message || 'Error de conexión');
@@ -199,7 +199,7 @@ export const PaymentResult: React.FC<PaymentResultProps> = ({ onNavigateToRoadma
                   Estamos confirmando tu pago…
                 </h2>
                 <p className="text-sm text-slate-600 max-w-md mx-auto">
-                  Mercado Pago nos avisa apenas el pago se acredita. Con tarjeta suele tardar solo unos segundos; no cierres esta página.
+                  La pasarela de pago nos avisa apenas el pago se acredita. Con tarjeta suele tardar solo unos segundos; no cierres esta página.
                 </p>
               </div>
 
@@ -228,8 +228,8 @@ export const PaymentResult: React.FC<PaymentResultProps> = ({ onNavigateToRoadma
                 </h2>
                 <p className="text-sm text-slate-600 max-w-md mx-auto">
                   {hasActivePlan
-                    ? `Tu plan actual sigue vigente${formattedExpiry ? ` hasta el ${formattedExpiry}` : ''}. Cuando Mercado Pago acredite este pago, se sumarán 3 meses automáticamente y te llegará un correo.`
-                    : 'Algunos medios de pago tardan unos minutos. Cuando Mercado Pago lo acredite, tu plan se activará solo y te llegará un correo de confirmación.'}
+                    ? `Tu plan actual sigue vigente${formattedExpiry ? ` hasta el ${formattedExpiry}` : ''}. Cuando se acredite este pago, se sumarán 3 meses automáticamente y te llegará un correo.`
+                    : 'Algunos medios de pago tardan unos minutos. Cuando se acredite, tu plan se activará solo y te llegará un correo de confirmación.'}
                 </p>
               </div>
 
@@ -266,7 +266,7 @@ export const PaymentResult: React.FC<PaymentResultProps> = ({ onNavigateToRoadma
                   El pago no se completó
                 </h2>
                 <p className="text-sm text-slate-600 max-w-md mx-auto">
-                  El pago fue rechazado o cancelado en Mercado Pago, así que no se hizo ningún cobro.
+                  El pago fue rechazado o cancelado, así que no se hizo ningún cobro.
                   {hasActivePlan && formattedExpiry ? ` Tu plan actual sigue vigente hasta el ${formattedExpiry}.` : ''}
                 </p>
               </div>
@@ -287,7 +287,7 @@ export const PaymentResult: React.FC<PaymentResultProps> = ({ onNavigateToRoadma
 
           <div className="pt-6 border-t border-slate-100 flex items-center justify-center gap-2 text-xs text-slate-400">
             <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>Pago procesado de forma segura por Mercado Pago</span>
+            <span>Pago procesado de forma segura por Flow</span>
           </div>
         </div>
       </div>

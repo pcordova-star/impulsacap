@@ -135,7 +135,7 @@ export const TermsPage: React.FC<LegalPageProps> = ({ onBack, onOpenOther }) => 
         ['Primera compra', '50% de descuento: $19.990 CLP, IVA incluido, una sola vez por usuario. Un código de vendedor vigente puede reemplazar este descuento por el que indique el código'],
         ['Vigencia', '3 meses desde la aprobación del pago'],
         ['Renovación', 'No es automática. Si renuevas antes del vencimiento, los 3 meses se suman a la fecha de término vigente'],
-        ['Medio de pago', 'Mercado Pago. ImpulsaCap no recibe ni almacena datos de tarjetas'],
+        ['Medio de pago', 'Flow (flow.cl): Webpay, tarjetas de crédito y débito, y transferencia. ImpulsaCap no recibe ni almacena datos de tarjetas'],
         ['Postulaciones simultáneas', 'Hasta 3 activas. Puedes archivar una para liberar cupo'],
         ['Incluye', 'Redacción con IA, documentos y cartas, auditoría simulada, expediente de postulación y asesor experto con IA'],
         ['Uso de la IA', 'Uso razonable con un límite diario amplio que se renueva cada día a medianoche (hora de Chile), y un máximo total por plan para prevenir abusos. Si lo alcanzas, tu trabajo queda guardado y puedes seguir al día siguiente']
@@ -145,7 +145,7 @@ export const TermsPage: React.FC<LegalPageProps> = ({ onBack, onOpenOther }) => 
       Si un pago se devuelve (por ejemplo, por retracto) o se desconoce ante el emisor de la tarjeta (contracargo), el plan activado con ese pago termina en ese momento.
     </P>
     <P>
-      El plan se activa cuando Mercado Pago confirma el pago, lo que normalmente toma segundos. Los pagos pendientes se activan al acreditarse. Te enviaremos un correo con la confirmación y otro antes del vencimiento. Al vencer el plan, mantienes acceso de solo lectura a lo que ya generaste, pero no podrás generar contenido nuevo hasta renovar.
+      El plan se activa cuando Flow confirma el pago, lo que normalmente toma segundos. Los pagos pendientes se activan al acreditarse. Te enviaremos un correo con la confirmación y otro antes del vencimiento. Al vencer el plan, mantienes acceso de solo lectura a lo que ya generaste, pero no podrás generar contenido nuevo hasta renovar.
     </P>
     <P>
       Podemos cambiar los precios en el futuro. Un cambio nunca afectará un plan ya pagado y se informará en el sitio antes de aplicarse. Emitiremos la boleta o factura correspondiente a cada pago.
@@ -160,7 +160,7 @@ export const TermsPage: React.FC<LegalPageProps> = ({ onBack, onOpenOther }) => 
         <strong>Cuándo comienza el servicio:</strong> al usar por primera vez una herramienta del plan (generar una sección del formulario, un documento o carta, una auditoría o una consulta al asesor experto). Antes de ese primer uso, la plataforma te avisará en pantalla que con esa acción el servicio se entiende iniciado y que ya no podrás retractarte, y te pedirá confirmarlo.
       </li>
       <li><strong>Cómo ejercerlo:</strong> escribe a <Mail /> desde el correo de tu cuenta, indicando que ejerces tu derecho a retracto.</li>
-      <li><strong>Devolución:</strong> reembolsaremos el monto pagado al mismo medio de pago, a través de Mercado Pago, dentro de 10 días hábiles desde tu solicitud. El plan se desactivará al procesar la devolución. Los plazos de abono dependen de tu banco o emisor de tarjeta.</li>
+      <li><strong>Devolución:</strong> reembolsaremos el monto pagado al mismo medio de pago, a través de Flow, dentro de 10 días hábiles desde tu solicitud. El plan se desactivará al procesar la devolución. Los plazos de abono dependen de tu banco o emisor de tarjeta.</li>
     </UL>
     <P>
       Una vez iniciado el servicio, el pago no es reembolsable, sin perjuicio de los derechos irrenunciables que te otorga la ley. Si la plataforma presenta fallas que te impiden usar el plan, contáctanos y buscaremos una solución, incluida la devolución proporcional cuando corresponda.
@@ -217,7 +217,7 @@ export const TermsPage: React.FC<LegalPageProps> = ({ onBack, onOpenOther }) => 
       <li>El resultado de una postulación, incluida su inadmisibilidad o rechazo.</li>
       <li>Decisiones tomadas en base a borradores, estimaciones o información de convocatorias sin verificar con la fuente oficial.</li>
       <li>Errores u omisiones en la información que tú entregues.</li>
-      <li>Fallas de servicios de terceros (Mercado Pago, Google, portales de los organismos) o del sitio por causas ajenas a nuestro control razonable.</li>
+      <li>Fallas de servicios de terceros (Flow, Google, portales de los organismos) o del sitio por causas ajenas a nuestro control razonable.</li>
     </UL>
     <P>Nada en estos términos limita los derechos irrenunciables que te otorga la Ley 19.496 sobre Protección de los Derechos de los Consumidores.</P>
 
@@ -256,7 +256,7 @@ export const PrivacyPage: React.FC<LegalPageProps> = ({ onBack, onOpenOther }) =
         ['Empresa', 'Razón social, RUT, tipo de sociedad, sector, región, liderazgo femenino y el perfil de tu proyecto', 'Tú'],
         ['Carpeta tributaria', 'Inicio de actividades, ventas declaradas, periodos F29 y observaciones del SII', 'El archivo que subes; lo procesamos para extraer estos datos'],
         ['Postulaciones', 'Respuestas sobre tu proyecto, textos generados, cartas, presupuesto, resultados de auditoría', 'Tú y las herramientas de IA'],
-        ['Pagos', 'Monto, fecha, estado e identificador del pago', <>Mercado Pago. <strong>No recibimos ni guardamos números de tarjeta</strong></>],
+        ['Pagos', 'Monto, fecha, estado e identificador del pago', <>Flow. <strong>No recibimos ni guardamos números de tarjeta</strong></>],
         ['Uso técnico', 'Dirección IP, navegador, registros de errores y de solicitudes, y un conteo de visitas por día y por sección del sitio, sin identificarte', 'Automático, al usar el sitio']
       ]}
     />
@@ -286,7 +286,7 @@ export const PrivacyPage: React.FC<LegalPageProps> = ({ onBack, onOpenOther }) =
       rows={[
         ['Google Cloud y Firebase (Google LLC)', 'Alojamiento del sitio, base de datos y autenticación', 'Todos los datos de la plataforma'],
         ['Google Gemini (Google LLC)', 'Generar textos, leer la carpeta tributaria y responder consultas con IA', 'La información que ingresas en cada herramienta'],
-        ['Mercado Pago', 'Procesar los pagos del plan', 'Monto e identificador del pago, y los datos que ingreses en Mercado Pago'],
+        ['Flow (flow.cl)', 'Procesar los pagos del plan', 'Monto, correo e identificador del pago, y los datos que ingreses en Flow'],
         ['Resend', 'Enviar los correos de la plataforma', 'Tu correo, nombre y el contenido del aviso (por ejemplo, la fecha de vencimiento del plan)'],
         ['Cloudflare', 'Gestión del dominio (DNS) y reenvío del correo de contacto', 'Datos técnicos de conexión y los correos que nos escribas'],
         ['GitHub (Microsoft)', 'Almacenamiento del código y tareas automáticas de la plataforma', 'Información pública de convocatorias; no datos de usuarios']
@@ -316,7 +316,7 @@ export const PrivacyPage: React.FC<LegalPageProps> = ({ onBack, onOpenOther }) =
     <UL>
       <li>Toda la comunicación con el sitio viaja cifrada (HTTPS).</li>
       <li>Cada usuario solo puede ver y modificar sus propios datos; las reglas de la base de datos lo impiden a nivel del servidor.</li>
-      <li>Los pagos se procesan en Mercado Pago; nunca vemos los datos de tu tarjeta.</li>
+      <li>Los pagos se procesan en Flow; nunca vemos los datos de tu tarjeta.</li>
       <li>Las claves de acceso a servicios se guardan como secretos y no en el código.</li>
     </UL>
     <P>

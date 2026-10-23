@@ -212,7 +212,7 @@ export function purchaseEmail(args: { amount: number; paymentId: string; expires
   const rows: [string, string][] = [
     ['Plan', 'Plan Trimestral ImpulsaCap'],
     ['Monto pagado', `${formatCLP(args.amount)} CLP`],
-    ['Operación Mercado Pago', args.paymentId],
+    ['N° de operación', args.paymentId],
     ['Activo hasta', vence],
   ];
   const html = layout({
@@ -228,7 +228,7 @@ export function purchaseEmail(args: { amount: number; paymentId: string; expires
   const text = `Tu Plan Trimestral ImpulsaCap está activo.
 
 Monto pagado: ${formatCLP(args.amount)} CLP
-Operación Mercado Pago: ${args.paymentId}
+N° de operación: ${args.paymentId}
 Activo hasta: ${vence}
 
 El plan es un pago único y no se renueva automáticamente. Te avisaremos antes de que venza.
@@ -256,7 +256,7 @@ export function adminSaleEmail(args: {
     ['Monto', `${formatCLP(args.amount)} CLP`],
     ['Tipo', args.isFirstPurchase ? (args.sellerCode ? `Primera compra con código ${args.sellerCode}` : 'Primera compra (50% dcto.)') : 'Renovación / compra adicional'],
     ...(args.sellerCode ? [['Comisión del vendedor', `${formatCLP(args.commission || 0)} (${args.sellerCode})`] as [string, string]] : []),
-    ['Operación Mercado Pago', args.paymentId],
+    ['N° de operación', args.paymentId],
     ['Plan activo hasta', formatDateCL(args.expiresAt)],
   ];
   const html = layout({

@@ -23,11 +23,11 @@ PLAN TRIMESTRAL
 - Consultoras o quienes asesoran a varias empresas: escribir a contacto@impulsacap.cl para un plan a medida.
 - Gratis sin plan: diagnóstico de 5 preguntas, monitor de convocatorias, catálogo, Mis postulaciones y hoja de ruta, diagnóstico tributario con la carpeta, robot de ayuda.
 
-PAGOS (Mercado Pago)
-- Se paga con Mercado Pago (Checkout Pro) con los medios que ofrece, como tarjeta de crédito o débito. ImpulsaCap no ve ni guarda datos de tarjetas.
-- El plan se activa cuando Mercado Pago confirma el pago, normalmente en segundos, y llega un correo de confirmación. Algunos medios tardan unos minutos.
-- Si el botón "Pagar" de Mercado Pago está gris: cambiar el medio de pago (una tarjeta prepago sin saldo no permite pagar), o pagar en una ventana de incógnito ingresando la tarjeta. No se puede pagar con la misma cuenta de Mercado Pago que recibe el pago.
-- Si pagó y el plan no aparece activo después de unos minutos: recargar la página y revisar "Mi empresa" > "Mi Plan y Suscripción". Si sigue sin activarse, crear un ticket con el número de operación de Mercado Pago.
+PAGOS (Flow)
+- Se paga con Flow (flow.cl): Webpay, tarjeta de crédito o débito, y transferencia bancaria. ImpulsaCap no ve ni guarda datos de tarjetas.
+- El plan se activa cuando Flow confirma el pago, normalmente en segundos, y llega un correo de confirmación. La transferencia puede tardar unos minutos más.
+- Si el pago es rechazado: probar con otro medio de pago (por ejemplo, Webpay con otra tarjeta) o revisar con el banco que la tarjeta esté habilitada para compras por internet.
+- Si pagó y el plan no aparece activo después de unos minutos: recargar la página y revisar "Mi empresa" > "Mi Plan y Suscripción". Si sigue sin activarse, crear un ticket con el número de orden de Flow (está en el comprobante que Flow envía por correo).
 - Se emite boleta o factura por cada pago.
 
 DERECHO A RETRACTO Y DEVOLUCIONES
@@ -56,7 +56,7 @@ POSTULACIONES
 
 PRIVACIDAD
 - Los datos se usan solo para prestar el servicio y no se venden. Cada usuario solo ve sus propios datos.
-- Proveedores que tratan datos por encargo: Google Cloud y Firebase (alojamiento y base de datos), Google Gemini (IA), Mercado Pago (pagos), Resend (correos), Cloudflare (dominio). Detalle en impulsacap.cl/privacidad. Términos en impulsacap.cl/terminos.
+- Proveedores que tratan datos por encargo: Google Cloud y Firebase (alojamiento y base de datos), Google Gemini (IA), Flow (pagos), Resend (correos), Cloudflare (dominio). Detalle en impulsacap.cl/privacidad. Términos en impulsacap.cl/terminos.
 - No se usan cookies de publicidad; se cuenta visitas sin identificar a las personas.
 
 CONTACTO

@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
+import { flowConfig, flowCreatePayment, flowGetStatus } from './server/flow';
 import { initializeApp as initAdminApp, getApps as getAdminApps } from 'firebase-admin/app';
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import { getFirestore as getAdminFirestore, FieldValue } from 'firebase-admin/firestore';
@@ -2024,6 +2025,7 @@ app.post('/api/pagos/crear', requireAuth, async (req, res) => {
       return res.json(await grantEarlyAccess(user.uid, user.email));
     }
     if (isEarlyAccessMode()) console.log(`[pagos] Pago de prueba real habilitado para ${user.email}`);
+    if (paymentProvider() === 'flow') return await createFlowCheckout(req, res, user);
     if (!mpAccessToken) {
       return res.status(500).json({ error: 'Mercado Pago no está configurado (MP_ACCESS_TOKEN ausente).' });
     }
@@ -2135,42 +2137,21 @@ async function handlePaymentReversal(paymentId: string, status: string) {
   }
 }
 
-// Webhook oficial de Mercado Pago (público)
-app.post('/api/pagos/webhook', async (req, res) => {
-  try {
-    const paymentId = req.body?.data?.id || req.body?.id || req.query?.['data.id'] || req.query?.id;
-    const type = req.body?.type || req.body?.action || req.query?.type || req.query?.topic;
-
-    if (!paymentId || (type && !String(type).includes('payment'))) {
-      return res.status(200).send('OK');
-    }
-
-    if (!mpAccessToken) {
-      console.warn('Webhook received but MP_ACCESS_TOKEN is not configured');
-      return res.status(500).json({ error: 'MP_ACCESS_TOKEN no configurado' });
-    }
-
-    // Consulta oficial a la API de Mercado Pago. NUNCA confiar en el cuerpo de la notificación
-    const paymentInfo = await paymentClient.get({ id: String(paymentId) });
-
-    // Devolución o contracargo de un pago que habíamos aprobado: se retira el plan y se anula la comisión
-    if (paymentInfo && ['refunded', 'charged_back', 'cancelled'].includes(String(paymentInfo.status))) {
-      await handlePaymentReversal(String(paymentId), String(paymentInfo.status));
-      return res.status(200).send('OK');
-    }
-
-    if (!paymentInfo || paymentInfo.status !== 'approved') {
-      console.log(`Payment ${paymentId} status: ${paymentInfo?.status}`);
-      return res.status(200).send('OK');
-    }
-
+/**
+ * Activa el plan tras un pago aprobado (Mercado Pago o Flow): valida monto y moneda contra la orden,
+ * registra el pago, suma 3 meses, registra la comisión del vendedor y envía los correos.
+ * Idempotente por paymentId. Lanza error solo si falla el guardado (para que la pasarela reintente).
+ */
+type ApprovedPayment = { paymentId: string; amount: number | string; currency: string; approvedAt?: string | null; methodId?: string | null; externalRef?: string | null };
+async function processApprovedPayment(info: ApprovedPayment): Promise<'activado' | 'rechazado_validacion' | 'referencia_invalida' | 'ya_procesado'> {
+    const paymentId = info.paymentId;
     // Verificación estricta (Requirement 8): moneda CLP y monto igual al precio fijado al crear la preferencia
     // (o 19.990 / 39.990 para preferencias anteriores a los códigos de vendedor)
-    const transactionAmount = Number(paymentInfo.transaction_amount);
-    const isCurrencyValid = paymentInfo.currency_id === 'CLP';
+    const transactionAmount = Number(info.amount);
+    const isCurrencyValid = info.currency === 'CLP';
     let order: { uid?: string; price?: number; code?: string | null; commissionPct?: number | null } | null = null;
     try {
-      const extRef = String(paymentInfo.external_reference || '');
+      const extRef = String(info.externalRef || '');
       if (extRef && !extRef.includes('/')) {
         const orderSnap = await adminDb.collection('checkout_orders').doc(extRef).get();
         order = orderSnap.exists ? (orderSnap.data() as any) : null;
@@ -2183,15 +2164,15 @@ app.post('/api/pagos/webhook', async (req, res) => {
       : (transactionAmount === PRICE_FIRST || transactionAmount === PRICE_FULL);
 
     if (!isCurrencyValid || !isAmountValid) {
-      console.warn(`Payment ${paymentId} rechazado_validacion: currency_id=${paymentInfo.currency_id}, amount=${transactionAmount}`);
+      console.warn(`Payment ${paymentId} rechazado_validacion: currency=${info.currency}, amount=${transactionAmount}`);
       try {
         if (isFirestoreAdminAuthorized) {
-          const externalRef = paymentInfo.external_reference || '';
-          const uid = externalRef.split(':')[0] || 'unknown';
+          const externalRef = info.externalRef || '';
+          const uid = String(order?.uid || '') || externalRef.split(':')[0] || 'unknown';
           await adminDb.collection('payments').doc(String(paymentId)).set({
             uid,
             amount: isNaN(transactionAmount) ? 0 : transactionAmount,
-            currencyId: paymentInfo.currency_id || 'unknown',
+            currencyId: info.currency || 'unknown',
             status: 'rechazado_validacion',
             rejectedAt: new Date().toISOString(),
             reason: !isCurrencyValid ? 'Moneda no es CLP' : `Monto no corresponde al precio fijado (${order?.price ?? '19.990 o 39.990'})`,
@@ -2201,15 +2182,14 @@ app.post('/api/pagos/webhook', async (req, res) => {
       } catch (dbErr: any) {
         console.error('Error al registrar pago rechazado en Firestore:', dbErr?.message);
       }
-      // Responde 200 (no 400), para que Mercado Pago no reintente indefinidamente
-      return res.status(200).json({ status: 'rechazado_validacion', message: 'Notificación procesada y descartada por validación de monto o moneda.' });
+      return 'rechazado_validacion';
     }
 
-    const externalRef = paymentInfo.external_reference || '';
-    const uid = externalRef.split(':')[0];
+    const externalRef = info.externalRef || '';
+    const uid = String(order?.uid || '') || externalRef.split(':')[0];
     if (!uid) {
       console.warn('Payment approved but no UID in external_reference:', externalRef);
-      return res.status(400).json({ error: 'external_reference inválido' });
+      return 'referencia_invalida';
     }
 
     // Idempotencia: si ese paymentId ya fue procesado, responder 200 de inmediato
@@ -2217,17 +2197,17 @@ app.post('/api/pagos/webhook', async (req, res) => {
     const existingPayment = await paymentDocRef.get();
     if (existingPayment.exists && existingPayment.data()?.status === 'approved') {
       console.log(`Payment ${paymentId} was already processed`);
-      return res.status(200).send('OK');
+      return 'ya_procesado';
     }
 
     // Guardar payments/{paymentId}: { uid, amount, currencyId, status, approvedAt }
     await paymentDocRef.set({
       uid,
       amount: transactionAmount,
-      currencyId: paymentInfo.currency_id,
+      currencyId: info.currency,
       status: 'approved',
-      approvedAt: paymentInfo.date_approved || new Date().toISOString(),
-      paymentMethodId: paymentInfo.payment_method_id || 'unknown',
+      approvedAt: info.approvedAt || new Date().toISOString(),
+      paymentMethodId: info.methodId || 'unknown',
       externalReference: externalRef,
       sellerCode: order?.code || null
     });
@@ -2236,7 +2216,7 @@ app.post('/api/pagos/webhook', async (req, res) => {
     // expiresAt = 3 meses desde aprobación; si ya tenía plan vigente, suma 3 meses al expiresAt actual
     const entRef = adminDb.collection('entitlements').doc(uid);
     const currentEntDoc = await entRef.get();
-    let baseDate = new Date(paymentInfo.date_approved || Date.now());
+    let baseDate = new Date(info.approvedAt || Date.now());
     if (currentEntDoc.exists) {
       const curData = currentEntDoc.data();
       // El acceso anticipado no se suma: los 3 meses parten desde el pago
@@ -2322,6 +2302,160 @@ app.post('/api/pagos/webhook', async (req, res) => {
       sellerCode: order?.code || null,
       commission,
     });
+    return 'activado';
+}
+
+// ---------------------------------------------------------------------------
+// FLOW (flow.cl): pasarela principal cuando FLOW_API_KEY y FLOW_SECRET_KEY están configuradas.
+// PAGOS_PASARELA=mercadopago fuerza Mercado Pago; PAGOS_PASARELA=flow fuerza Flow.
+// ---------------------------------------------------------------------------
+function paymentProvider(): 'flow' | 'mercadopago' {
+  const forced = String(process.env.PAGOS_PASARELA || '').trim().toLowerCase();
+  if (forced === 'mercadopago' || forced === 'mp') return 'mercadopago';
+  if (forced === 'flow') return 'flow';
+  return flowConfig().configured ? 'flow' : 'mercadopago';
+}
+
+function publicAppUrl(req: express.Request) {
+  const host = req.get('x-forwarded-host') || req.get('host') || 'localhost:3000';
+  const protocol = req.get('x-forwarded-proto') || req.protocol || 'http';
+  return (process.env.APP_URL || `${protocol}://${host}`).replace(/\/$/, '');
+}
+
+async function createFlowCheckout(req: express.Request, res: express.Response, user: { uid: string; email?: string }) {
+  if (!flowConfig().configured) {
+    return res.status(500).json({ error: 'Flow no está configurado (faltan FLOW_API_KEY o FLOW_SECRET_KEY).' });
+  }
+  if (!user.email) {
+    return res.status(400).json({ error: 'Tu cuenta no tiene un correo asociado. Escríbenos a contacto@impulsacap.cl.' });
+  }
+  if (!(await ensureFirestoreAdmin())) {
+    return res.status(503).json({ error: 'No pudimos iniciar el pago en este momento. Intenta en unos minutos.' });
+  }
+  // El precio lo define SOLO el servidor (incluye el código de vendedor de la primera compra)
+  const pricing = await resolvePricing(adminDb, user.uid);
+  const price = pricing.price;
+  const appUrl = publicAppUrl(req);
+  // Orden corta y única (Flow limita el largo); la orden guarda a quién pertenece y el precio esperado
+  const commerceOrder = `IC${Date.now()}${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+  await adminDb.collection('checkout_orders').doc(commerceOrder).set({
+    uid: user.uid,
+    price,
+    code: pricing.code,
+    commissionPct: pricing.commissionPct,
+    provider: 'flow',
+    createdAt: new Date().toISOString()
+  });
+  try {
+    const created = await flowCreatePayment({
+      commerceOrder,
+      subject: 'Plan Trimestral ImpulsaCap (3 meses, pago único)',
+      amount: price,
+      email: user.email,
+      urlConfirmation: `${appUrl}/api/pagos/flow/confirmacion`,
+      urlReturn: `${appUrl}/api/pagos/flow/retorno`
+    });
+    await adminDb.collection('checkout_orders').doc(commerceOrder).set({ flowOrder: created.flowOrder }, { merge: true });
+    // Mismo nombre de campo que con Mercado Pago: el front redirige a init_point
+    return res.json({ init_point: created.redirectUrl, price, provider: 'flow' });
+  } catch (err: any) {
+    console.error('[flow] Error al crear el pago:', err?.message);
+    return res.status(500).json({ error: 'No pudimos conectar con Flow. Intenta nuevamente en unos minutos.' });
+  }
+}
+
+/** Consulta el estado oficial en Flow y, si está pagado, activa el plan (idempotente). */
+async function settleFlowToken(token: string) {
+  const st = await flowGetStatus(token);
+  const paymentId = `flow-${st.flowOrder}`;
+  if (st.status === 2) {
+    if (!(await ensureFirestoreAdmin())) throw new Error('Firestore Admin no autorizado');
+    const result = await processApprovedPayment({
+      paymentId,
+      amount: Number(st.amount),
+      currency: String(st.currency || ''),
+      approvedAt: st.paymentData?.date ? new Date(String(st.paymentData.date).replace(' ', 'T') + '-03:00').toISOString() : null,
+      methodId: st.paymentData?.media ? `Flow · ${st.paymentData.media}` : 'Flow',
+      externalRef: st.commerceOrder
+    });
+    return { paymentId, status: 'approved' as const, result };
+  }
+  if (st.status === 3 || st.status === 4) {
+    console.log(`[flow] Pago ${paymentId} (${st.commerceOrder}) ${st.status === 3 ? 'rechazado' : 'anulado'}`);
+    return { paymentId, status: (st.status === 3 ? 'rejected' : 'cancelled') as 'rejected' | 'cancelled' };
+  }
+  return { paymentId, status: 'pending' as const };
+}
+
+// Confirmación servidor a servidor: Flow envía el token por POST
+app.post('/api/pagos/flow/confirmacion', async (req, res) => {
+  const token = String(req.body?.token || req.query?.token || '');
+  if (!token) return res.status(400).send('token requerido');
+  try {
+    const r = await settleFlowToken(token);
+    console.log(`[flow] Confirmación ${r.paymentId}: ${r.status}${'result' in r ? ` (${r.result})` : ''}`);
+    return res.status(200).send('OK');
+  } catch (err: any) {
+    console.error('[flow] Error en la confirmación:', err?.message);
+    // 500: Flow reintenta la confirmación
+    return res.status(500).send('Error');
+  }
+});
+
+// Regreso del comprador: Flow lo trae por POST (o GET) con el token; se le muestra el resultado
+app.all('/api/pagos/flow/retorno', async (req, res) => {
+  const appUrl = publicAppUrl(req);
+  const token = String(req.body?.token || req.query?.token || '');
+  if (!token) return res.redirect(303, `${appUrl}/pago/resultado`);
+  try {
+    const r = await settleFlowToken(token);
+    return res.redirect(303, `${appUrl}/pago/resultado?status=${r.status}&payment_id=${encodeURIComponent(r.paymentId)}`);
+  } catch (err: any) {
+    console.error('[flow] Error en el retorno:', err?.message);
+    // Sin estado: la pantalla de resultado espera la confirmación del plan
+    return res.redirect(303, `${appUrl}/pago/resultado`);
+  }
+});
+
+// Webhook oficial de Mercado Pago (público)
+app.post('/api/pagos/webhook', async (req, res) => {
+  try {
+    const paymentId = req.body?.data?.id || req.body?.id || req.query?.['data.id'] || req.query?.id;
+    const type = req.body?.type || req.body?.action || req.query?.type || req.query?.topic;
+
+    if (!paymentId || (type && !String(type).includes('payment'))) {
+      return res.status(200).send('OK');
+    }
+
+    if (!mpAccessToken) {
+      console.warn('Webhook received but MP_ACCESS_TOKEN is not configured');
+      return res.status(500).json({ error: 'MP_ACCESS_TOKEN no configurado' });
+    }
+
+    // Consulta oficial a la API de Mercado Pago. NUNCA confiar en el cuerpo de la notificación
+    const paymentInfo = await paymentClient.get({ id: String(paymentId) });
+
+    // Devolución o contracargo de un pago que habíamos aprobado: se retira el plan y se anula la comisión
+    if (paymentInfo && ['refunded', 'charged_back', 'cancelled'].includes(String(paymentInfo.status))) {
+      await handlePaymentReversal(String(paymentId), String(paymentInfo.status));
+      return res.status(200).send('OK');
+    }
+
+    if (!paymentInfo || paymentInfo.status !== 'approved') {
+      console.log(`Payment ${paymentId} status: ${paymentInfo?.status}`);
+      return res.status(200).send('OK');
+    }
+
+    const result = await processApprovedPayment({
+      paymentId: String(paymentId),
+      amount: Number(paymentInfo.transaction_amount),
+      currency: String(paymentInfo.currency_id || ''),
+      approvedAt: paymentInfo.date_approved || null,
+      methodId: paymentInfo.payment_method_id || null,
+      externalRef: paymentInfo.external_reference || ''
+    });
+    // "rechazado_validacion" responde 200 para que Mercado Pago no reintente indefinidamente
+    if (result === 'referencia_invalida') return res.status(400).json({ error: 'external_reference inválido' });
     // Recién al finalizar todo el procesamiento y guardado exitoso se responde 200
     return res.status(200).send('OK');
   } catch (err: any) {
@@ -3236,7 +3370,9 @@ app.get('/api/admin/resumen', requireAuth, requireAdminUser, async (req, res) =>
     }
     const summary = await buildAdminSummary(adminDb, adminAuth, {
       emailConfigured: isEmailConfigured(),
-      mercadoPagoConfigured: Boolean(mpAccessToken)
+      mercadoPagoConfigured: Boolean(mpAccessToken),
+      flowConfigured: flowConfig().configured,
+      paymentProvider: paymentProvider()
     });
     res.set('Cache-Control', 'no-store');
     return res.json(summary);
