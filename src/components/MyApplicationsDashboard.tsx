@@ -331,7 +331,7 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
           </h1>
           <p className="text-sm text-slate-600">
             {activeApplications.length === 0
-              ? 'Elige un fondo para empezar tu primera postulación.'
+              ? 'Todavía no tienes postulaciones. Abajo te explico cómo empezar.'
               : `Tienes ${activeApplications.length} ${activeApplications.length === 1 ? 'postulación en curso' : 'postulaciones en curso'}. Sigue con el próximo paso de cada una.`}
           </p>
         </div>
@@ -348,6 +348,37 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
           <ArrowRight className="relative w-4 h-4 text-cyan-300" />
         </button>
       </header>
+
+      {/* Bienvenida del consultor: qué es este panel y cómo se avanza */}
+      <section className="rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-blue-950 text-white p-5 sm:p-7 shadow-sm">
+        <p className="text-xs font-black uppercase tracking-wider text-cyan-300">Bienvenido a tu panel de postulaciones</p>
+        <h2 className="mt-1.5 text-lg sm:text-xl font-bold leading-snug">
+          {activeApplications.length === 0
+            ? 'Te acompaño a postular a fondos del Estado, paso a paso y con las reglas de cada concurso.'
+            : 'Aquí ves cómo va cada una de tus postulaciones y qué toca hacer ahora.'}
+        </h2>
+        <p className="mt-2 text-sm leading-relaxed text-slate-300 max-w-3xl">
+          Postular a un fondo no tiene por qué ser un enredo. Cada fondo (Corfo, Sercotec, Start-Up Chile, ANID, FIA) tiene sus propias bases, y yo las uso para decirte si calzas, qué te van a pedir y cómo se evalúa. Tú pones la información de tu negocio; la plataforma la ordena y la redacta en el formato de cada concurso. La postulación final la envías tú en el portal oficial.
+        </p>
+        <ol className="mt-5 grid gap-3 sm:grid-cols-3">
+          {[
+            { n: '1', t: 'Prepara tu empresa', d: 'Tus datos, tu proyecto y la carpeta tributaria. Se hace una sola vez y sirve para todos los fondos.' },
+            { n: '2', t: 'Elige un fondo que calce', d: 'Te mostramos qué fondos cumples según tus datos. Puedes tener hasta 3 postulaciones a la vez.' },
+            { n: '3', t: 'Postula en 6 pasos', d: 'Requisitos, formulario, presupuesto, documentos, evaluación simulada y envío.' }
+          ].map(s => (
+            <li key={s.n} className="rounded-2xl bg-white/5 border border-white/10 p-4">
+              <p className="flex items-center gap-2 text-sm font-bold">
+                <span className="w-6 h-6 rounded-full bg-cyan-400 text-slate-950 text-xs font-black flex items-center justify-center">{s.n}</span>
+                {s.t}
+              </p>
+              <p className="mt-1.5 text-xs leading-relaxed text-slate-300">{s.d}</p>
+            </li>
+          ))}
+        </ol>
+        <p className="mt-4 text-xs text-slate-400">
+          En este panel encontrarás: avisos de cierres próximos, tus postulaciones con su avance y el próximo paso de cada una, y tu plan. Si en algún momento no sabes qué hacer, abre tu consultor: siempre te dice cuál es el siguiente paso.
+        </p>
+      </section>
 
       {/* 2. CIERRES PRÓXIMOS (solo si hay) */}
       {closingSoonAlerts.map(alert => (

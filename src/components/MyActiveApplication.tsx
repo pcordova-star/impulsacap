@@ -1,6 +1,7 @@
 import { guideFor } from '../data/requirementGuides';
 import { getFundRules, computeRoadmap, coFinancePctFor } from '../data/fundStandards';
 import { computeJourney } from '../data/journey';
+import { FundIntroCard } from './FundIntroCard';
 import { consume, onRequest } from '../utils/navFocus';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
@@ -485,6 +486,9 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
           </button>
         </div>
       )}
+
+      {/* Conoce tu fondo: explicación del consultor */}
+      <FundIntroCard fund={selectedFund} userKey={userKey} />
 
       {/* 2. PROMINENT DEADLINE COUNTDOWN: "NO QUEDAR FUERA DE PLAZO" */}
       <div className="p-6 rounded-3xl bg-gradient-to-r from-blue-50/90 via-white to-emerald-50/80 border border-blue-200 shadow-sm relative overflow-hidden">
