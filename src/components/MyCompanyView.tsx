@@ -1,6 +1,7 @@
 import { ReferralCodeField } from './ReferralCodeField';
 import React, { useState, useEffect, useMemo } from 'react';
-import { ProfileAutofill } from './ProfileAutofill';
+import { ProfileAutofill, TeamCvImport } from './ProfileAutofill';
+import { REGIONES_OFICIALES, toOfficialRegion } from '../utils/region';
 import { notifySaved } from '../utils/guideEvents';
 import { 
   CompanyProfile, 
@@ -91,7 +92,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
   const [rut, setRut] = useState(profile.rut || currentUser?.rut || '');
   const [companyType, setCompanyType] = useState<CompanyType>(profile.companyType || 'spa');
   const [sector, setSector] = useState(profile.sector || 'Tecnología e Innovación');
-  const [region, setRegion] = useState(profile.region || 'Región Metropolitana');
+  const [region, setRegion] = useState(toOfficialRegion(profile.region) || profile.region || '');
   const [salesBracket, setSalesBracket] = useState<SalesBracket>(profile.salesBracket || 'sin_ventas');
   const [isFemaleLed, setIsFemaleLed] = useState<boolean>(profile.isFemaleLed || false);
   const [femaleEquityPct, setFemaleEquityPct] = useState<number>(profile.femaleEquityPct || 0);
@@ -490,6 +491,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
                 placeholder="Ej: Rodrigo Muñoz (CEO, Ing. Agrónomo U. de Chile, 8 años en gestión de predios), Camila Sepúlveda (CTO, Master en Ciencias de la Computación, 5 años en IoT)..."
                 className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 placeholder:text-slate-400 placeholder:italic focus:bg-white focus:border-cyan-600 focus:outline-hidden leading-relaxed"
               />
+              <TeamCvImport value={teamDetails} projectSummary={whatItDoes} onApply={(v) => { markDirty(); setTeamDetails(v); }} />
             </div>
 
             {/* 6. Modelo de negocio */}
@@ -735,14 +737,17 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
 
             {/* Región */}
             <div className="space-y-1">
-              <label className="font-semibold text-slate-700 block">Región de Ejecución</label>
-              <input
-                type="text"
-                value={region}
+              <label className="font-semibold text-slate-700 block">Región donde opera tu empresa</label>
+              <select
+                value={toOfficialRegion(region) || region || ''}
                 onChange={(e) => setRegion(e.target.value)}
-                placeholder="Ej: Región de Valparaíso, Metropolitana, Biobío"
                 className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 focus:bg-white focus:border-blue-500 focus:outline-hidden"
-              />
+              >
+                <option value="" disabled>Elige tu región</option>
+                {region && !toOfficialRegion(region) && <option value={region}>{region} (revisar)</option>}
+                {REGIONES_OFICIALES.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+              <p className="text-[11px] text-slate-500">Con ella te mostramos solo las convocatorias de tu región y las nacionales.</p>
             </div>
           </div>
 

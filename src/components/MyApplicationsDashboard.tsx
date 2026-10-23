@@ -3,6 +3,7 @@ import { usePlan } from '../hooks/usePlan';
 import { resolveFund, fundFromConvocatoria } from '../utils/convocatoriaFund';
 import { computeJourney, fundFit } from '../data/journey';
 import { NewsTeaser } from './NewsView';
+import { regionFit } from '../utils/region';
 import { apiFetch } from '../utils/apiFetch';
 import { announceEarlyAccess, getPaymentsMode } from '../utils/earlyAccess';
 import { ChileanFund, CompanyProfile, getFundVisibleStatus, CompanyUser, calculateProjectProfileCompletion } from '../types/funds';
@@ -53,6 +54,8 @@ interface MyApplicationsDashboardProps {
   onOpenSiiModal: () => void;
   onSelectFundToFormulate: (fund: ChileanFund) => void;
   onNavigateTab?: (tab: string) => void;
+  /** Postular a una convocatoria del monitor (con su región y cierre para la confirmación) */
+  onPostularCall?: (conv: any) => void;
 }
 
 export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = ({
@@ -69,7 +72,8 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
   onOpenProfile,
   onOpenSiiModal,
   onSelectFundToFormulate,
-  onNavigateTab
+  onNavigateTab,
+  onPostularCall
 }) => {
   const [showArchived, setShowArchived] = useState<boolean>(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -124,13 +128,7 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
       if (conv.fundId && activeFundIds.has(conv.fundId)) return false;
 
       // Calce con región: nacionales siempre; regionales solo si coinciden con la región de la empresa
-      const norm = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-      const alc = norm(conv.alcance || '');
-      const isNational = !alc || alc.includes('todo chile') || alc.includes('nacional');
-      if (!isNational) {
-        const reg = norm(profile.region || '').replace(/^region\s+(de\s+la\s+|del\s+|de\s+)?/, '');
-        if (!reg || !(alc.includes(reg) || reg.includes(alc))) return false;
-      }
+      if (!['nacional', 'tu_region'].includes(regionFit(conv.alcance, profile.region))) return false;
 
       return true;
     }).slice(0, 2);
@@ -294,13 +292,7 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
       ? convocatorias
           .filter(c => c.vigente && !NOT_GRANT.test(c.titulo || '') && !dismissedAlerts.includes(`new_call_${c.id}`))
           .filter(c => !(c.fundId && activeApplications.some(a => a.fundId === c.fundId)))
-          .filter(c => {
-            const norm = (t: string) => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
-            const alc = norm(c.alcance || '');
-            if (!alc || alc.includes('todo chile') || alc.includes('nacional')) return true;
-            const reg = norm(profile.region || '').replace(/^region\s+(de\s+la\s+|del\s+|de\s+)?/, '');
-            return Boolean(reg) && (alc.includes(reg) || reg.includes(alc));
-          })
+          .filter(c => ['nacional', 'tu_region'].includes(regionFit(c.alcance, profile.region)))
           .sort((a, b) => {
             if (Boolean(a.fundId) !== Boolean(b.fundId)) return a.fundId ? -1 : 1;
             const da = typeof a.diasRestantes === 'number' ? a.diasRestantes : 9999;
@@ -654,7 +646,7 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
                         Bases <ExternalLink className="w-3 h-3" />
                       </a>
                     )}
-                    <button onClick={() => onSelectFundToFormulate(linkedFund || fundFromConvocatoria(conv))} className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer">Postular</button>
+                    <button onClick={() => onPostularCall ? onPostularCall(conv) : onSelectFundToFormulate(linkedFund || fundFromConvocatoria(conv))} className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer">Postular</button>
                     <button onClick={() => handleDismissAlert(`new_call_${conv.id}`)} aria-label="No me interesa" title="No me interesa" className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer">
                       <X className="w-4 h-4" />
                     </button>

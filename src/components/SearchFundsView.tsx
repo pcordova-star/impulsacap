@@ -128,6 +128,7 @@ export const SearchFundsView: React.FC<SearchFundsViewProps> = ({
           onQualifyCall={onQualifyCall}
           onPostularCall={onPostularCall}
           onOpenAuthModal={onOpenAuthModal}
+          userRegion={currentUser ? profile?.region : undefined}
         />
       )}
     </div>

@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import { regionFit } from '../utils/region';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Convocatoria, ConvocatoriasSyncMeta } from '../types/convocatoria';
 import { ChileanFund, CompanyUser } from '../types/funds';
 import { CHILEAN_FUNDS } from '../data/chileanFunds';
@@ -31,6 +32,8 @@ interface ConvocatoriasViewProps {
   onQualifyCall?: (conv: Convocatoria) => void;
   onPostularCall?: (conv: Convocatoria) => void;
   onOpenAuthModal?: (mode?: 'login' | 'register') => void;
+  /** Región de la empresa: se muestran primero (y por defecto) las convocatorias de su región y las nacionales */
+  userRegion?: string;
 }
 
 const REGIONES_CHILE = [
@@ -67,10 +70,17 @@ export const ConvocatoriasView: React.FC<ConvocatoriasViewProps> = ({
   onOpenNewApplicationModal,
   onQualifyCall,
   onPostularCall,
-  onOpenAuthModal
+  onOpenAuthModal,
+  userRegion
 }) => {
   const [search, setSearch] = useState('');
-  const [selectedRegion, setSelectedRegion] = useState('Todas las regiones');
+  // Por defecto: la región de la empresa (más las nacionales). Así nadie parte viendo concursos de otra región.
+  const ownRegionOption = useMemo(() => {
+    if (!userRegion) return null;
+    return REGIONES_CHILE.slice(2).find(r => regionFit(r, userRegion) === 'tu_region') || null;
+  }, [userRegion]);
+  const [selectedRegion, setSelectedRegion] = useState(ownRegionOption || 'Todas las regiones');
+  useEffect(() => { if (ownRegionOption) setSelectedRegion(ownRegionOption); }, [ownRegionOption]);
   const [activeChip, setActiveChip] = useState<QuickChip>('todas');
   const [alertsEnabled, setAlertsEnabled] = useState<boolean>(() => {
     if (typeof window !== 'undefined' && currentUser?.id) {
@@ -192,12 +202,16 @@ export const ConvocatoriasView: React.FC<ConvocatoriasViewProps> = ({
       // Sort: Open first, then by days remaining ascending
       if (a.vigente && !b.vigente) return -1;
       if (!a.vigente && b.vigente) return 1;
+      // Tu región y las nacionales antes que las de otras regiones
+      const ra = regionFit(a.alcance, userRegion) === 'otra_region' ? 1 : 0;
+      const rb = regionFit(b.alcance, userRegion) === 'otra_region' ? 1 : 0;
+      if (ra !== rb) return ra - rb;
 
       const diasA = a.diasRestantes !== null && a.diasRestantes !== undefined ? a.diasRestantes : 9999;
       const diasB = b.diasRestantes !== null && b.diasRestantes !== undefined ? b.diasRestantes : 9999;
       return diasA - diasB;
     });
-  }, [convocatorias, activeChip, selectedRegion, search]);
+  }, [convocatorias, activeChip, selectedRegion, search, userRegion]);
 
   const handlePostular = (conv: Convocatoria) => {
     if (onPostularCall) {
@@ -418,9 +432,9 @@ export const ConvocatoriasView: React.FC<ConvocatoriasViewProps> = ({
                       </span>
 
                       {/* Región */}
-                      <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-semibold border border-slate-200 flex items-center gap-1">
-                        <MapPin className="w-3 h-3 text-slate-400" />
-                        <span>{conv.alcance || 'Todo Chile'}</span>
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold border flex items-center gap-1 ${regionFit(conv.alcance, userRegion) === 'otra_region' ? 'bg-rose-50 text-rose-700 border-rose-200' : regionFit(conv.alcance, userRegion) === 'tu_region' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
+                        <MapPin className="w-3 h-3" />
+                        <span>{conv.alcance || 'Todo Chile'}{regionFit(conv.alcance, userRegion) === 'otra_region' ? ' · no es tu región' : regionFit(conv.alcance, userRegion) === 'tu_region' ? ' · tu región' : ''}</span>
                       </span>
 
                       {/* Días restantes Badge */}

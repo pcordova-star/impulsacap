@@ -3,6 +3,7 @@ import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
 import { flowConfig, flowCreatePayment, flowGetStatus } from './server/flow';
 import { collectNews, listRecipients, recipientsFitting, digestEmail, alertEmail, unsubUrl, unsubToken, NEWS_TYPES, type DigestItem, type ClosingCall } from './server/news';
 import { getFundIntro } from './src/data/fundIntros';
+import { regionFit } from './src/utils/region';
 import { initializeApp as initAdminApp, getApps as getAdminApps } from 'firebase-admin/app';
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import { getFirestore as getAdminFirestore, FieldValue } from 'firebase-admin/firestore';
@@ -2765,7 +2766,9 @@ async function announceOpenedCalls(opened: OpenedCall[], req: express.Request) {
     if (!c.fundId) continue;
     const { fund, list } = recipientsFitting(recipients, c.fundId);
     if (!fund) continue;
-    for (const r of list) {
+    // Convocatorias regionales: solo a empresas de esa región
+    const inRegion = list.filter(r => ['nacional', 'tu_region'].includes(regionFit(c.alcance, r.profile?.region)));
+    for (const r of inRegion) {
       const mail = alertEmail({
         firstName: r.firstName, companyName: r.companyName, fundName: fund.name, titulo: c.titulo, cierre: c.cierre,
         url: c.url, appUrl, unsubscribeUrl: unsubUrl(appUrl, r.uid), fundSummary: getFundIntro(fund).hook

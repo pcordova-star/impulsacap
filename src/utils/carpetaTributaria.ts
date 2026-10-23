@@ -214,7 +214,8 @@ function parseF22(text: string): CteF22Year[] {
           || block.match(/1440\s+Base Imponible afecta a IDPC[\s\S]{0,220}?\n(-?\d{1,3}(?:\.\d{3})+)(?:\s|$)/);
         return mm ? cteNumber(mm[1]) : null;
       })(),
-      regionCode: firstMatch(block, /53 Región\s+(\d{1,2})\b/),
+      // Solo en la misma línea: si el campo viene vacío, \s+ tomaba el "15" de "15 Fecha Vencimiento" (= Arica)
+      regionCode: firstMatch(block, /53 Región[ \t]+(\d{1,2})(?![\d\/.])(?![ \t]+Fecha)/),
       activityCode: activity ? activity[2] : null,
       activityDescription: activity ? clean(activity[1]) : null,
       lateCharges: late ? cteNumber(late[1]) || 0 : 0

@@ -1,3 +1,4 @@
+import { TeamCvImport } from './ProfileAutofill';
 import React, { useState, useEffect, useMemo } from 'react';
 import { consume, onRequest } from '../utils/navFocus';
 import { BudgetWizard } from './BudgetWizard';
@@ -1143,6 +1144,9 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
                       <p className="text-[11px] text-slate-400">
                         {q.helpText}
                       </p>
+                      {currentSection.id === 'team' && q.key === 'members' && (
+                        <TeamCvImport dark fieldLabel="Personal del proyecto" value={val} projectSummary={profile?.projectProfile?.whatItDoes || profile?.projectSummary} onApply={(v) => handleAnswerChange('members', v)} />
+                      )}
                     </div>
                   );
                 })}

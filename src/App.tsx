@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'react';
-import { fundFit } from './data/journey';
+import { fundFit, isCompanyReady } from './data/journey';
+import { regionFit, type RegionFit } from './utils/region';
 import { CompanyProfile, ChileanFund, FormulationOutput, BlindAuditResult, CompanyUser } from './types/funds';
 import { CHILEAN_FUNDS } from './data/chileanFunds';
 import { Navbar } from './components/Navbar';
@@ -520,11 +521,11 @@ export default function App() {
       if (conv.fundId) {
         const matched = liveFunds.find(f => f.id === conv.fundId) || CHILEAN_FUNDS.find(f => f.id === conv.fundId);
         if (matched) {
-          handleSelectFundToFormulate(matched);
+          handleSelectFundToFormulate(matched, false, { conv });
           return;
         }
       }
-      handleSelectFundToFormulate(fundFromConvocatoria(conv));
+      handleSelectFundToFormulate(fundFromConvocatoria(conv), false, { conv });
     }
   };
 
@@ -551,12 +552,12 @@ export default function App() {
     if (conv.fundId) {
       const fund = liveFunds.find(f => f.id === conv.fundId) || CHILEAN_FUNDS.find(f => f.id === conv.fundId);
       if (fund) {
-        handleSelectFundToFormulate(fund);
+        handleSelectFundToFormulate(fund, false, { conv });
         return;
       }
     }
     // Cualquier convocatoria del monitor se puede postular: se arma la ficha del concurso
-    handleSelectFundToFormulate(fundFromConvocatoria(conv));
+    handleSelectFundToFormulate(fundFromConvocatoria(conv), false, { conv });
   };
 
   const handleLogout = () => {
@@ -571,7 +572,8 @@ export default function App() {
 
   const handleApplySiiData = (updated: Partial<CompanyProfile>) => {
     setProfile((prev) => {
-      const next = { ...prev, ...updated };
+      // La región que ya indicó la empresa manda: la de la carpeta solo completa si estaba vacía
+      const next = { ...prev, ...updated, region: prev.region?.trim() ? prev.region : (updated.region || prev.region) };
       saveActiveProfile(next, currentUser?.id);
       return next;
     });
@@ -581,25 +583,31 @@ export default function App() {
   };
 
   // Flow handlers
-  const handleSelectFundToFormulate = async (fund: ChileanFund, force = false) => {
+  /**
+   * Toda postulación nueva pasa por una confirmación: qué fondo es, de qué región, cuándo cierra,
+   * si la empresa cumple sus requisitos y que usa un cupo. Nunca se crea una postulación sin que la persona la elija.
+   */
+  const handleSelectFundToFormulate = async (fund: ChileanFund, confirmed = false, opts?: { conv?: Convocatoria | null; subTab?: 'roadmap' | 'documents' }) => {
+    const subTab = opts?.subTab || 'roadmap';
     const existing = activeApplications.find(a => a.fundId === fund.id);
     if (existing) {
       setActiveApplicationId(existing.id);
       setActiveTab('postulation');
-      setPostulationSubTab('roadmap');
+      setPostulationSubTab(subTab);
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
-    // Consultor: antes de gastar un cupo, avisamos si la empresa no cumple un requisito de las bases
-    if (!force) {
+    if (!confirmed) {
       const fit = fundFit(fund, profile);
-      if (fit.status === 'no_cumple') { setFitGate({ fund, fails: fit.fails }); return; }
+      const alcance = opts?.conv?.alcance || null;
+      setStartGate({ fund, fails: fit.status === 'no_cumple' ? fit.fails : [], alcance, region: regionFit(alcance, profile.region), cierre: opts?.conv?.cierre || fund.closeDate || null, subTab, conv: opts?.conv || null });
+      return;
     }
     const res = await createApplication(fund);
     if (res.ok && res.application) {
       setActiveApplicationId(res.application.id);
       setActiveTab('postulation');
-      setPostulationSubTab('roadmap');
+      setPostulationSubTab(subTab);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else if (res.limitReached) {
       showToast({ id: `limite-${Date.now()}`, level: 'warning', title: 'Usaste tus 3 cupos', message: 'Archiva una postulación en "Mis postulaciones" para empezar otra.', action: { label: 'Ir a Mis postulaciones', onClick: () => setActiveTab('my-applications') } });
@@ -615,28 +623,9 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const [fitGate, setFitGate] = useState<{ fund: ChileanFund; fails: { label: string; note?: string }[] } | null>(null);
+  const [startGate, setStartGate] = useState<{ fund: ChileanFund; fails: { label: string; note?: string }[]; alcance: string | null; region: RegionFit; cierre: string | null; subTab: 'roadmap' | 'documents'; conv: Convocatoria | null } | null>(null);
 
-  const handleSelectFundToViewDocs = async (fund: ChileanFund) => {
-    const existing = activeApplications.find(a => a.fundId === fund.id);
-    if (existing) {
-      setActiveApplicationId(existing.id);
-      setActiveTab('postulation');
-      setPostulationSubTab('documents');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else {
-      const res = await createApplication(fund.id);
-      if (res.ok && res.application) {
-        setActiveApplicationId(res.application.id);
-        setActiveTab('postulation');
-        setPostulationSubTab('documents');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      } else {
-        setActiveTab('postulation');
-        setPostulationSubTab('documents');
-      }
-    }
-  };
+  const handleSelectFundToViewDocs = (fund: ChileanFund) => handleSelectFundToFormulate(fund, false, { subTab: 'documents' });
 
   const handleSendToAudit = (f: FormulationOutput, fund: ChileanFund) => {
     setActiveFormulation(f);
@@ -848,6 +837,7 @@ export default function App() {
         {activeTab === 'my-applications' && (
           currentUser ? (
             <MyApplicationsDashboard
+              onPostularCall={handlePostularConvocatoria}
               profile={profile}
               activeApplications={activeApplications}
               archivedApplications={archivedApplications}
@@ -1014,28 +1004,57 @@ export default function App() {
         }}
       />
 
-      {fitGate && (
-        <div className="fixed inset-0 z-[80] bg-slate-900/60 flex items-center justify-center p-4" role="dialog" aria-modal="true" onClick={() => setFitGate(null)}>
-          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <p className="text-xs font-black uppercase tracking-wider text-red-600">Antes de postular</p>
-            <h3 className="mt-1 text-lg font-bold text-slate-900">Según tus datos, no cumples {fitGate.fails.length === 1 ? 'un requisito' : 'requisitos'} de {fitGate.fund.name}</h3>
-            <ul className="mt-3 space-y-2">
-              {fitGate.fails.map(f => (
-                <li key={f.label} className="rounded-xl bg-red-50 border border-red-200 p-3 text-sm">
-                  <p className="font-semibold text-red-800">{f.label}</p>
-                  {f.note && <p className="text-xs text-red-700 mt-0.5">{f.note}</p>}
-                </li>
-              ))}
-            </ul>
-            <p className="mt-3 text-sm text-slate-600">Las bases dicen que una postulación así queda fuera. Si tus datos están mal, corrígelos en Mi empresa; si están bien, te conviene elegir un fondo que sí calce. Iniciar la postulación usa uno de tus 3 cupos.</p>
-            <div className="mt-5 flex flex-col gap-2">
-              <button className="w-full rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 text-sm cursor-pointer" onClick={() => { setFitGate(null); setActiveTab('search-funds'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Ver fondos que calzan conmigo</button>
-              <button className="w-full rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-800 font-bold py-2.5 text-sm cursor-pointer" onClick={() => { setFitGate(null); handleNavigateTab('my-company#company-identity'); }}>Corregir mis datos</button>
-              <button className="w-full text-xs font-semibold text-slate-500 hover:text-slate-700 py-1 cursor-pointer" onClick={() => { const f = fitGate.fund; setFitGate(null); handleSelectFundToFormulate(f, true); }}>Postular igual</button>
+      {startGate && (() => {
+        const g = startGate;
+        const otherRegion = g.region === 'otra_region';
+        const warn = otherRegion || g.fails.length > 0;
+        const close = () => setStartGate(null);
+        return (
+          <div className="fixed inset-0 z-[80] bg-slate-900/60 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="start-gate-title" onClick={close}>
+            <div className="w-full max-w-md max-h-[92vh] overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+              <p className={`text-xs font-black uppercase tracking-wider ${warn ? 'text-rose-600' : 'text-blue-700'}`}>{warn ? 'Antes de postular, revisa esto' : 'Confirma tu nueva postulación'}</p>
+              <h3 id="start-gate-title" className="mt-1 text-lg font-bold text-slate-900">¿Empezamos tu postulación a {g.fund.name}?</h3>
+              <dl className="mt-3 grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 text-sm">
+                <dt className="text-slate-500">Organismo</dt><dd className="font-semibold text-slate-900">{g.fund.agency}</dd>
+                <dt className="text-slate-500">Para</dt><dd className={`font-semibold ${otherRegion ? 'text-rose-700' : 'text-slate-900'}`}>{g.alcance || 'Todo Chile'}{g.region === 'tu_region' ? ' (tu región)' : ''}</dd>
+                {g.cierre && (<><dt className="text-slate-500">Cierre</dt><dd className="font-semibold text-slate-900">{g.cierre}</dd></>)}
+                <dt className="text-slate-500">Financia</dt><dd className="font-semibold text-slate-900">{g.fund.subsidyFormatted}</dd>
+              </dl>
+              {otherRegion && (
+                <div className="mt-3 rounded-xl bg-rose-50 border border-rose-200 p-3 text-sm text-rose-900">
+                  <p className="font-bold">Esta convocatoria es solo para {g.alcance}.</p>
+                  <p className="text-xs mt-0.5">Tu empresa está registrada en {profile.region || 'otra región'}. Las convocatorias regionales exigen ejecutar el proyecto (y normalmente tener domicilio) en esa región.</p>
+                </div>
+              )}
+              {g.fails.length > 0 && (
+                <ul className="mt-3 space-y-2">
+                  {g.fails.map(f => (
+                    <li key={f.label} className="rounded-xl bg-rose-50 border border-rose-200 p-3 text-sm">
+                      <p className="font-semibold text-rose-800">No cumples: {f.label}</p>
+                      {f.note && <p className="text-xs text-rose-700 mt-0.5">{f.note}</p>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className="mt-3 text-xs text-slate-500">Empezar la postulación usa 1 de tus 3 cupos (puedes archivarla después para liberarlo). Te armamos la hoja de ruta con las bases de este fondo.</p>
+              <div className="mt-5 flex flex-col gap-2">
+                {warn ? (
+                  <>
+                    <button className="w-full rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 text-sm cursor-pointer" onClick={() => { close(); setActiveTab(otherRegion ? 'convocatorias' : 'search-funds'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>{otherRegion ? 'Ver convocatorias de mi región' : 'Ver fondos que calzan conmigo'}</button>
+                    <button className="w-full rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-800 font-bold py-2.5 text-sm cursor-pointer" onClick={() => { close(); handleNavigateTab('my-company#company-identity'); }}>Corregir mis datos</button>
+                    <button className="w-full text-xs font-semibold text-slate-500 hover:text-slate-700 py-1 cursor-pointer" onClick={() => { close(); handleSelectFundToFormulate(g.fund, true, { conv: g.conv, subTab: g.subTab }); }}>Postular igual</button>
+                  </>
+                ) : (
+                  <>
+                    <button className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 text-sm cursor-pointer" onClick={() => { close(); handleSelectFundToFormulate(g.fund, true, { conv: g.conv, subTab: g.subTab }); }}>Sí, empezar mi postulación</button>
+                    <button className="w-full rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold py-2.5 text-sm cursor-pointer" onClick={close}>Todavía no</button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* New Application Modal */}
       <NewApplicationModal
@@ -1110,11 +1129,13 @@ export default function App() {
       <ServiceStartModal onOpenTerms={() => openLegalPage('terminos')} />
 
       <WelcomeStartModal
-        open={welcomeOpen && Boolean(currentUser)}
+        open={welcomeOpen && Boolean(currentUser) && activeTab === 'my-applications' && !startGate}
         suggestedFund={suggestedFund}
         onStartWithFund={(fund) => { closeWelcome(); handleSelectFundToFormulate(fund); }}
         onUploadTaxFolder={() => { closeWelcome(); setShowSiiModal(true); }}
-        onBrowseFunds={() => { closeWelcome(); openMonitorToPick(); }}
+        onBrowseFunds={() => { closeWelcome(); setActiveTab('search-funds'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+        onCompleteCompany={() => { closeWelcome(); handleNavigateTab('my-company#company-identity'); }}
+        companyReady={isCompanyReady(profile)}
         onClose={closeWelcome}
       />
 

@@ -265,8 +265,8 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
 
     // If user is already authenticated, go directly to Hoja de Ruta!
     if (activeUser) {
+      // La app confirma la postulación y luego lleva a la hoja de ruta
       onSelectFundToFormulate(target);
-      onNavigateTab('my-application');
       return;
     }
 
@@ -348,10 +348,9 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
 
       // Solo se crea la postulación si el usuario eligió un fondo; si no, se sugiere y él decide
       if (selectedFundForRoadmap) {
-        onSelectFundToFormulate(selectedFundForRoadmap);
-        setTimeout(() => {
-          onNavigateTab('my-application');
-        }, 700);
+        // La app muestra la confirmación del fondo elegido y luego abre su hoja de ruta
+        onNavigateTab('my-applications');
+        setTimeout(() => onSelectFundToFormulate(selectedFundForRoadmap), 400);
       } else {
         const suggested = matchResult?.primaryFund ? CHILEAN_FUNDS.find(f => f.id === matchResult.primaryFund.fundId) || null : null;
         onSuggestFund?.(suggested);
@@ -414,10 +413,9 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
 
       // Solo se crea la postulación si el usuario eligió un fondo; si no, se sugiere y él decide
       if (selectedFundForRoadmap) {
-        onSelectFundToFormulate(selectedFundForRoadmap);
-        setTimeout(() => {
-          onNavigateTab('my-application');
-        }, 700);
+        // La app muestra la confirmación del fondo elegido y luego abre su hoja de ruta
+        onNavigateTab('my-applications');
+        setTimeout(() => onSelectFundToFormulate(selectedFundForRoadmap), 400);
       } else {
         const suggested = matchResult?.primaryFund ? CHILEAN_FUNDS.find(f => f.id === matchResult.primaryFund.fundId) || null : null;
         onSuggestFund?.(suggested);
@@ -497,10 +495,9 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
 
       // Solo se crea la postulación si el usuario eligió un fondo; si no, se sugiere y él decide
       if (selectedFundForRoadmap) {
-        onSelectFundToFormulate(selectedFundForRoadmap);
-        setTimeout(() => {
-          onNavigateTab('my-application');
-        }, 700);
+        // La app muestra la confirmación del fondo elegido y luego abre su hoja de ruta
+        onNavigateTab('my-applications');
+        setTimeout(() => onSelectFundToFormulate(selectedFundForRoadmap), 400);
       } else {
         const suggested = matchResult?.primaryFund ? CHILEAN_FUNDS.find(f => f.id === matchResult.primaryFund.fundId) || null : null;
         onSuggestFund?.(suggested);

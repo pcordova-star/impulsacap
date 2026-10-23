@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { FileSearch, ListChecks, Rocket, ArrowRight, X } from 'lucide-react';
+import { FileSearch, ListChecks, Rocket, ArrowRight, X, Building2 } from 'lucide-react';
 import type { ChileanFund } from '../types/funds';
 
 interface Props {
@@ -8,6 +8,9 @@ interface Props {
   onStartWithFund: (fund: ChileanFund) => void;
   onUploadTaxFolder: () => void;
   onBrowseFunds: () => void;
+  onCompleteCompany: () => void;
+  /** Ya completó los datos de la empresa (nombre, RUT, región) */
+  companyReady?: boolean;
   onClose: () => void;
 }
 
@@ -15,12 +18,14 @@ interface Props {
  * Primera entrada de una cuenta sin postulaciones: el usuario elige por dónde empezar,
  * en vez de crearle una postulación automáticamente.
  */
-export const WelcomeStartModal: React.FC<Props> = ({ open, suggestedFund, onStartWithFund, onUploadTaxFolder, onBrowseFunds, onClose }) => {
+export const WelcomeStartModal: React.FC<Props> = ({ open, suggestedFund, onStartWithFund, onUploadTaxFolder, onBrowseFunds, onCompleteCompany, companyReady, onClose }) => {
   const firstBtnRef = useRef<HTMLButtonElement | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
-    firstBtnRef.current?.focus();
+    // El foco va al diálogo, no a una opción: así un Enter no inicia una postulación sin querer
+    dialogRef.current?.focus();
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -28,14 +33,15 @@ export const WelcomeStartModal: React.FC<Props> = ({ open, suggestedFund, onStar
 
   if (!open) return null;
 
+  // Mismo orden que el consultor: 1) tu empresa, 2) el fondo, 3) la postulación
   const options: { key: string; icon: React.ElementType; title: string; text: string; onClick: () => void; primary?: boolean }[] = [];
-  if (suggestedFund) {
+  if (!companyReady) {
     options.push({
-      key: 'fund',
-      icon: Rocket,
-      title: `Postular a ${suggestedFund.name}`,
-      text: 'Es el fondo que más calza con tus respuestas del diagnóstico. Creamos tu hoja de ruta para ese fondo.',
-      onClick: () => onStartWithFund(suggestedFund),
+      key: 'empresa',
+      icon: Building2,
+      title: 'Empezar por los datos de mi empresa (recomendado)',
+      text: 'Es el paso 1 y se hace una sola vez: con tu región, tipo de empresa y proyecto te mostramos solo los fondos que calzan contigo.',
+      onClick: onCompleteCompany,
       primary: true
     });
   }
@@ -43,21 +49,31 @@ export const WelcomeStartModal: React.FC<Props> = ({ open, suggestedFund, onStar
     key: 'carpeta',
     icon: FileSearch,
     title: 'Subir mi carpeta tributaria',
-    text: 'Gratis y en un minuto: ves a qué fondos calificas, tus ventas mes a mes y qué regularizar antes de postular.',
+    text: 'Gratis y en un minuto: completa tus datos solo y ves a qué fondos calificas, tus ventas mes a mes y qué regularizar antes de postular.',
     onClick: onUploadTaxFolder,
-    primary: !suggestedFund
+    primary: Boolean(companyReady) && !suggestedFund
   });
+  if (suggestedFund) {
+    options.push({
+      key: 'fund',
+      icon: Rocket,
+      title: `Postular a ${suggestedFund.name}`,
+      text: 'Es el fondo que más calzó con tus respuestas del diagnóstico. Antes de crear la postulación te mostramos sus requisitos para que confirmes.',
+      onClick: () => onStartWithFund(suggestedFund),
+      primary: Boolean(companyReady)
+    });
+  }
   options.push({
     key: 'listado',
     icon: ListChecks,
-    title: 'Elegir un fondo del listado',
-    text: 'Revisa los fondos disponibles y elige tú a cuál quieres postular.',
+    title: 'Ver los fondos que calzan conmigo',
+    text: 'Revisa el catálogo con lo que cumples según tus datos y elige tú a cuál postular.',
     onClick: onBrowseFunds
   });
 
   return (
     <div className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center bg-slate-950/50 p-3 sm:p-6">
-      <div role="dialog" aria-modal="true" aria-labelledby="welcome-start-title" className="relative w-full max-w-lg rounded-3xl bg-white shadow-2xl p-6 sm:p-8 space-y-5">
+      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="welcome-start-title" className="outline-none relative w-full max-w-lg rounded-3xl bg-white shadow-2xl p-6 sm:p-8 space-y-5">
         <button type="button" onClick={onClose} aria-label="Cerrar" className="absolute top-4 right-4 p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer">
           <X className="w-5 h-5" />
         </button>
