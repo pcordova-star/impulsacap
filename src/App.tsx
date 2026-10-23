@@ -78,6 +78,18 @@ function legalTabForPath(pathname: string): 'terminos' | 'privacidad' | 'admin' 
   return null;
 }
 
+/** Cuántos datos importantes tiene un perfil (para detectar un perfil vacío que no debe pisar uno lleno) */
+function profileFill(p: any): number {
+  if (!p) return 0;
+  const t = (v: any) => (typeof v === 'string' ? v.trim().length > 0 : Boolean(v));
+  let n = 0;
+  if (t(p.companyName) && p.companyName !== 'Mi Empresa') n++;
+  ['rut', 'region', 'sector', 'representativeName', 'representativeRut', 'representativeEmail', 'representativePhone', 'taxFolderUploaded'].forEach(k => { if (t(p[k])) n++; });
+  const pp = p.projectProfile || {};
+  ['whatItDoes', 'problemAndTarget', 'currentSolutionAndDiff', 'currentProgress', 'teamDetails', 'businessModel', 'fundingPurpose', 'websiteOrSocial'].forEach(k => { if (t(pp[k])) n++; });
+  return n;
+}
+
 /** Combina dos perfiles: gana el valor con dato (texto no vacío, número > 0, true); el de `a` primero. */
 function mergeProfilesPreferFilled(a: any, b: any): any {
   const filled = (v: any) =>
@@ -206,6 +218,9 @@ export default function App() {
   // Track the user ID that owns the currently active in-memory profile
   const activeUserIdRef = useRef<string | undefined>(undefined);
   const profileHydratedRef = useRef<boolean>(false);
+  // Último perfil conocido en la nube (null = no se pudo leer): protege contra subir un perfil vacío encima de uno lleno
+  const remoteProfileRef = useRef<{ ok: boolean; profile: any; updatedAt?: string } | null>(null);
+  const lastProfileSigRef = useRef<string>('');
 
   // Applications & Multi-Fund Management
   const { hasActivePlan: planActive } = usePlan();
@@ -344,16 +359,23 @@ export default function App() {
           // Perfil: primero el del navegador y luego el de Firestore si es más reciente.
           // Hasta tenerlo no se guarda nada, para que un perfil vacío (otro dispositivo) no pise el bueno.
           profileHydratedRef.current = false;
+          remoteProfileRef.current = null;
+          lastProfileSigRef.current = '';
           setProfile(loadActiveProfile(getCleanDefaultProfile(user), user.id));
           const hydratingUid = user.id;
           let mergedFromRemote = false;
           loadCompanyFromFirestore(hydratingUid)
             .then(remote => {
-              if (!remote || activeUserIdRef.current !== hydratingUid) return;
+              if (activeUserIdRef.current !== hydratingUid) return;
+              remoteProfileRef.current = { ok: true, profile: remote?.profile || null, updatedAt: remote?.updatedAt || '' };
+              if (!remote) return;
               const localSavedAt = getProfileSavedAt(hydratingUid);
               const local = loadActiveProfile(getCleanDefaultProfile(user), hydratingUid);
               let merged: CompanyProfile | null = null;
-              if (!localSavedAt) {
+              if (profileFill(local) + 2 < profileFill(remote.profile)) {
+                // El perfil de este navegador está casi vacío y el de la nube no: se completa con la nube
+                merged = mergeProfilesPreferFilled(local, remote.profile);
+              } else if (!localSavedAt) {
                 // Perfil del navegador sin fecha (guardado antes de este cambio): se combina campo por campo,
                 // conservando lo que tenga dato y completando lo vacío con Firestore
                 merged = mergeProfilesPreferFilled(local, remote.profile);
@@ -366,13 +388,25 @@ export default function App() {
                 setProfile(merged);
               }
             })
-            .catch(err => console.warn('No se pudo leer el perfil desde Firestore:', err))
+            .catch(err => {
+              console.warn('No se pudo leer el perfil desde Firestore:', err);
+              if (activeUserIdRef.current === hydratingUid) remoteProfileRef.current = { ok: false, profile: null };
+            })
             .finally(() => {
               if (activeUserIdRef.current !== hydratingUid) return;
               profileHydratedRef.current = true;
               // Si el perfil del navegador es el más reciente (por ejemplo, se editó mientras cargaba),
               // se sube a la nube ahora para no perder esos cambios
-              if (!mergedFromRemote) setProfile(p => ({ ...p }));
+              if (!mergedFromRemote) {
+                const rem = remoteProfileRef.current;
+                const localAt = getProfileSavedAt(hydratingUid);
+                if (rem?.ok && rem.profile && !(localAt && localAt > (rem.updatedAt || ''))) {
+                  // La nube ya tiene lo mismo o algo más nuevo: no se vuelve a subir
+                  setProfile(p => { lastProfileSigRef.current = JSON.stringify(p); return p; });
+                } else {
+                  setProfile(p => ({ ...p }));
+                }
+              }
             });
           setActiveFormulation(loadActiveFormulation(user.id));
           setAuditResult(loadActiveAudit(user.id));
@@ -399,15 +433,31 @@ export default function App() {
   useEffect(() => {
     if (activeUserIdRef.current !== currentUser?.id) return;
     if (currentUser?.id && !profileHydratedRef.current) return;
+    // Sin cambios reales (solo se recargó la página): no se toca nada
+    const sig = JSON.stringify(profile);
+    if (sig === lastProfileSigRef.current) return;
+    lastProfileSigRef.current = sig;
     saveActiveProfile(profile, currentUser?.id);
     if (currentUser?.id) {
+      // La fecha local de guardado la marcan solo las ediciones de la persona (Mi empresa, carpeta),
+      // así una recarga no hace pasar un perfil viejo por "más nuevo" que el de la nube
       const now = new Date().toISOString();
-      setProfileSavedAt(now, currentUser.id);
+      const userEdit = Boolean(saveToastRef.current);
+      const remote = remoteProfileRef.current;
+      // Si no se pudo leer la nube, solo se sube lo que la persona editó (nunca un perfil recién cargado)
+      if (remote && !remote.ok && !userEdit) return;
+      // Nunca se sube un perfil casi vacío encima de uno con datos: se completa con lo que había
+      let toUpload: CompanyProfile = profile;
+      if (remote?.profile && profileFill(profile) + 2 < profileFill(remote.profile)) {
+        console.warn('[perfil] Se evitó reemplazar datos guardados por un perfil vacío');
+        toUpload = mergeProfilesPreferFilled(profile, remote.profile);
+      }
       const t = setTimeout(() => {
         const label = saveToastRef.current;
         saveToastRef.current = null;
-        syncCompanyToFirestore(profile, currentUser.id, now)
+        syncCompanyToFirestore(toUpload, currentUser.id, now)
           .then(() => {
+            if (remoteProfileRef.current) remoteProfileRef.current = { ok: true, profile: toUpload };
             if (label) showToast({ id: 'guardado', level: 'success', silent: true, title: 'Cambios guardados', message: `${label} quedó guardado en tu cuenta.`, durationMs: 3500 });
           })
           .catch(() => {
