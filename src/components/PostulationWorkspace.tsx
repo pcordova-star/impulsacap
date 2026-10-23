@@ -345,6 +345,11 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
               onDeleteGeneratedDoc={onDeleteGeneratedDoc}
               onNavigateTab={routeTab}
               onOpenSiiModal={onOpenSiiModal}
+              fundDocs={progress.steps.find(st => st.id === 'step_documents')?.items}
+              onToggleFundDoc={(id) => {
+                const checks = { ...((application?.roadmapConfirmations as any)?.checks || {}), ...((expediente?.roadmapConfirmations as any)?.checks || {}) };
+                onUpdateRoadmapConfirmations({ checks: { ...checks, [id]: !checks[id] } });
+              }}
               onUpdateValidationCount={(count: number) => {
                 onUpdateProfile({ ...profile, customerValidationCount: count });
               }}

@@ -91,9 +91,10 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
   const [companyName, setCompanyName] = useState(profile.companyName || currentUser?.companyName || '');
   const [rut, setRut] = useState(profile.rut || currentUser?.rut || '');
   const [companyType, setCompanyType] = useState<CompanyType>(profile.companyType || 'spa');
-  const [sector, setSector] = useState(profile.sector || 'Tecnología e Innovación');
+  const [sector, setSector] = useState(profile.sector || '');
   const [region, setRegion] = useState(toOfficialRegion(profile.region) || profile.region || '');
-  const [salesBracket, setSalesBracket] = useState<SalesBracket>(profile.salesBracket || 'sin_ventas');
+  // Sin suponer nada: si no lo indica, queda vacío (antes partía en "Sin ventas" y eso cambiaba qué fondos calzaban)
+  const [salesBracket, setSalesBracket] = useState<SalesBracket | ''>(profile.salesBracket || '');
   const [isFemaleLed, setIsFemaleLed] = useState<boolean>(profile.isFemaleLed || false);
   const [femaleEquityPct, setFemaleEquityPct] = useState<number>(profile.femaleEquityPct || 0);
 
@@ -714,6 +715,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
                 onChange={(e) => setSalesBracket(e.target.value as any)}
                 className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 focus:bg-white focus:border-blue-500 focus:outline-hidden font-medium cursor-pointer"
               >
+                <option value="" disabled>Elige tu tramo de ventas</option>
                 <option value="sin_ventas">Sin Ventas ($0)</option>
                 <option value="menor_60m">Menor a $60.000.000 CLP</option>
                 <option value="micro_200_a_2400uf">Microempresa (200 a 2.400 UF)</option>

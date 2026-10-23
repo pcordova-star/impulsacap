@@ -1,3 +1,4 @@
+import { showToast } from '../utils/toast';
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { ChileanFund, CompanyProfile, FormulationOutput, BlindAuditResult, GeneratedDocument } from '../types/funds';
 import { CHILEAN_FUNDS } from '../data/chileanFunds';
@@ -20,6 +21,18 @@ import {
   loadActiveAudit,
   getCurrentUser
 } from '../utils/storage';
+
+/** Aviso visible (una vez por sesión) si un cambio quedó solo en este equipo */
+function warnCloudSaveFailed() {
+  showToast({
+    id: 'postulacion-sin-nube',
+    oncePerSession: true,
+    level: 'error',
+    title: 'No pudimos guardar en la nube',
+    message: 'Tu avance quedó guardado en este equipo y se subirá solo cuando vuelvas a entrar. Revisa tu conexión.',
+    durationMs: 9000
+  });
+}
 
 export function useApplications(profile: CompanyProfile) {
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(() => auth.currentUser);
@@ -125,6 +138,30 @@ export function useApplications(profile: CompanyProfile) {
           firestoreApps.push(d.data() as ApplicationItem);
         });
 
+        // Lo que quedó solo en este navegador (por ejemplo, si un guardado en la nube falló) no se pierde:
+        // se conserva la versión más reciente de cada postulación y se vuelve a subir.
+        try {
+          const rawLocal = localStorage.getItem(`impulsacap_applications_${effectiveUid}`);
+          const localApps: ApplicationItem[] = rawLocal ? JSON.parse(rawLocal) : [];
+          const byId = new Map(firestoreApps.map(a => [a.id, a]));
+          const toPush: ApplicationItem[] = [];
+          for (const la of localApps) {
+            if (!la?.id || (la.ownerId && la.ownerId !== effectiveUid)) continue;
+            const ra = byId.get(la.id);
+            if (!ra || String(la.updatedAt || '') > String(ra.updatedAt || '')) {
+              byId.set(la.id, la);
+              toPush.push(la);
+            }
+          }
+          if (toPush.length) {
+            firestoreApps = Array.from(byId.values());
+            toPush.forEach(a => setDoc(doc(db, 'applications', a.id), { ...a, ownerId: effectiveUid }, { merge: true })
+              .catch(e => console.warn('No se pudo subir una postulación guardada localmente:', e)));
+          }
+        } catch (e) {
+          console.warn('No se pudo combinar las postulaciones locales:', e);
+        }
+
         // Requirement 3: Data Migration if no applications exist but user has old saved formulation/audit
         // Solo se migra si había trabajo anterior guardado; una cuenta nueva parte sin postulaciones
         const oldFormulationCheck = firestoreApps.length === 0 ? loadActiveFormulation(effectiveUid) : null;
@@ -207,7 +244,9 @@ export function useApplications(profile: CompanyProfile) {
     });
 
     return () => unsubscribe();
-  }, [profile.taxFolderUploaded, persistLocal]);
+  // Solo al cambiar de usuario (antes también al subir la carpeta, y eso recargaba y borraba cambios locales)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [persistLocal]);
 
   // Derived application collections
   const activeApplications = useMemo(() => {
@@ -261,6 +300,7 @@ export function useApplications(profile: CompanyProfile) {
         await setDoc(doc(db, 'applications', updatedWithDate.id), updatedWithDate, { merge: true });
       } catch (err) {
         console.warn('Could not sync application to Firestore:', err);
+        warnCloudSaveFailed();
       }
     }
   }, [currentUser, persistLocal]);
@@ -421,6 +461,7 @@ export function useApplications(profile: CompanyProfile) {
         }, { merge: true });
       } catch (err) {
         console.warn('Could not sync application patch to Firestore:', err);
+        warnCloudSaveFailed();
         return false;
       }
     }

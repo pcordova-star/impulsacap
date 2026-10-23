@@ -1027,7 +1027,7 @@ export function computeRoadmap(input: RoadmapInput): { steps: RoadmapStep[]; com
     if (d.link === 'formulator') {
       const blocksDone = r.formSections.every(s => s.blocks.every(b => blockStatus(b, formulation).done));
       const ok = blocksDone || confirmed;
-      return { id, label: d.label, done: ok, confirmable: !blocksDone, detail: ok ? (blocksDone ? 'Contenido redactado en el formulador' : 'Confirmado por ti') : d.detail || 'Se arma en el paso 3', go: { label: 'Ir al formulador', target: 'formulator#section:next' } };
+      return { id, label: d.label, done: ok, confirmable: !blocksDone, detail: ok ? (blocksDone ? 'Contenido redactado en el formulador' : 'Confirmado por ti') : d.detail || 'Se arma en el formulario (paso 2)', go: { label: 'Ir al formulador', target: 'formulator#section:next' } };
     }
     if (d.link === 'pitch') {
       const scriptDone = blockStatus('title_pitch', formulation).done;

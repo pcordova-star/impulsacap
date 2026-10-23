@@ -283,11 +283,12 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
   const projectPct = calculateProjectProfileCompletion(profile.projectProfile);
   const firstName = (profile.representativeName || currentUser?.representativeName || auth.currentUser?.displayName || '').trim().split(/\s+/)[0] || '';
   const freeSlots = Math.max(0, 3 - activeApplications.length);
-  const fmtDate = (iso?: string | null) => iso ? new Date(iso).toLocaleDateString('es-CL', { day: 'numeric', month: 'long' }) : '';
+  const fmtDate = (iso?: string | null) => iso ? new Date(iso).toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
 
   // Convocatorias sugeridas: abiertas, de tu región, sin postulación, y que sean fondos (no créditos ni garantías)
   const suggestedCalls = useMemo(() => {
-    const NOT_GRANT = /(garant[ií]a|cr[eé]dito|cobertura|certificaci[oó]n|fogain|fogape|cobex|reprogramaci|seguro|pr[eé]stamo)/i;
+    // Fuera: créditos y garantías, y concursos que no son para empresas (administradoras de fondos, patrocinadores, entidades)
+    const NOT_GRANT = /(garant[ií]a|cr[eé]dito|cobertura|certificaci[oó]n|fogain|fogape|cobex|reprogramaci|seguro|pr[eé]stamo|administradora|patrocinador|entidad(es)? gestora|operador|agente operador|becas?)/i;
     return newCallAlerts.length >= 0
       ? convocatorias
           .filter(c => c.vigente && !NOT_GRANT.test(c.titulo || '') && !dismissedAlerts.includes(`new_call_${c.id}`))

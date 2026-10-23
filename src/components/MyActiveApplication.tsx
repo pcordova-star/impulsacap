@@ -211,8 +211,9 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
   }, [selectedFund.closeDate]);
 
   // Use the verified company name from session or profile, never a stale placeholder
-  const activeCompanyName = currentUser?.companyName?.trim() || profile.companyName?.trim() || 'Sin completar';
-  const activeRut = currentUser?.rut?.trim() || profile.rut?.trim() || '';
+  // Lo que la empresa guardó en "Mi empresa" manda (los datos de la cuenta son solo el valor del registro)
+  const activeCompanyName = (profile.companyName?.trim() && profile.companyName !== 'Mi Empresa' ? profile.companyName.trim() : '') || currentUser?.companyName?.trim() || 'Sin completar';
+  const activeRut = profile.rut?.trim() || currentUser?.rut?.trim() || '';
 
   const isRutValid = validateRut(activeRut);
   const hasTaxFolder = expediente ? Boolean(expediente.taxFolder.taxFolderUploaded) : Boolean(profile.taxFolderUploaded);

@@ -429,6 +429,17 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  // El nombre que se muestra en la barra y la bóveda sigue al de "Mi empresa"
+  useEffect(() => {
+    const name = profile.companyName?.trim();
+    if (!currentUser || !name || name === 'Mi Empresa' || name === currentUser.companyName) return;
+    if (activeUserIdRef.current !== currentUser.id || !profileHydratedRef.current) return;
+    const next = { ...currentUser, companyName: name };
+    setCurrentUser(next);
+    try { localStorage.setItem(`impulsacap_user_meta_${next.id}`, JSON.stringify(next)); } catch { /* sin almacenamiento */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile.companyName, currentUser?.id]);
+
   // Auto-save changes strictly under current user scope (solo después de cargar el perfil de Firestore)
   useEffect(() => {
     if (activeUserIdRef.current !== currentUser?.id) return;
@@ -692,6 +703,13 @@ export default function App() {
 
   // Generalized tab navigation mapper
   const handleNavigateTab = (rawTab: string) => {
+    if (rawTab === 'defer-carpeta') {
+      saveToastRef.current = 'Tu elección';
+      setProfile(p => ({ ...p, taxFolderDeferred: true }));
+      if (currentUser?.id) setProfileSavedAt(new Date().toISOString(), currentUser.id);
+      return;
+    }
+    if (rawTab === 'sii') { setShowSiiModal(true); return; }
     const { base: tab, target } = splitTarget(rawTab);
     if (tab !== 'my-company' && tab !== 'profile') setReturnContext(null);
     if (tab === 'catalog') {

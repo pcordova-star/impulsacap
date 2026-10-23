@@ -94,9 +94,10 @@ export function computeJourney(input: {
     {
       id: 'carpeta', phase: 'empresa', phaseLabel: 'Prepara tu empresa · paso 3 de 3',
       title: 'Sube tu carpeta tributaria',
-      why: 'Con ella comprobamos tus ventas, antigüedad e inicio de actividades contra los requisitos de cada fondo. Se descarga gratis en sii.cl.',
-      done: Boolean(profile.taxFolderUploaded) || isPerson,
-      action: { label: 'Subir carpeta tributaria', target: 'sii' }
+      why: 'Con ella comprobamos tus ventas, antigüedad e inicio de actividades contra los requisitos de cada fondo. Se descarga gratis en sii.cl. Si no la tienes ahora puedes seguir: te la pediremos en los requisitos del fondo que la exija.',
+      done: Boolean(profile.taxFolderUploaded) || isPerson || Boolean(profile.taxFolderDeferred),
+      action: { label: 'Subir carpeta tributaria', target: 'sii' },
+      alt: { label: 'No la tengo ahora: seguir y subirla después', target: 'defer-carpeta' }
     },
     {
       id: 'fondo', phase: 'fondo', phaseLabel: 'Elige tu fondo',

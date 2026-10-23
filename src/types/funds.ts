@@ -198,6 +198,8 @@ export interface CompanyProfile {
   coreTech: string;
   customerValidationCount: number;
   taxFolderUploaded?: boolean;
+  /** Eligió seguir sin carpeta tributaria por ahora (se le pedirá si el fondo la exige) */
+  taxFolderDeferred?: boolean;
   taxFolderFileName?: string;
   taxFolderUploadDate?: string;
   taxFolderSummary?: string;

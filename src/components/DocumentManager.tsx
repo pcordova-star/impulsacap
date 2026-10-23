@@ -43,6 +43,9 @@ interface DocumentManagerProps {
   onNavigateTab?: (tab: string) => void;
   onOpenSiiModal?: () => void;
   onUpdateValidationCount?: (count: number) => void;
+  /** Documentos que piden las bases del fondo (paso 4 de la hoja de ruta) */
+  fundDocs?: { id: string; label: string; done: boolean; detail?: string; confirmable?: boolean; go?: { label: string; target: string } }[];
+  onToggleFundDoc?: (id: string) => void;
 }
 
 export const DocumentManager: React.FC<DocumentManagerProps> = ({ 
@@ -57,7 +60,9 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
   onDeleteGeneratedDoc,
   onNavigateTab,
   onOpenSiiModal,
-  onUpdateValidationCount
+  onUpdateValidationCount,
+  fundDocs,
+  onToggleFundDoc
 }) => {
   // Requirement 2: Eliminados valores true por defecto. estatuto_res parte en false.
   // f29_sii solo es true si la carpeta tributaria fue acreditada.
@@ -390,8 +395,9 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
     URL.revokeObjectURL(url);
   };
 
-  const completedCount = Object.values(docStatuses).filter(Boolean).length;
-  const totalDocs = REQUIRED_DOCUMENTS_GUIDE.length;
+  // El avance es el de los documentos que pide ESTE fondo (el mismo del paso 4 de la hoja de ruta)
+  const completedCount = fundDocs ? fundDocs.filter(d => d.done).length : Object.values(docStatuses).filter(Boolean).length;
+  const totalDocs = Math.max(1, fundDocs ? fundDocs.length : REQUIRED_DOCUMENTS_GUIDE.length);
 
   return (
     <div className="space-y-8 animate-fade-in max-w-5xl mx-auto">
@@ -429,10 +435,12 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
               Gestión de Admisibilidad Legal & Documental
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-white">
-              Tramitación de Certificados y Generador Legal con IA
+              {activeFund ? `Documentos y anexos para ${activeFund.name}` : 'Tramitación de Certificados y Generador Legal con IA'}
             </h2>
             <p className="text-xs text-slate-400 mt-0.5 max-w-2xl">
-              Más del 30% de los proyectos en Chile son rechazados por errores en la carpeta tributaria o estatutos. Supera el examen de admisibilidad y genera cartas de interés comercial en segundos.
+              {fundDocs
+                ? 'Esto es lo que las bases piden entregar junto al formulario. Marca cada documento cuando lo tengas; las cartas puedes redactarlas aquí mismo con IA.'
+                : 'Más del 30% de los proyectos en Chile son rechazados por errores en la carpeta tributaria o estatutos. Supera el examen de admisibilidad y genera cartas de interés comercial en segundos.'}
             </p>
           </div>
 
@@ -450,6 +458,36 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
           </div>
         </div>
       </div>
+
+
+      {fundDocs && fundDocs.length > 0 && (
+        <div className="p-5 sm:p-6 rounded-2xl bg-slate-900 border border-emerald-500/30 space-y-3">
+          <div>
+            <h3 className="text-base font-bold text-white">Lo que piden las bases de {activeFund?.name || 'este fondo'}</h3>
+            <p className="text-xs text-slate-400">Es el paso 4 de tu hoja de ruta. Cuando todos estén listos, el paso queda completo.</p>
+          </div>
+          <ul className="space-y-2">
+            {fundDocs.map(d => (
+              <li key={d.id} className={`p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${d.done ? 'bg-emerald-950/30 border-emerald-500/30' : 'bg-slate-950 border-slate-800'}`}>
+                <div className="min-w-0">
+                  <p className={`text-sm font-semibold ${d.done ? 'text-emerald-300' : 'text-white'}`}>{d.done ? '✓ ' : ''}{d.label}</p>
+                  {d.detail && <p className="text-[11px] text-slate-400 mt-0.5">{d.detail}</p>}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {d.go && !d.done && onNavigateTab && (
+                    <button type="button" onClick={() => onNavigateTab(d.go!.target)} className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-bold cursor-pointer">{d.go.label}</button>
+                  )}
+                  {d.confirmable && onToggleFundDoc && (
+                    <button type="button" onClick={() => onToggleFundDoc(d.id)} className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer border ${d.done ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-600'}`}>
+                      {d.done ? 'Listo (desmarcar)' : 'Ya lo tengo'}
+                    </button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* SECTION 1: AI Legal Document Generator Form */}
       <div id="doc-generator" className="scroll-mt-40 p-6 rounded-2xl bg-gradient-to-br from-slate-900 to-blue-950/40 border border-slate-800 space-y-6">
@@ -492,7 +530,10 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
             <label className="block text-xs font-semibold text-slate-300 mb-1.5">
               Fondo Concursable Destino: <span className="text-red-400">*</span>
             </label>
-            <select
+{activeFund ? (
+              <p className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs">{activeFund.agency} • {activeFund.name}</p>
+            ) : (
+                        <select
               value={fundTarget}
               onChange={(e) => setFundTarget(e.target.value)}
               className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:border-cyan-500 focus:outline-hidden"
@@ -503,6 +544,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
                 </option>
               ))}
             </select>
+            )}
           </div>
 
           <div>
@@ -901,7 +943,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
         <div className="flex items-center justify-between">
           <h3 className="text-base font-bold text-white flex items-center gap-2">
             <Building className="w-4 h-4 text-emerald-400" />
-            <span>Guía de Certificados Oficiales del Estado</span>
+            <span>{fundDocs ? 'Certificados que suelen pedir los fondos (referencia)' : 'Guía de Certificados Oficiales del Estado'}</span>
           </h3>
           <span className="text-xs text-slate-400">
             Requisitos habilitantes de admisibilidad

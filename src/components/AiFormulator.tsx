@@ -907,7 +907,8 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
           </p>
         </div>
 
-        {/* Change Fund Selector */}
+        {/* Dentro de una postulación el fondo es fijo (cambiar de fondo = otra postulación) */}
+        {!expediente && (
         <div className="w-full md:w-auto flex items-center gap-2">
           <select
             value={currentFund.id}
@@ -927,6 +928,7 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
             ))}
           </select>
         </div>
+        )}
       </div>
 
       {/* Paywall Banner if triggered */}
