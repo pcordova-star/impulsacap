@@ -129,6 +129,13 @@ export const HelpBot: React.FC<HelpBotProps> = ({ currentUser, onNavigateTab, on
     }
   };
 
+  // Cualquier botón "Soporte" de la app abre directo el formulario para hablar con una persona
+  useEffect(() => {
+    const onOpen = () => { setIsOpen(true); setTicketError(null); setView('ticket'); };
+    window.addEventListener('impulsacap:soporte', onOpen);
+    return () => window.removeEventListener('impulsacap:soporte', onOpen);
+  }, []);
+
   const openTicket = () => {
     const lastUserMsg = [...messages].reverse().find(m => m.sender === 'user')?.text || '';
     if (!ticketMessage) setTicketMessage(lastUserMsg);
@@ -195,14 +202,14 @@ export const HelpBot: React.FC<HelpBotProps> = ({ currentUser, onNavigateTab, on
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          title="Ayuda"
-          aria-label="Abrir ayuda"
+          title="Ayuda y soporte"
+          aria-label="Abrir ayuda y soporte"
           className="fixed bottom-20 md:bottom-6 right-3.5 sm:right-6 z-40 flex items-center justify-center gap-2 p-3 sm:px-3.5 sm:py-2.5 rounded-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xl shadow-slate-900/30 active:scale-95 transition-all cursor-pointer border border-slate-700/80 group"
         >
           <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-blue-600/30 flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform shrink-0">
             <Bot className="w-4 h-4" />
           </div>
-          <span className="hidden sm:inline tracking-tight text-xs font-semibold">Ayuda</span>
+          <span className="tracking-tight text-xs font-semibold"><span className="sm:hidden">Ayuda</span><span className="hidden sm:inline">Ayuda y soporte</span></span>
         </button>
       )}
 

@@ -4,6 +4,7 @@ import { flowConfig, flowCreatePayment, flowGetStatus } from './server/flow';
 import { collectNews, listRecipients, recipientsFitting, digestEmail, alertEmail, unsubUrl, unsubToken, NEWS_TYPES, type DigestItem, type ClosingCall } from './server/news';
 import { getFundIntro } from './src/data/fundIntros';
 import { regionFit } from './src/utils/region';
+import { isSemillaInicia } from './src/data/semillaWinners';
 import { initializeApp as initAdminApp, getApps as getAdminApps } from 'firebase-admin/app';
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import { getFirestore as getAdminFirestore, FieldValue } from 'firebase-admin/firestore';
@@ -1175,7 +1176,8 @@ function fundRulesForPrompt(fundIn: any): string {
 - Cómo se evalúa (${r.evaluation.scale}): ${r.evaluation.rule}
 - Criterios de evaluación y ponderaciones:
 ${crit}
-- Cuentas del presupuesto: ${r.budget.map(b => b.account + (b.cap ? ` (${b.cap})` : '')).join('; ')}`;
+- Cuentas del presupuesto: ${r.budget.map(b => b.account + (b.cap ? ` (${b.cap})` : '')).join('; ')}${isSemillaInicia(fund) ? `
+- Patrones observados en ganadores públicos de Semilla Inicia 2020-2025 (úsalos como criterio, sin copiar proyectos): la idea se entiende en una línea (problema concreto + solución); en regiones destacan el vínculo con un recurso o problema local; la tecnología aparece aplicada a un problema real; la sustentabilidad y la economía circular suman cuando se respaldan con datos.` : ''}`;
 }
 
 app.post('/api/gemini/formulate', requireAuth, requireActivePlan, guardAi('formulate'), async (req, res) => {

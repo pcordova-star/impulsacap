@@ -1,4 +1,6 @@
 import { TeamCvImport } from './ProfileAutofill';
+import { SimilarWinners } from './SimilarWinners';
+import { isSemillaInicia } from '../data/semillaWinners';
 import React, { useState, useEffect, useMemo } from 'react';
 import { consume, onRequest } from '../utils/navFocus';
 import { BudgetWizard } from './BudgetWizard';
@@ -1101,6 +1103,10 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
           /* SECTIONS 1 TO 7: QUESTIONS & AI GENERATION */
           <div className="space-y-6">
             
+            {currentSection.id === 'title_pitch' && isSemillaInicia(currentFund) && (
+              <SimilarWinners profile={profile} compact />
+            )}
+
             <SectionHelper
               key={`${currentSection.id}-${currentFund.id}`}
               sectionId={currentSection.id}

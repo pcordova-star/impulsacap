@@ -1230,6 +1230,9 @@ export default function App() {
             <span>— Plataforma Inteligente para Fondos Concursables en Chile</span>
           </div>
           <nav aria-label="Información legal" className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 font-medium">
+            <button type="button" onClick={() => window.dispatchEvent(new Event('impulsacap:soporte'))} className="hover:text-slate-900 underline-offset-2 hover:underline cursor-pointer font-semibold">
+              Soporte
+            </button>
             <button type="button" onClick={() => openLegalPage('terminos')} className="hover:text-slate-900 underline-offset-2 hover:underline cursor-pointer">
               Términos y Condiciones
             </button>

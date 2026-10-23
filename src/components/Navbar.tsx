@@ -7,7 +7,8 @@ import {
   Layers,
   Search,
   UserPlus,
-  Newspaper
+  Newspaper,
+  LifeBuoy
 } from 'lucide-react';
 
 import { ImpulsaCapLogo } from './ImpulsaCapLogo';
@@ -105,6 +106,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </button>
 
                   <button
+                    onClick={() => window.dispatchEvent(new Event('impulsacap:soporte'))}
+                    aria-label="Soporte: hablar con una persona"
+                    title="Soporte: hablar con una persona"
+                    className="px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                  >
+                    <LifeBuoy className="w-4 h-4 text-slate-500" />
+                    <span className="hidden lg:inline">Soporte</span>
+                  </button>
+
+                  <button
                     onClick={() => setActiveTab('my-company')}
                     className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
                       activeTab === 'my-company'
@@ -153,6 +164,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                   >
                     <Newspaper className="w-4 h-4 text-rose-500" />
                     <span>Novedades</span>
+                  </button>
+
+                  <button
+                    onClick={() => window.dispatchEvent(new Event('impulsacap:soporte'))}
+                    aria-label="Soporte: hablar con una persona"
+                    title="Soporte: hablar con una persona"
+                    className="px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                  >
+                    <LifeBuoy className="w-4 h-4 text-slate-500" />
+                    <span className="hidden lg:inline">Soporte</span>
                   </button>
                 </>
               )}
