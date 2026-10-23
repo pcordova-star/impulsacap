@@ -554,9 +554,15 @@ export default function App() {
   };
 
   const handleAuthSuccess = async (user: CompanyUser) => {
+    // Si la sesión ya se cargó (el inicio de sesión la detecta solo), no se reemplaza el perfil:
+    // así un perfil vacío de este navegador no pisa los datos traídos de la nube
+    const alreadyLoaded = activeUserIdRef.current === user.id;
     activeUserIdRef.current = user.id;
     setCurrentUser(user);
-    setProfile(loadActiveProfile(getCleanDefaultProfile(user), user.id));
+    if (!alreadyLoaded) {
+      profileHydratedRef.current = false; // se guarda en la nube recién cuando llegue el perfil de Firestore
+      setProfile(loadActiveProfile(getCleanDefaultProfile(user), user.id));
+    }
     setActiveFormulation(loadActiveFormulation(user.id));
     setAuditResult(loadActiveAudit(user.id));
     setShowAuthModal(false);

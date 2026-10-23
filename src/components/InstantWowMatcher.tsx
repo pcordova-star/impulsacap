@@ -5,6 +5,17 @@ import { CHILEAN_FUNDS } from '../data/chileanFunds';
 import { rankCatalogFunds } from '../utils/fundRanking';
 
 const REGIONES = ['Arica y Parinacota', 'Tarapacá', 'Antofagasta', 'Atacama', 'Coquimbo', 'Valparaíso', 'Metropolitana', "O'Higgins", 'Maule', 'Ñuble', 'Biobío', 'Araucanía', 'Los Ríos', 'Los Lagos', 'Aysén', 'Magallanes'];
+
+/** Completa solo los campos vacíos de `base` con `extra` (no reemplaza datos ya guardados) */
+function fillEmpty<T extends Record<string, any>>(base: T, extra: Partial<T>): T {
+  const out: any = { ...base };
+  for (const [k, v] of Object.entries(extra || {})) {
+    const cur = out[k];
+    const empty = cur === undefined || cur === null || cur === '' || (typeof cur === 'number' && cur === 0) || cur === false;
+    if (empty && v !== undefined && v !== '') out[k] = v;
+  }
+  return out;
+}
 import { 
   Sparkles, 
   ArrowRight, 
@@ -357,6 +368,12 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
         onNavigateTab('my-applications');
       }
     } catch (err: any) {
+      if (err?.code === 'auth/email-already-in-use') {
+        setAuthTab('login');
+        setAuthError(null);
+        setAuthSuccess('Ya tienes una cuenta con este correo. Ingresa tu contraseña para iniciar sesión: tus datos siguen guardados.');
+        return;
+      }
       setAuthError(getFirebaseAuthErrorMessage(err));
     } finally {
       setIsSubmittingAuth(false);
@@ -405,10 +422,9 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
       setActiveUser(companyUser);
       setAuthSuccess(`¡Bienvenido, ${companyUser.companyName}!`);
 
-      const cleanProf = getCleanDefaultProfile(companyUser);
+      // Cuenta existente: sus datos guardados mandan; las respuestas del diagnóstico solo completan lo vacío
       const built = buildProfileFromAnswers();
-      const mergedProf = { ...cleanProf, ...built };
-      setProfile(mergedProf);
+      setProfile(prev => fillEmpty(prev, built));
       onAuthSuccess?.(companyUser);
 
       // Solo se crea la postulación si el usuario eligió un fondo; si no, se sugiere y él decide
@@ -488,9 +504,8 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
       setActiveUser(companyUser);
       setAuthSuccess(`¡Listo, entraste con Google!`);
 
-      const cleanProf = getCleanDefaultProfile(companyUser);
-      const mergedProf = { ...cleanProf, ...built };
-      setProfile(mergedProf);
+      // Si la cuenta ya existía, sus datos guardados mandan; el diagnóstico solo completa lo vacío
+      setProfile(prev => fillEmpty(prev, built));
       onAuthSuccess?.(companyUser);
 
       // Solo se crea la postulación si el usuario eligió un fondo; si no, se sugiere y él decide

@@ -195,7 +195,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         onClose();
       }, 600);
     } catch (err: any) {
-      setErrorMsg(getFirebaseAuthErrorMessage(err));
+      if (err?.code === 'auth/email-already-in-use') {
+        // Ya tiene cuenta: lo llevamos a iniciar sesión con su correo (sus datos siguen intactos)
+        setLoginEmail(regEmail.trim().toLowerCase());
+        setMode('login');
+        setErrorMsg(null);
+        setSuccessMsg('Ya tienes una cuenta con este correo. Inicia sesión con tu contraseña: tus datos siguen guardados.');
+      } else {
+        setErrorMsg(getFirebaseAuthErrorMessage(err));
+      }
     } finally {
       setIsSubmitting(false);
     }
