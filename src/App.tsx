@@ -20,6 +20,7 @@ import { WelcomeStartModal } from './components/WelcomeStartModal';
 import { ToastCenter } from './components/ToastCenter';
 import { EarlyAccessModal } from './components/EarlyAccessModal';
 import { AdminDashboard } from './components/AdminDashboard';
+import { NewsView } from './components/NewsView';
 import { SellerPanel } from './components/SellerPanel';
 import { showToast } from './utils/toast';
 import { splitTarget, goToTarget, setReturnContext } from './utils/navFocus';
@@ -788,6 +789,7 @@ export default function App() {
 
         {/* Panel de administración (solo correos autorizados en el servidor) */}
         {activeTab === 'admin' && <AdminDashboard />}
+        {activeTab === 'novedades' && <NewsView loggedIn={Boolean(currentUser)} onOpenAuth={() => { setAuthModalMode('register'); setShowAuthModal(true); }} />}
         {activeTab === 'vendedor' && <SellerPanel />}
 
         {/* Páginas legales */}

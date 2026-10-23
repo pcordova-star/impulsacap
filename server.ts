@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
 import { flowConfig, flowCreatePayment, flowGetStatus } from './server/flow';
+import { collectNews, listRecipients, recipientsFitting, digestEmail, alertEmail, unsubUrl, unsubToken, NEWS_TYPES, type DigestItem, type ClosingCall } from './server/news';
+import { getFundIntro } from './src/data/fundIntros';
 import { initializeApp as initAdminApp, getApps as getAdminApps } from 'firebase-admin/app';
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import { getFirestore as getAdminFirestore, FieldValue } from 'firebase-admin/firestore';
@@ -37,6 +39,7 @@ import {
   setEmailEventSink,
   getAdminEmail,
   isEmailConfigured,
+  formatDateCL,
   welcomeEmail,
   purchaseEmail,
   adminSaleEmail,
@@ -2601,6 +2604,7 @@ app.post('/api/admin/convocatorias/import', async (req, res) => {
     const now = new Date().toISOString();
     const incomingIds = new Set<string>();
     let upsertCount = 0;
+    const newlyOpened: OpenedCall[] = [];
 
     // Procesar en lotes de Firestore (batch max 400 operaciones)
     const batches = [];
@@ -2621,6 +2625,10 @@ app.post('/api/admin/convocatorias/import', async (req, res) => {
 
       const firstSeenAt = existingData?.firstSeenAt || now;
       const fundId = item.fundId || matchConvocatoriaToFundId(item.titulo, item.url);
+      // Convocatoria que recién aparece (o que vuelve a abrir): genera novedad y alertas
+      if (!existingData || existingData.vigente === false) {
+        newlyOpened.push({ id, titulo: String(item.titulo || '').trim(), url: String(item.url || 'https://www.corfo.gob.cl').trim(), cierre: item.cierre || null, fundId: fundId || null, resumen: item.resumen || item.beneficioResumen || null, alcance: String(item.alcance || 'Todo Chile').trim() });
+      }
 
       const record = {
         id,
@@ -2690,8 +2698,17 @@ app.post('/api/admin/convocatorias/import', async (req, res) => {
       updatedAt: now
     }, { merge: true });
 
+    // Novedad automática y alertas a empresas que calzan (no hace fallar la sincronización)
+    let alertas: any = null;
+    try {
+      alertas = await announceOpenedCalls(newlyOpened, req);
+    } catch (e: any) {
+      console.error('[novedades] Error al anunciar convocatorias nuevas:', e?.message);
+    }
+
     return res.json({
       success: true,
+      alertas,
       message: `Sincronización exitosa: ${upsertCount} convocatorias procesadas, ${markedNotVigente} marcadas como no vigentes.`,
       totalImported: upsertCount,
       markedNotVigente,
@@ -2700,6 +2717,251 @@ app.post('/api/admin/convocatorias/import', async (req, res) => {
   } catch (err: any) {
     console.error('Error in /api/admin/convocatorias/import:', err?.message);
     return res.status(500).json({ error: 'Error al importar convocatorias: ' + err?.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// NOVEDADES: noticias de fondos, boletín semanal y alertas de convocatorias nuevas
+// ---------------------------------------------------------------------------
+type OpenedCall = { id: string; titulo: string; url: string; cierre: string | null; fundId: string | null; resumen: string | null; alcance: string };
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+async function generateNewsJson(prompt: string): Promise<string> {
+  const r: any = await ai.models.generateContent({
+    model: MODEL_NAME,
+    contents: prompt,
+    config: { responseMimeType: 'application/json', temperature: 0.2 }
+  });
+  return String(r?.text || '');
+}
+
+/** Convocatorias recién abiertas: se publican como novedad y se avisa a las empresas que calzan */
+async function announceOpenedCalls(opened: OpenedCall[], req: express.Request) {
+  if (!opened.length) return { nuevas: 0, alertas: 0 };
+  const appUrl = publicAppUrl(req);
+  const now = new Date().toISOString();
+  const batch = adminDb.batch();
+  for (const c of opened) {
+    batch.set(adminDb.collection('news_items').doc(`conv_${c.id}`.slice(0, 120)), {
+      url: c.url, originalTitle: c.titulo, snippet: '', sourceId: 'monitor', sourceName: 'Corfo', outlet: null, kind: 'oficial',
+      publishedAt: now, fetchedAt: now,
+      status: 'aprobada', approvedAt: now, digestSentAt: null, aiReviewed: false,
+      title: `Abrió: ${c.titulo}`.slice(0, 140),
+      summary: [c.resumen, c.cierre ? `Cierra el ${c.cierre}.` : null, c.alcance && c.alcance !== 'Todo Chile' ? `Alcance: ${c.alcance}.` : null].filter(Boolean).join(' ').slice(0, 600) || 'Nueva convocatoria abierta en Corfo.',
+      type: 'apertura', audience: '', fundIds: c.fundId ? [c.fundId] : [], importance: 3
+    }, { merge: true });
+  }
+  await batch.commit();
+
+  // Más de 15 aperturas en una sola corrida suele ser una carga inicial o un cambio del sitio: no se alerta en masa
+  if (opened.length > 15) {
+    console.warn(`[novedades] ${opened.length} convocatorias nuevas en una corrida: se publican sin alertas por correo`);
+    return { nuevas: opened.length, alertas: 0, omitidas: 'carga masiva' };
+  }
+  if (!isEmailConfigured()) return { nuevas: opened.length, alertas: 0 };
+  const recipients = await listRecipients(adminDb);
+  let sent = 0;
+  for (const c of opened) {
+    if (!c.fundId) continue;
+    const { fund, list } = recipientsFitting(recipients, c.fundId);
+    if (!fund) continue;
+    for (const r of list) {
+      const mail = alertEmail({
+        firstName: r.firstName, companyName: r.companyName, fundName: fund.name, titulo: c.titulo, cierre: c.cierre,
+        url: c.url, appUrl, unsubscribeUrl: unsubUrl(appUrl, r.uid), fundSummary: getFundIntro(fund).hook
+      });
+      if (await sendEmail({ to: r.email, ...mail, idempotencyKey: `alerta-${c.id}-${r.uid}` })) sent++;
+      await sleep(550);
+    }
+  }
+  console.log(`[novedades] ${opened.length} convocatorias nuevas, ${sent} alertas enviadas`);
+  return { nuevas: opened.length, alertas: sent };
+}
+
+async function runNewsCollect() {
+  if (!(await ensureFirestoreAdmin())) return { status: 503, body: { error: 'Firestore Admin no está autorizado.' } };
+  try {
+    const summary = await collectNews({ db: adminDb, generate: generateNewsJson });
+    console.log('[novedades] Recolección:', JSON.stringify(summary));
+    return { status: 200, body: { ok: true, ...summary } };
+  } catch (e: any) {
+    console.error('[novedades] Error en la recolección:', e?.message);
+    return { status: 500, body: { error: 'Error al recolectar novedades' } };
+  }
+}
+
+function chileWeekKey(d = new Date()) {
+  const cl = new Date(d.getTime() - 3 * 3600e3);
+  const day = (cl.getUTCDay() + 6) % 7; // lunes = 0
+  const monday = new Date(Date.UTC(cl.getUTCFullYear(), cl.getUTCMonth(), cl.getUTCDate() - day));
+  return monday.toISOString().slice(0, 10);
+}
+
+async function buildDigestContent() {
+  const since = new Date(Date.now() - 14 * 864e5).toISOString();
+  const snap = await adminDb.collection('news_items').where('status', '==', 'aprobada').get();
+  const docs = snap.docs.filter(d => !d.data().digestSentAt && String(d.data().approvedAt || '') >= since);
+  const items: DigestItem[] = docs.map(d => {
+    const x = d.data();
+    return { title: x.title, summary: x.summary, type: x.type, audience: x.audience, url: x.url, sourceName: x.sourceName, outlet: x.outlet, importance: Number(x.importance) || 1 };
+  }).slice(0, 12);
+  const closing: ClosingCall[] = [];
+  try {
+    const conv = await adminDb.collection('convocatorias').where('vigente', '==', true).get();
+    const today = chileDateKey(new Date());
+    conv.docs.forEach(d => {
+      const c = d.data();
+      const t = c.cierre ? new Date(c.cierre) : null;
+      if (!t || isNaN(t.getTime())) return;
+      const dias = calendarDaysBetween(today, chileDateKey(t));
+      if (dias >= 0 && dias <= 14) closing.push({ titulo: String(c.titulo || ''), cierre: String(c.cierre), url: String(c.url || ''), diasRestantes: dias });
+    });
+    closing.sort((a, b) => a.diasRestantes - b.diasRestantes);
+  } catch (e: any) {
+    console.warn('[novedades] No se pudieron leer los cierres:', e?.message);
+  }
+  return { items, closing: closing.slice(0, 8), docIds: docs.slice(0, 12).map(d => d.id) };
+}
+
+async function runDigest(opts: { testTo?: string; force?: boolean; appUrl: string }) {
+  if (!(await ensureFirestoreAdmin())) return { status: 503, body: { error: 'Firestore Admin no está autorizado.' } };
+  if (!isEmailConfigured()) return { status: 503, body: { error: 'RESEND_API_KEY no está configurada.' } };
+  const week = chileWeekKey();
+  const { items, closing, docIds } = await buildDigestContent();
+  const weekLabel = `Semana del ${formatDateCL(week + 'T12:00:00Z')}`;
+  if (opts.testTo) {
+    const mail = digestEmail({ firstName: '', items, closing, appUrl: opts.appUrl, unsubscribeUrl: `${opts.appUrl}/`, weekLabel });
+    const ok = await sendEmail({ to: opts.testTo, ...mail, subject: `[Prueba] ${mail.subject}` });
+    return { status: ok ? 200 : 500, body: { ok, prueba: true, noticias: items.length, cierres: closing.length } };
+  }
+  const metaRef = adminDb.collection('meta').doc('novedades');
+  const meta = (await metaRef.get()).data() || {};
+  if (meta.lastDigestWeek === week && !opts.force) return { status: 200, body: { ok: true, omitido: 'ya enviado esta semana' } };
+  if (!items.length && !closing.length) return { status: 200, body: { ok: true, omitido: 'sin novedades aprobadas ni cierres próximos' } };
+
+  const recipients = await listRecipients(adminDb);
+  let sent = 0, errores = 0;
+  for (const r of recipients) {
+    const mail = digestEmail({ firstName: r.firstName, items, closing, appUrl: opts.appUrl, unsubscribeUrl: unsubUrl(opts.appUrl, r.uid), weekLabel });
+    if (await sendEmail({ to: r.email, ...mail, idempotencyKey: `boletin-${week}-${r.uid}` })) sent++; else errores++;
+    await sleep(550);
+  }
+  const now = new Date().toISOString();
+  const b = adminDb.batch();
+  docIds.forEach(id => b.set(adminDb.collection('news_items').doc(id), { digestSentAt: now }, { merge: true }));
+  await b.commit();
+  await metaRef.set({ lastDigestWeek: week, lastDigestAt: now, lastDigest: { enviados: sent, errores, noticias: items.length, cierres: closing.length } }, { merge: true });
+  return { status: 200, body: { ok: true, enviados: sent, errores, noticias: items.length, cierres: closing.length } };
+}
+
+// Automático (GitHub Actions): recolectar a diario y enviar el boletín los lunes
+app.post('/api/admin/novedades/recolectar', requireAdminToken, async (_req, res) => {
+  const r = await runNewsCollect();
+  res.status(r.status).json(r.body);
+});
+app.post('/api/admin/novedades/boletin', requireAdminToken, async (req, res) => {
+  const r = await runDigest({ appUrl: publicAppUrl(req) });
+  res.status(r.status).json(r.body);
+});
+
+// Desde /admin
+app.post('/api/admin/novedades/recolectar/ahora', requireAuth, requireAdminUser, async (_req, res) => {
+  const r = await runNewsCollect();
+  res.status(r.status).json(r.body);
+});
+app.post('/api/admin/novedades/boletin/ahora', requireAuth, requireAdminUser, async (req, res) => {
+  const user = (req as AuthenticatedRequest).user!;
+  const prueba = req.body?.prueba !== false;
+  const r = await runDigest({ appUrl: publicAppUrl(req), testTo: prueba ? user.email : undefined, force: req.body?.forzar === true });
+  res.status(r.status).json(r.body);
+});
+
+app.get('/api/admin/novedades', requireAuth, requireAdminUser, async (req, res) => {
+  try {
+    if (!(await ensureFirestoreAdmin())) return res.status(503).json({ error: 'Firestore Admin no está autorizado.' });
+    const status = String(req.query.estado || 'pendiente');
+    const allowed = ['pendiente', 'aprobada', 'descartada', 'descartada_ia'];
+    const snap = await adminDb.collection('news_items').where('status', '==', allowed.includes(status) ? status : 'pendiente').get();
+    const items = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a: any, b: any) => (b.importance - a.importance) || String(b.publishedAt || b.fetchedAt).localeCompare(String(a.publishedAt || a.fetchedAt)))
+      .slice(0, 120);
+    const [sources, meta, counts] = await Promise.all([
+      adminDb.collection('news_sources').get(),
+      adminDb.collection('meta').doc('novedades').get(),
+      Promise.all(allowed.map(async st => [st, (await adminDb.collection('news_items').where('status', '==', st).count().get()).data().count] as const))
+    ]);
+    res.set('Cache-Control', 'no-store');
+    return res.json({
+      items,
+      counts: Object.fromEntries(counts),
+      sources: sources.docs.map(d => ({ id: d.id, ...d.data() })),
+      meta: meta.data() || {},
+      weekKey: chileWeekKey()
+    });
+  } catch (e: any) {
+    console.error('[novedades] Error al listar:', e?.message);
+    return res.status(500).json({ error: 'No se pudieron cargar las novedades.' });
+  }
+});
+
+app.post('/api/admin/novedades/:id', requireAuth, requireAdminUser, async (req, res) => {
+  try {
+    if (!(await ensureFirestoreAdmin())) return res.status(503).json({ error: 'Firestore Admin no está autorizado.' });
+    const ref = adminDb.collection('news_items').doc(String(req.params.id));
+    if (!(await ref.get()).exists) return res.status(404).json({ error: 'Novedad no encontrada.' });
+    const b = req.body || {};
+    const update: Record<string, any> = { updatedAt: new Date().toISOString() };
+    if (b.accion === 'aprobar') { update.status = 'aprobada'; update.approvedAt = new Date().toISOString(); }
+    else if (b.accion === 'descartar') { update.status = 'descartada'; update.approvedAt = null; }
+    else if (b.accion === 'pendiente') { update.status = 'pendiente'; update.approvedAt = null; }
+    if (typeof b.title === 'string') update.title = b.title.trim().slice(0, 140);
+    if (typeof b.summary === 'string') update.summary = b.summary.trim().slice(0, 900);
+    if (typeof b.audience === 'string') update.audience = b.audience.trim().slice(0, 200);
+    if (typeof b.type === 'string' && (NEWS_TYPES as readonly string[]).includes(b.type)) update.type = b.type;
+    if ([1, 2, 3].includes(Number(b.importance))) update.importance = Number(b.importance);
+    await ref.set(update, { merge: true });
+    return res.json({ ok: true });
+  } catch (e: any) {
+    console.error('[novedades] Error al actualizar:', e?.message);
+    return res.status(500).json({ error: 'No se pudo actualizar la novedad.' });
+  }
+});
+
+// Público: novedades aprobadas (sección "Novedades" de la app)
+app.get('/api/novedades', async (_req, res) => {
+  try {
+    if (!(await ensureFirestoreAdmin())) return res.json({ items: [] });
+    const since = new Date(Date.now() - 75 * 864e5).toISOString();
+    const snap = await adminDb.collection('news_items').where('status', '==', 'aprobada').get();
+    const items = snap.docs.map(d => d.data())
+      .filter(x => String(x.approvedAt || '') >= since)
+      .sort((a, b) => String(b.publishedAt || b.approvedAt).localeCompare(String(a.publishedAt || a.approvedAt)))
+      .slice(0, 50)
+      .map(x => ({ title: x.title, summary: x.summary, type: x.type, audience: x.audience, url: x.url, sourceName: x.outlet || x.sourceName, kind: x.kind, fundIds: x.fundIds || [], importance: x.importance || 1, date: x.publishedAt || x.approvedAt }));
+    res.set('Cache-Control', 'public, max-age=300');
+    return res.json({ items });
+  } catch (e: any) {
+    console.error('[novedades] Error en /api/novedades:', e?.message);
+    return res.json({ items: [] });
+  }
+});
+
+// Desuscripción con enlace firmado (sin iniciar sesión)
+app.all('/api/novedades/desuscribir', async (req, res) => {
+  const uid = String(req.query.u || '');
+  const t = String(req.query.t || '');
+  const page = (title: string, msg: string) => res.status(200).type('html').send(`<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title></head><body style="font-family:Arial,sans-serif;background:#f1f5f9;margin:0;padding:40px 16px"><div style="max-width:480px;margin:auto;background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:28px"><p style="font-size:20px;font-weight:bold;margin:0 0 12px">Impulsa<span style="color:#059669">Cap</span></p><h1 style="font-size:18px">${title}</h1><p style="color:#334155;line-height:1.6">${msg}</p></div></body></html>`);
+  if (!uid || t !== unsubToken(uid)) return page('Enlace no válido', 'El enlace no es válido o está incompleto. Escríbenos a contacto@impulsacap.cl y te sacamos de la lista.');
+  try {
+    if (!(await ensureFirestoreAdmin())) throw new Error('Firestore no disponible');
+    const resub = req.query.volver === '1';
+    await adminDb.collection('users').doc(uid).set({ newsOptOut: !resub, newsOptOutAt: resub ? null : new Date().toISOString() }, { merge: true });
+    return resub
+      ? page('Listo, vuelves a recibir novedades', 'Te llegará el boletín semanal y las alertas cuando se abra un fondo que calce con tu empresa.')
+      : page('Listo, ya no recibirás novedades', `No te enviaremos más el boletín ni las alertas de convocatorias. Los correos de tu cuenta y de tu plan siguen llegando. ¿Fue un error? <a href="?u=${encodeURIComponent(uid)}&t=${t}&volver=1" style="color:#059669">Volver a suscribirme</a>.`);
+  } catch (e: any) {
+    console.error('[novedades] Error al desuscribir:', e?.message);
+    return page('No pudimos completar la solicitud', 'Intenta de nuevo en unos minutos o escríbenos a contacto@impulsacap.cl.');
   }
 });
 

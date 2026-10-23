@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { usePlan } from '../hooks/usePlan';
 import { resolveFund, fundFromConvocatoria } from '../utils/convocatoriaFund';
 import { computeJourney, fundFit } from '../data/journey';
+import { NewsTeaser } from './NewsView';
 import { apiFetch } from '../utils/apiFetch';
 import { announceEarlyAccess, getPaymentsMode } from '../utils/earlyAccess';
 import { ChileanFund, CompanyProfile, getFundVisibleStatus, CompanyUser, calculateProjectProfileCompletion } from '../types/funds';
@@ -528,6 +529,9 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
           </div>
         )}
       </section>
+
+      {/* Novedades de fondos (las más importantes) */}
+      <NewsTeaser onOpen={() => onNavigateTab?.('novedades')} />
 
       {/* 4. MURAL: plan, empresa y monitor */}
       <section className="grid gap-4 md:grid-cols-3" aria-label="Resumen">

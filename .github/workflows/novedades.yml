@@ -1,0 +1,41 @@
+name: Novedades de fondos
+
+# Todos los días a las 11:00 UTC (8:00 en Chile) busca noticias nuevas de fondos.
+# Los lunes a las 12:30 UTC (9:30 en Chile) envía el boletín semanal con las novedades aprobadas en /admin.
+# También se puede ejecutar a mano: Actions > Novedades de fondos > Run workflow.
+on:
+  schedule:
+    - cron: '0 11 * * *'
+    - cron: '30 12 * * 1'
+  workflow_dispatch:
+    inputs:
+      accion:
+        description: 'Qué ejecutar'
+        required: true
+        default: 'recolectar'
+        type: choice
+        options: [recolectar, boletin]
+
+jobs:
+  novedades:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Ejecutar
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          IMPORT_TOKEN: ${{ secrets.CONVOCATORIAS_IMPORT_TOKEN }}
+          ACCION: ${{ github.event.inputs.accion || (github.event.schedule == '30 12 * * 1' && 'boletin' || 'recolectar') }}
+        run: |
+          if [ -z "$APP_URL" ] || [ -z "$IMPORT_TOKEN" ]; then
+            echo "::error::Faltan los secrets APP_URL o CONVOCATORIAS_IMPORT_TOKEN."
+            exit 1
+          fi
+          echo "Acción: ${ACCION}"
+          status=$(curl -sS -m 600 -o respuesta.json -w "%{http_code}" -X POST \
+            -H "x-import-token: ${IMPORT_TOKEN}" \
+            "${APP_URL%/}/api/admin/novedades/${ACCION}")
+          echo "HTTP ${status}"
+          # El repo es público: solo se imprimen los totales (nunca correos ni contenido)
+          jq -r 'del(.items) | to_entries | map("\(.key): \(.value)") | join(" · ")' respuesta.json || true
+          if [ "$status" != "200" ]; then exit 1; fi

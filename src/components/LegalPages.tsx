@@ -272,6 +272,7 @@ export const PrivacyPage: React.FC<LegalPageProps> = ({ onBack, onOpenOther }) =
         ['Diagnosticar fondos compatibles y preparar tus postulaciones, incluida la generación de textos con IA', 'Ejecución del contrato'],
         ['Procesar pagos, activar el plan y emitir boletas o facturas', 'Ejecución del contrato y obligaciones legales tributarias'],
         ['Enviarte correos sobre tu cuenta y tu plan (bienvenida, confirmación de compra, aviso de vencimiento) y sobre cambios a estos documentos', 'Ejecución del contrato'],
+        ['Enviarte el boletín semanal de novedades de fondos y avisos cuando se abre una convocatoria que calza con los datos de tu empresa. Puedes darte de baja con el enlace al pie de cada correo', 'Interés legítimo (información relacionada con el servicio que contrataste)'],
         ['Seguridad, prevención de abusos y corrección de errores', 'Interés legítimo']
       ]}
     />

@@ -6,7 +6,8 @@ import {
   Sparkles,
   Layers,
   Search,
-  UserPlus
+  UserPlus,
+  Newspaper
 } from 'lucide-react';
 
 import { ImpulsaCapLogo } from './ImpulsaCapLogo';
@@ -92,6 +93,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </button>
 
                   <button
+                    onClick={() => setActiveTab('novedades')}
+                    className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                      activeTab === 'novedades'
+                        ? 'bg-blue-50 text-blue-700 font-bold border border-blue-200 shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Newspaper className="w-4 h-4 text-rose-500" />
+                    <span>Novedades</span>
+                  </button>
+
+                  <button
                     onClick={() => setActiveTab('my-company')}
                     className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
                       activeTab === 'my-company'
@@ -128,6 +141,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                   >
                     <Search className="w-4 h-4 text-emerald-600" />
                     <span>Buscar fondos</span>
+                  </button>
+
+                  <button
+                    onClick={() => setActiveTab('novedades')}
+                    className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                      activeTab === 'novedades'
+                        ? 'bg-blue-50 text-blue-700 font-bold border border-blue-200 shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Newspaper className="w-4 h-4 text-rose-500" />
+                    <span>Novedades</span>
                   </button>
                 </>
               )}

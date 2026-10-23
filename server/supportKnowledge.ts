@@ -23,6 +23,11 @@ PLAN TRIMESTRAL
 - Consultoras o quienes asesoran a varias empresas: escribir a contacto@impulsacap.cl para un plan a medida.
 - Gratis sin plan: diagnóstico de 5 preguntas, monitor de convocatorias, catálogo, Mis postulaciones y hoja de ruta, diagnóstico tributario con la carpeta, robot de ayuda.
 
+NOVEDADES Y BOLETÍN
+- En "Novedades" (menú superior) publicamos noticias de fondos revisadas y resumidas: aperturas, cierres, cambios de bases, presupuesto y anuncios del gobierno.
+- Cada lunes enviamos un boletín por correo con lo más importante, y avisamos de inmediato si se abre una convocatoria que calza con los datos de la empresa.
+- Para dejar de recibirlos: enlace "Dejar de recibir novedades" al pie de cualquiera de esos correos. Los correos de la cuenta y del plan siguen llegando.
+
 PAGOS (Flow)
 - Se paga con Flow (flow.cl): Webpay, tarjeta de crédito o débito, y transferencia bancaria. ImpulsaCap no ve ni guarda datos de tarjetas.
 - El plan se activa cuando Flow confirma el pago, normalmente en segundos, y llega un correo de confirmación. La transferencia puede tardar unos minutos más.

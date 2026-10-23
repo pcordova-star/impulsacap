@@ -716,6 +716,132 @@ const FreePassPanel: React.FC = () => {
   );
 };
 
+const NEWS_TYPES_ADMIN: [string, string][] = [
+  ['apertura', 'Convocatoria abierta'], ['cierre', 'Cierre próximo'], ['resultados', 'Resultados'], ['cambio_bases', 'Cambio en las bases'],
+  ['presupuesto', 'Presupuesto'], ['politica', 'Anuncio del gobierno'], ['evento', 'Evento o taller'], ['otro', 'Novedad']
+];
+type AdminNews = { id: string; title: string; summary: string; audience: string; type: string; importance: number; url: string; sourceName: string; outlet?: string | null; originalTitle: string; publishedAt: string | null; fetchedAt: string; kind: string; aiReviewed: boolean; digestSentAt?: string | null };
+
+const NewsRow: React.FC<{ n: AdminNews; estado: string; onDone: () => void }> = ({ n, estado, onDone }) => {
+  const [title, setTitle] = useState(n.title);
+  const [summary, setSummary] = useState(n.summary);
+  const [audience, setAudience] = useState(n.audience);
+  const [type, setType] = useState(n.type);
+  const [importance, setImportance] = useState(n.importance || 1);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const act = async (accion?: 'aprobar' | 'descartar' | 'pendiente') => {
+    setBusy(true); setErr(null);
+    try {
+      const res = await apiFetch(`/api/admin/novedades/${n.id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion, title, summary, audience, type, importance }) });
+      const b = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(b.error || 'No se pudo guardar.');
+      onDone();
+    } catch (e: any) { setErr(e?.message || 'No se pudo guardar.'); } finally { setBusy(false); }
+  };
+  const date = n.publishedAt || n.fetchedAt;
+  return (
+    <li className="py-4 space-y-2">
+      <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+        <span className="font-bold text-slate-700">{n.outlet || n.sourceName}</span>
+        <span>· {n.kind}</span>
+        {date && <span>· {new Date(date).toLocaleDateString('es-CL')}</span>}
+        {!n.aiReviewed && <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold">sin revisión IA</span>}
+        {n.digestSentAt && <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">ya enviada en boletín</span>}
+      </div>
+      <p className="text-xs text-slate-500">Original: <a href={n.url} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:underline">{n.originalTitle}</a></p>
+      <input value={title} onChange={e => setTitle(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm font-bold" />
+      <textarea value={summary} onChange={e => setSummary(e.target.value)} rows={3} placeholder="Resumen con nuestras palabras" className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+      <div className="flex flex-wrap gap-2">
+        <input value={audience} onChange={e => setAudience(e.target.value)} placeholder="Le sirve a…" className="flex-1 min-w-[200px] px-3 py-2 rounded-lg border border-slate-300 text-xs" />
+        <select value={type} onChange={e => setType(e.target.value)} className="px-2 py-2 rounded-lg border border-slate-300 text-xs">
+          {NEWS_TYPES_ADMIN.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+        <select value={importance} onChange={e => setImportance(Number(e.target.value))} className="px-2 py-2 rounded-lg border border-slate-300 text-xs">
+          <option value={3}>Importante (actuar ya)</option><option value={2}>Útil</option><option value={1}>Contexto</option>
+        </select>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {estado !== 'aprobada' && <button type="button" disabled={busy} onClick={() => act('aprobar')} className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer disabled:opacity-50">Aprobar y publicar</button>}
+        {estado === 'aprobada' && <button type="button" disabled={busy} onClick={() => act()} className="px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-bold cursor-pointer disabled:opacity-50">Guardar cambios</button>}
+        {estado !== 'descartada' && estado !== 'descartada_ia' && <button type="button" disabled={busy} onClick={() => act('descartar')} className="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 text-xs font-bold cursor-pointer disabled:opacity-50">Descartar</button>}
+        {(estado === 'descartada' || estado === 'descartada_ia' || estado === 'aprobada') && <button type="button" disabled={busy} onClick={() => act('pendiente')} className="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 text-xs font-bold cursor-pointer disabled:opacity-50">Volver a pendiente</button>}
+      </div>
+      {err && <p className="text-xs text-rose-700">{err}</p>}
+    </li>
+  );
+};
+
+const NewsPanel: React.FC = () => {
+  const [estado, setEstado] = useState('pendiente');
+  const [d, setD] = useState<{ items: AdminNews[]; counts: Record<string, number>; sources: any[]; meta: any; weekKey: string } | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [showSources, setShowSources] = useState(false);
+  const load = useCallback(async () => {
+    try {
+      const res = await apiFetch(`/api/admin/novedades?estado=${estado}`);
+      const b = await res.json().catch(() => ({}));
+      if (res.ok) setD(b); else setMsg(b.error || 'No se pudo cargar.');
+    } catch (e: any) { setMsg(e?.message || 'No se pudo cargar.'); }
+  }, [estado]);
+  useEffect(() => { load(); }, [load]);
+  const run = async (kind: 'collect' | 'test' | 'send') => {
+    if (kind === 'send' && !confirm('¿Enviar el boletín de esta semana a todos los usuarios? Solo incluye las novedades aprobadas.')) return;
+    setBusy(kind); setMsg(null);
+    try {
+      const url = kind === 'collect' ? '/api/admin/novedades/recolectar/ahora' : '/api/admin/novedades/boletin/ahora';
+      const body = kind === 'collect' ? undefined : JSON.stringify({ prueba: kind === 'test' });
+      const res = await apiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, timeoutMs: 280000 } as any);
+      const b = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(b.error || 'No se pudo completar.');
+      setMsg(kind === 'collect'
+        ? `Listo: ${b.fuentesOk} de ${b.fuentes} fuentes respondieron, ${b.nuevas} noticias nuevas, ${b.relevantes} relevantes para revisar.`
+        : kind === 'test'
+          ? `Te enviamos el boletín de prueba (${b.noticias} novedades, ${b.cierres} cierres próximos).`
+          : b.omitido ? `No se envió: ${b.omitido}.` : `Boletín enviado a ${b.enviados} personas (${b.errores} errores).`);
+      load();
+    } catch (e: any) { setMsg(e?.message || 'No se pudo completar.'); } finally { setBusy(null); }
+  };
+  const tabs: [string, string][] = [['pendiente', 'Por revisar'], ['aprobada', 'Publicadas'], ['descartada_ia', 'Descartadas por la IA'], ['descartada', 'Descartadas por ti']];
+  const lastCollect = d?.meta?.lastCollectAt ? new Date(d.meta.lastCollectAt).toLocaleString('es-CL') : 'nunca';
+  const sentThisWeek = d?.meta?.lastDigestWeek && d.meta.lastDigestWeek === d.weekKey;
+  return (
+    <Card
+      title="Novedades y boletín"
+      subtitle={`Noticias de fondos que se buscan solas cada día. Tú apruebas lo que se publica; el boletín sale los lunes con lo aprobado. Última búsqueda: ${lastCollect}.${sentThisWeek ? ' El boletín de esta semana ya se envió.' : ''}`}
+    >
+      <div className="flex flex-wrap gap-2 mb-3">
+        <button type="button" disabled={!!busy} onClick={() => run('collect')} className="px-3 py-2 rounded-lg bg-slate-900 text-white text-xs font-bold cursor-pointer disabled:opacity-50">{busy === 'collect' ? 'Buscando (puede tardar 1 minuto)…' : 'Buscar novedades ahora'}</button>
+        <button type="button" disabled={!!busy} onClick={() => run('test')} className="px-3 py-2 rounded-lg border border-slate-300 text-slate-800 text-xs font-bold cursor-pointer disabled:opacity-50">{busy === 'test' ? 'Enviando…' : 'Enviarme el boletín de prueba'}</button>
+        <button type="button" disabled={!!busy} onClick={() => run('send')} className="px-3 py-2 rounded-lg border border-emerald-600 text-emerald-700 text-xs font-bold cursor-pointer disabled:opacity-50">{busy === 'send' ? 'Enviando…' : 'Enviar boletín a todos ahora'}</button>
+        <button type="button" onClick={() => setShowSources(v => !v)} className="px-3 py-2 rounded-lg text-xs font-bold text-blue-700 hover:underline cursor-pointer">{showSources ? 'Ocultar fuentes' : 'Ver estado de las fuentes'}</button>
+      </div>
+      {msg && <p className="text-xs text-slate-700 mb-3">{msg}</p>}
+      {showSources && d && (
+        <ul className="mb-4 text-xs divide-y divide-slate-100 border border-slate-200 rounded-xl">
+          {d.sources.length === 0 && <li className="p-2 text-slate-500">Todavía no se ha hecho ninguna búsqueda.</li>}
+          {d.sources.map(s => (
+            <li key={s.id} className="p-2 flex flex-wrap justify-between gap-2">
+              <span className="font-semibold text-slate-800">{s.name}</span>
+              <span className={s.ok ? 'text-emerald-700' : 'text-rose-700'}>{s.ok ? `OK · ${s.lastCount} noticias` : `Falla: ${s.lastError || 'sin detalle'}`}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="flex flex-wrap gap-1.5 mb-2">
+        {tabs.map(([id, label]) => (
+          <button key={id} type="button" onClick={() => setEstado(id)} className={`px-3 py-1.5 rounded-full text-xs font-bold border cursor-pointer ${estado === id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-700 border-slate-200'}`}>
+            {label}{d?.counts?.[id] !== undefined ? ` (${d.counts[id]})` : ''}
+          </button>
+        ))}
+      </div>
+      {d && d.items.length === 0 && <p className="text-sm text-slate-500 py-3">No hay novedades en esta lista.</p>}
+      {d && <ul className="divide-y divide-slate-100">{d.items.map(n => <NewsRow key={n.id + estado} n={n} estado={estado} onDone={load} />)}</ul>}
+    </Card>
+  );
+};
+
 const EmailTools: React.FC = () => {
   const [busy, setBusy] = useState<'test' | 'rem' | null>(null);
   const [result, setResult] = useState<{ ok: boolean; text: string; items?: { name: string; sent: boolean; error?: string | null }[] } | null>(null);
@@ -1025,6 +1151,8 @@ export const AdminDashboard: React.FC = () => {
           </button>
         )}
       </Card>
+
+      <NewsPanel />
 
       <AiUsagePanel />
 
