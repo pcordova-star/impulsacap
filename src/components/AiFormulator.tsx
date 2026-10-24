@@ -1,4 +1,5 @@
 import { TeamCvImport } from './ProfileAutofill';
+import { CompletarPanel } from './CompletarPanel';
 import { SimilarWinners } from './SimilarWinners';
 import { isSemillaInicia } from '../data/semillaWinners';
 import React, { useState, useEffect, useMemo } from 'react';
@@ -303,7 +304,8 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
     const proj = prof.projectProfile || ({} as Partial<ProjectProfile>);
     return {
       title_pitch: {
-        projectTitle: initForm?.projectTitle || (prof.companyName ? `${prof.companyName} - Innovación` : ''),
+        // El título describe el proyecto, no la empresa: si no hay uno, queda vacío para que lo escriba la persona
+        projectTitle: initForm?.projectTitle || '',
         pitchSummary30s: initForm?.pitchSummary30s || proj.whatItDoes || prof.projectSummary || ''
       },
       problem: {
@@ -614,6 +616,10 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
     const sectionAns = answersBySection[currentSection.id] || {};
     currentSection.questions.forEach(q => {
       questionsObj[q.label] = sectionAns[q.key] || '';
+    });
+    // Datos que la persona ya completó (respuestas a lo que faltaba): la IA los usa al volver a redactar
+    Object.entries(sectionAns).forEach(([k, v]) => {
+      if (k.startsWith('completar_') && String(v).trim()) questionsObj[`Dato aportado (${k.slice(10).replace(/_/g, ' ')})`] = String(v);
     });
 
     try {
@@ -1199,40 +1205,26 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
                 className="w-full bg-slate-950 border border-slate-800 text-slate-100 text-xs rounded-2xl p-4 focus:outline-none focus:border-cyan-500 placeholder:text-slate-500 placeholder:italic leading-relaxed font-sans"
               />
 
-              {/* Tareas de datos faltantes (Requirement B.7) */}
-              {currentMissingTasks.length > 0 ? (
-                <div className="p-4 rounded-2xl bg-amber-950/40 border border-amber-500/40 space-y-3 animate-fade-in mt-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-                      <h4 className="text-xs font-bold text-amber-200 uppercase tracking-wider">
-                        Tareas pendientes por completar en esta sección ({currentMissingTasks.length})
-                      </h4>
-                    </div>
-                    <span className="text-[10px] text-amber-400 font-mono">
-                      La IA no inventó estos datos
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-amber-300/80 leading-relaxed">
-                    Reemplaza cada una de las marcas en el texto editable de arriba con los datos reales de tu empresa antes de postular:
-                  </p>
-                  <ul className="space-y-1.5">
-                    {currentMissingTasks.map((task, idx) => (
-                      <li key={idx} className="flex items-start gap-2 text-xs text-amber-100 bg-amber-900/30 p-2.5 rounded-xl border border-amber-800/50">
-                        <span className="w-4 h-4 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5 font-mono">
-                          {idx + 1}
-                        </span>
-                        <span className="flex-1 font-medium">{task}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : currentGenerated.trim().length > 60 && (
-                <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-500/30 flex items-center gap-2 text-xs text-emerald-300 animate-fade-in mt-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span>¡Sección completa y sin marcas [COMPLETAR] pendientes! Lista para la auditoría.</span>
-                </div>
-              )}
+              {/* Lo que falta para cerrar la sección: se pregunta, se pone en el texto o se guarda para después */}
+              <CompletarPanel
+                key={currentSection.id}
+                text={currentGenerated}
+                otherMissing={missingDataBySection[currentSection.id] || []}
+                savedAnswers={answersBySection[currentSection.id] || {}}
+                onApplyText={(newText, extra) => {
+                  const merged = { ...(answersBySection[currentSection.id] || {}), ...extra };
+                  setAnswersBySection(prev => ({ ...prev, [currentSection.id]: merged }));
+                  setGeneratedTexts(prev => ({ ...prev, [currentSection.id]: newText }));
+                  onSaveSectionAnswers?.(currentSection.id, merged, newText);
+                  updateFullFormulationDraft(currentSection.id, newText);
+                }}
+                onSaveAnswers={(extra) => {
+                  const merged = { ...(answersBySection[currentSection.id] || {}), ...extra };
+                  setAnswersBySection(prev => ({ ...prev, [currentSection.id]: merged }));
+                  onSaveSectionAnswers?.(currentSection.id, merged, generatedTexts[currentSection.id]);
+                  updateFullFormulationDraft(currentSection.id, generatedTexts[currentSection.id] || '');
+                }}
+              />
             </div>
           </div>
         )}
@@ -1261,7 +1253,12 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
             </button>
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto justify-end">
+            {currentSectionIndex < SECTIONS.length - 1 && currentMissingTasks.length > 0 && currentSection.id !== 'budget' && (
+              <span className="text-[11px] text-amber-300 sm:max-w-[220px] text-center sm:text-right">
+                Esta sección queda pendiente ({currentMissingTasks.length} {currentMissingTasks.length === 1 ? 'dato' : 'datos'}). Puedes volver cuando quieras.
+              </span>
+            )}
             {currentSectionIndex < SECTIONS.length - 1 ? (
               <button
                 onClick={handleNextSection}
