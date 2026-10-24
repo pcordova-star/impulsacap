@@ -1229,7 +1229,7 @@ DATOS DE LA EMPRESA:
 - Instrucciones específicas del usuario: ${specificInstructions || 'Ninguna'}
 
 REGLA CRÍTICA OBLIGATORIA:
-Usa SOLO la información entregada por el usuario. PROHIBIDO inventar hechos, clientes, socios, tecnologías, integrantes del equipo, logros, cifras, porcentajes o montos. Si falta información para un punto, escribe [COMPLETAR: qué dato falta] en ese lugar. Es preferible un texto más breve y verdadero que uno extenso con información inventada. La extensión debe depender de la información disponible.
+Usa SOLO la información entregada por el usuario. PROHIBIDO inventar hechos, clientes, socios, tecnologías, integrantes del equipo, logros, cifras, porcentajes o montos. Si falta un dato que solo el emprendedor conoce de su negocio, escribe [COMPLETAR: pregunta corta y simple, ej. ¿Cuántos clientes quieres tener en un año?]. Nunca pidas estudios de mercado, estadísticas oficiales, fuentes ni términos técnicos (TAM/SAM/SOM, métricas): quien postula es un microemprendedor sin asesor. Es preferible un texto más breve y verdadero que uno extenso con información inventada.
 
 ${fundRulesForPrompt(fund)}
 
