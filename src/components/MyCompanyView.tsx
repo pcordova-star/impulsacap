@@ -50,6 +50,8 @@ interface MyCompanyViewProps {
   onOpenSiiModal: () => void;
   onLogout: () => void;
   onNavigateTab?: (tab: string) => void;
+  /** Postulaciones activas reales (las mismas que se ven en Mis postulaciones) */
+  activeApplicationsCount?: number;
 }
 
 interface PaymentRecord {
@@ -69,7 +71,8 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
   onUpdateProfile,
   onOpenSiiModal,
   onLogout,
-  onNavigateTab
+  onNavigateTab,
+  activeApplicationsCount
 }) => {
   // Plan hook
   const { 
@@ -86,6 +89,9 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
     referralDiscountPct,
     refresh: refreshPlan 
   } = usePlan();
+
+  // Cupos: se cuentan las postulaciones activas reales (antes salía de un registro del servidor que podía no coincidir)
+  const usedSlots = typeof activeApplicationsCount === 'number' ? activeApplicationsCount : activeFundIds.length;
 
   // Local form state initialized from profile & currentUser
   const [companyName, setCompanyName] = useState(profile.companyName || currentUser?.companyName || '');
@@ -968,12 +974,12 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
           <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
             <span className="text-[10px] uppercase font-bold text-slate-500 block">Postulaciones Activas</span>
             <p className="text-base font-black text-blue-700 font-mono">
-              {activeFundIds.length} de 3 usadas
+              {usedSlots} de 3 usadas
             </p>
             <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden mt-1">
               <div 
                 className="h-full bg-blue-600 rounded-full transition-all"
-                style={{ width: `${(Math.min(3, activeFundIds.length) / 3) * 100}%` }}
+                style={{ width: `${(Math.min(3, usedSlots) / 3) * 100}%` }}
               />
             </div>
           </div>

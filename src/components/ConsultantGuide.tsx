@@ -148,11 +148,11 @@ export const ConsultantGuide: React.FC<Props> = ({ currentUser, profile, hasActi
       <button
         type="button"
         onClick={() => setOpenPersist(true)}
-        className="fixed z-40 left-3.5 sm:left-6 bottom-20 md:bottom-6 inline-flex items-center gap-2 pl-3 pr-4 py-2.5 rounded-full bg-gradient-to-r from-blue-600 to-emerald-600 text-white text-xs font-bold shadow-xl shadow-blue-900/20 cursor-pointer"
+        className="fixed z-40 left-3.5 sm:left-6 bottom-20 md:bottom-6 max-w-[calc(100vw-8.5rem)] sm:max-w-[calc(100vw-14rem)] inline-flex items-center gap-2 pl-3 pr-4 py-2.5 rounded-full bg-gradient-to-r from-blue-600 to-emerald-600 text-white text-xs font-bold shadow-xl shadow-blue-900/20 cursor-pointer"
         aria-label="Abrir el consultor"
       >
-        <Compass className="w-4 h-4" />
-        {current ? `Siguiente: ${current.title}` : 'Postulación lista'}
+        <Compass className="w-4 h-4 shrink-0" />
+        <span className="truncate">{current ? `Siguiente: ${current.title}` : 'Postulación lista'}</span>
       </button>
       </>
     );

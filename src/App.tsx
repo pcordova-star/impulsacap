@@ -1031,6 +1031,7 @@ export default function App() {
         {activeTab === 'my-company' && (
           currentUser ? (
             <MyCompanyView
+              activeApplicationsCount={activeApplications.length}
               profile={profile}
               currentUser={currentUser}
               onUpdateProfile={(updated) => {
