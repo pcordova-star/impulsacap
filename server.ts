@@ -924,7 +924,15 @@ app.post('/api/gemini/parse-tax-folder', requireAuth, guardAi('parse-tax-folder'
       return res.json(legacyTaxFieldsFromDiagnosis(diagnosis));
     }
 
-    // 2. Otros documentos (F29 sueltos, PDF escaneados): extracción básica + IA como respaldo
+    // 2. Otros documentos (F29 sueltos, PDF escaneados): extracción básica + IA como respaldo.
+    // Primero se verifica que sea un documento del SII: si el archivo tiene texto y no trae ninguna
+    // marca tributaria, se rechaza (antes se "leía" cualquier archivo y quedaban datos erróneos).
+    const NOT_SII_MSG = 'Este archivo no parece una Carpeta Tributaria del SII. Descárgala gratis en sii.cl (Servicios online > Carpeta tributaria electrónica) y súbela en PDF. No guardamos datos de este archivo.';
+    const plain = String(extractedText || rawText || '');
+    const SII_MARKS = /(servicio de impuestos internos|carpeta tributaria|formulario\s*(n[°º]?\s*)?29|\bF\s?29\b|\bF\s?22\b|declaraci[oó]n mensual|per[ií]odo tributario|rut del emisor|inicio de actividades)/i;
+    if (plain.replace(/\s+/g, ' ').trim().length > 300 && !SII_MARKS.test(plain)) {
+      return res.status(422).json({ error: NOT_SII_MSG, code: 'NOT_SII_DOCUMENT' });
+    }
     const deterministicData = extractTaxFolderData(extractedText || rawText || '', fileName);
     let finalResult: any = { ...deterministicData, analizadoCon: 'sii-parser' };
 
@@ -957,8 +965,10 @@ REGLAS ESTRICTAS DE EXTRACCIÓN (NO INVENTAR DATOS):
 4. 'companyType': 'spa'|'srl'|'eirl'|'sa'|'persona_natural' solo si está explícito o deducible legalmente. Si no, responde "".
 5. 'startDate': Fecha de inicio de actividades (DD/MM/AAAA) si aparece. Si no, "".
 6. 'periodsFound': Número entero de periodos F29 identificados en el texto.
+7. 'esDocumentoSII': true SOLO si el documento es una Carpeta Tributaria Electrónica, un Formulario 29/22 u otro documento tributario emitido por el SII de Chile. Si es cualquier otra cosa (contrato, factura suelta, CV, presentación, foto, documento de otra institución), responde false y deja los demás campos vacíos.
 Responde ÚNICAMENTE un JSON con:
 {
+  "esDocumentoSII": false,
   "rut": "",
   "companyName": "",
   "companyType": "",
@@ -980,6 +990,9 @@ Responde ÚNICAMENTE un JSON con:
       const text = aiResponse.text || '';
       if (text) {
         const parsed = JSON.parse(text);
+        if (parsed && parsed.esDocumentoSII === false) {
+          return res.status(422).json({ error: NOT_SII_MSG, code: 'NOT_SII_DOCUMENT' });
+        }
 
         // Requirement 1: Validación estricta antes de usar el dato de la IA (no mezclar a ciegas)
         const finalRut = isValidTaxRut(parsed.rut)
@@ -1067,6 +1080,12 @@ Responde ÚNICAMENTE un JSON con:
       }
     } catch (aiErr: any) {
       console.warn('Gemini enhancement unavailable for parse-tax-folder, using high-precision parser:', aiErr?.message);
+    }
+
+    // Sin ningún dato tributario (RUT, razón social, períodos o ventas): no se entrega nada para guardar
+    const hasData = Boolean(finalResult.rut || finalResult.companyName || (Number(finalResult.periodsFound) || 0) > 0 || (Number(finalResult.annualSalesCLP) || 0) > 0);
+    if (!hasData) {
+      return res.status(422).json({ error: NOT_SII_MSG, code: 'NOT_SII_DOCUMENT' });
     }
 
     return res.json(finalResult);

@@ -183,7 +183,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
     if (profile.companyType) setCompanyType(profile.companyType);
     if (profile.sector) setSector(profile.sector);
     if (profile.region) setRegion(profile.region);
-    if (profile.salesBracket) setSalesBracket(profile.salesBracket);
+    setSalesBracket(profile.salesBracket || '');
     setIsFemaleLed(Boolean(profile.isFemaleLed));
     setFemaleEquityPct(profile.femaleEquityPct || 0);
     if (profile.representativeName) setRepresentativeName(profile.representativeName);
@@ -581,8 +581,28 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                   <span>Carpeta Tributaria Verificada y Vinculada</span>
                 </span>
-                <span className="text-[10px] font-mono text-emerald-700 font-bold">
-                  {profile.taxFolderUploadDate || 'Reciente'}
+                <span className="flex items-center gap-3">
+                  <span className="text-[10px] font-mono text-emerald-700 font-bold">{profile.taxFolderUploadDate || 'Reciente'}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!window.confirm('¿Quitar la carpeta cargada? Se borran las ventas, la antigüedad y los períodos leídos de ese archivo. Tu nombre, RUT y región quedan como están (puedes corregirlos abajo).')) return;
+                      onUpdateProfile({
+                        ...profile,
+                        taxFolderUploaded: false,
+                        taxFolderFileName: '',
+                        taxFolderUploadDate: '',
+                        taxFolderSummary: '',
+                        taxFolderF29Periods: 0,
+                        annualSalesCLP: null as any,
+                        monthsActive: null,
+                        salesBracket: ''
+                      });
+                    }}
+                    className="text-[11px] font-bold text-rose-700 hover:underline cursor-pointer"
+                  >
+                    Quitar esta carpeta
+                  </button>
                 </span>
               </div>
 
@@ -597,7 +617,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
                 <div className="p-2.5 rounded-xl bg-white border border-emerald-200/80">
                   <span className="text-[10px] font-bold text-slate-500 uppercase block">Periodos F29:</span>
                   <p className="font-bold text-slate-900 mt-0.5">
-                    {profile.taxFolderF29Periods || 12} meses declarados
+                    {profile.taxFolderF29Periods ? `${profile.taxFolderF29Periods} meses declarados` : 'Sin dato'}
                   </p>
                 </div>
 
@@ -611,7 +631,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
                 <div className="p-2.5 rounded-xl bg-white border border-emerald-200/80">
                   <span className="text-[10px] font-bold text-slate-500 uppercase block">Antigüedad SII:</span>
                   <p className="font-bold text-emerald-700 mt-0.5">
-                    {profile.monthsActive ? `${profile.monthsActive} meses` : 'Acreditada'}
+                    {profile.monthsActive ? `${profile.monthsActive} meses` : 'Sin dato'}
                   </p>
                 </div>
               </div>
