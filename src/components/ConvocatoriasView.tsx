@@ -1,4 +1,5 @@
 import { regionFit } from '../utils/region';
+import { NOT_A_GRANT } from './QualifyModal';
 import React, { useState, useMemo, useEffect } from 'react';
 import { Convocatoria, ConvocatoriasSyncMeta } from '../types/convocatoria';
 import { ChileanFund, CompanyUser } from '../types/funds';
@@ -510,7 +511,11 @@ export const ConvocatoriasView: React.FC<ConvocatoriasViewProps> = ({
                         <span>¿Califico?</span>
                       </button>
 
-                      {/* Botón "Postular con ImpulsaCap" */}
+{NOT_A_GRANT.test(`${conv.titulo} ${conv.resumen || ''}`) ? (
+                        <span className="px-3 py-2 rounded-xl bg-slate-100 text-slate-600 text-xs font-semibold border border-slate-200" title="Es un trámite, crédito, garantía o concurso para instituciones">
+                          No es un subsidio para tu proyecto
+                        </span>
+                      ) : (
                       <button
                         onClick={() => handlePostular(conv)}
                         className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs active:scale-95 transition-all cursor-pointer inline-flex items-center justify-center gap-1.5"
@@ -518,6 +523,7 @@ export const ConvocatoriasView: React.FC<ConvocatoriasViewProps> = ({
                         <span>Postular con ImpulsaCap</span>
                         <ChevronRight className="w-3.5 h-3.5" />
                       </button>
+                      )}
                     </div>
                   </div>
                 </div>

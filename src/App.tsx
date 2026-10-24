@@ -22,6 +22,7 @@ import { ToastCenter } from './components/ToastCenter';
 import { EarlyAccessModal } from './components/EarlyAccessModal';
 import { AdminDashboard } from './components/AdminDashboard';
 import { NewsView } from './components/NewsView';
+import { QualifyModal } from './components/QualifyModal';
 import { SellerPanel } from './components/SellerPanel';
 import { showToast } from './utils/toast';
 import { splitTarget, goToTarget, setReturnContext } from './utils/navFocus';
@@ -596,7 +597,10 @@ export default function App() {
     }
   };
 
+  const [qualifyConv, setQualifyConv] = useState<Convocatoria | null>(null);
   const handleQualifyCall = (conv: Convocatoria) => {
+    // Con cuenta: se revisa con los datos que ya guardó, sin sacarla del panel
+    if (currentUser) { setQualifyConv(conv); return; }
     setHighlightedConvocatoriaId(conv.id);
     setActiveTab('diagnostic');
     setTimeout(() => {
@@ -1078,6 +1082,16 @@ export default function App() {
           setShowAuthModal(true);
         }}
       />
+
+      {qualifyConv && (
+        <QualifyModal
+          conv={qualifyConv}
+          profile={profile}
+          onClose={() => setQualifyConv(null)}
+          onPostular={(c) => { setQualifyConv(null); handlePostularConvocatoria(c); }}
+          onCompleteData={(missing) => { setQualifyConv(null); if (missing.every(m => m.startsWith('Carpeta'))) setShowSiiModal(true); else handleNavigateTab('my-company#company-identity'); }}
+        />
+      )}
 
       {startGate && (() => {
         const g = startGate;
