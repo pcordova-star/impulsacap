@@ -147,25 +147,25 @@ const SECTIONS: SectionDefinition[] = [
     questions: [
       {
         key: 'archetype',
-        label: '¿Quiénes son tus clientes objetivo y arquetipo de comprador?',
+        label: '¿Quiénes te compran o te comprarían? (tipo de cliente y quién decide la compra)',
         placeholder: 'Ej: Gerentes de Operaciones y Dueños de Medianas Empresas B2B con facturación sobre 2.400 UF...',
         helpText: 'Define quién toma la decisión de compra de tu solución.'
       },
       {
         key: 'tam',
-        label: '¿Cuál es el tamaño total del mercado (TAM) estimado?',
+        label: '¿Dónde vendes o venderías? (tu comuna, región, todo Chile u otros países)',
         placeholder: 'Ej: En Chile existen más de 12.000 empresas agrícolas; mercado potencial de $30 millones USD...',
-        helpText: 'Estimación del mercado total disponible.'
+        helpText: 'Con esto y el ayudante de arriba calculamos el tamaño de tu mercado. No necesitas estudios.'
       },
       {
         key: 'sam',
-        label: '¿Cuál es el mercado accesible y disponible (SAM)?',
+        label: '¿A cuántos clientes crees que podrías llegar? (una estimación tuya basta)',
         placeholder: 'Ej: 2.500 empresas agrícolas tecnificadas en la zona centro-sur...',
-        helpText: 'Segmento del mercado al que realmente puedes acceder.'
+        helpText: 'Opcional. Si no lo sabes, usa el ayudante de arriba.'
       },
       {
         key: 'som',
-        label: '¿Cuál es la meta comercial a 12-24 meses (SOM)?',
+        label: '¿Cuántos clientes te gustaría tener en 1 a 2 años?',
         placeholder: 'Ej: Capturar 50 clientes pagando suscripción durante los primeros 18 meses...',
         helpText: 'Objetivo de ventas concreto que planeas capturar con este subsidio.'
       }
@@ -1209,7 +1209,6 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
               <CompletarPanel
                 key={currentSection.id}
                 text={currentGenerated}
-                otherMissing={missingDataBySection[currentSection.id] || []}
                 savedAnswers={answersBySection[currentSection.id] || {}}
                 onApplyText={(newText, extra) => {
                   const merged = { ...(answersBySection[currentSection.id] || {}), ...extra };

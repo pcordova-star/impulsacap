@@ -1392,7 +1392,14 @@ ESTA SECCIÓN EN EL FORMULARIO OFICIAL:
 Escribe con el lenguaje y la estructura que espera el evaluador de este fondo (por ejemplo, en Sercotec es un modelo de negocio simple y concreto; en Corfo y FIA, un proyecto técnico con indicadores).
 
 REGLA CRÍTICA OBLIGATORIA CONTRA ALUCINACIONES:
-Usa SOLO la información entregada por el usuario. PROHIBIDO inventar hechos, clientes, socios, tecnologías, integrantes del equipo, logros, cifras, porcentajes o montos. Si falta información para un punto, escribe [COMPLETAR: qué dato falta] en ese lugar. Es preferible un texto más breve y verdadero que uno extenso con información inventada. La extensión debe depender estrictamente de la información disponible.
+Usa SOLO la información entregada por el usuario. PROHIBIDO inventar hechos, clientes, socios, tecnologías, integrantes del equipo, logros, cifras, porcentajes o montos de la empresa. Es preferible un texto más breve y verdadero que uno extenso con información inventada.
+
+CÓMO PEDIR LO QUE FALTA (QUIEN POSTULA ES UN MICROEMPRENDEDOR SIN ASESOR, HAZLO SIMPLE):
+1. Usa [COMPLETAR: …] SOLO para datos que únicamente el emprendedor conoce de su propio negocio: cuántos clientes tiene o quiere tener, metas, plazos, montos propios, nombres de su equipo o de sus clientes. Máximo 3 marcas por sección.
+2. Escribe cada marca como una pregunta corta y en lenguaje simple, que se pueda responder en una línea. Ejemplos buenos: [COMPLETAR: ¿Cuántas pymes quieres que prueben tu plataforma durante el proyecto?] o [COMPLETAR: ¿Cuántos clientes pagando te gustaría tener al final?]. Ejemplos malos (prohibidos): "métrica técnica de precisión", "datos cuantitativos y fuentes oficiales", "TAM/SAM/SOM", "valorización económica de horas hombre".
+3. NUNCA le pidas al emprendedor estudios de mercado, estadísticas oficiales, fuentes, tasas del sector ni cálculos técnicos. Para dar contexto del problema o del mercado, describe la situación de forma cualitativa con lo que contó el usuario; si usas un dato público conocido de Chile, que sea general y prudente ("según datos públicos del SII hay cerca de un millón de mipymes") y nunca cifras precisas inventadas.
+4. No pidas datos que corresponden a otra sección del formulario: el tamaño del mercado se trabaja en la sección de mercado (con un ayudante de cálculo), el equipo en la de equipo y los montos en el presupuesto.
+5. Si con lo que hay se puede escribir un texto correcto aunque más general, escríbelo sin marcas.
 
 Responde ÚNICAMENTE en formato JSON con la siguiente estructura:
 {
@@ -1404,7 +1411,7 @@ Responde ÚNICAMENTE en formato JSON con la siguiente estructura:
     "Punto fuerte 2"
   ],
   "missingData": [
-    "Lista de datos que faltan para completar este punto"
+    "Las mismas preguntas simples que dejaste como [COMPLETAR] (máximo 3); vacío si no falta nada"
   ]
 }`;
 
@@ -1424,11 +1431,8 @@ Responde ÚNICAMENTE en formato JSON con la siguiente estructura:
     // Extract all [COMPLETAR: ...] tags directly from generatedText to guarantee complete list
     const regexMatches = (parsed.generatedText || '').match(/\[COMPLETAR:[^\]]+\]/g) || [];
     const extractedMissing = regexMatches.map((m: string) => m.replace(/^\[COMPLETAR:\s*/i, '').replace(/\]$/, '').trim());
-    const combinedMissing = Array.from(new Set([
-      ...(Array.isArray(parsed.missingData) ? parsed.missingData : []),
-      ...extractedMissing
-    ]));
-    parsed.missingData = combinedMissing;
+    // Solo se piden los datos marcados en el texto (preguntas simples que el emprendedor puede responder)
+    parsed.missingData = Array.from(new Set(extractedMissing));
 
     return res.json(parsed);
   } catch (error: any) {
