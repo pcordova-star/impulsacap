@@ -184,20 +184,22 @@ export function welcomeEmail(name: string) {
     heading: 'Bienvenido a ImpulsaCap',
     bodyHtml:
       p(hello) +
-      p('Tu cuenta está lista. Para preparar tu primera postulación:') +
+      p('Tu cuenta está lista. Postular a un fondo con ImpulsaCap tiene 4 etapas:') +
       `<ol style="margin:0 0 12px;padding-left:20px">
-         <li style="margin-bottom:6px"><strong>Completa el perfil de tu proyecto.</strong> Con tus datos reales, las herramientas redactan mejor y no inventan información.</li>
-         <li style="margin-bottom:6px"><strong>Elige un fondo</strong> del catálogo o de las convocatorias abiertas.</li>
-         <li><strong>Sigue la Hoja de Ruta</strong> paso a paso hasta tener tu expediente listo.</li>
+         <li style="margin-bottom:6px"><strong>Prepara tu empresa</strong> (una sola vez): tus datos, el perfil de tu proyecto y tu carpeta tributaria del SII. Con tus datos reales, las herramientas redactan mejor y no inventan información.</li>
+         <li style="margin-bottom:6px"><strong>Elige tu fondo:</strong> te mostramos los que calzan con tu empresa y cuándo cierra cada convocatoria.</li>
+         <li style="margin-bottom:6px"><strong>Postula en 6 pasos:</strong> requisitos, formulario, presupuesto, documentos, evaluación simulada y envío en el portal oficial.</li>
+         <li><strong>Gana y ejecuta:</strong> cuando te avisen el resultado, márcalo. Si ganas, te acompañamos con los gastos, hitos e informes; si no, armamos un plan para volver a postular mejor.</li>
        </ol>`,
     cta: { label: 'Ir a ImpulsaCap', url: app },
   });
   const text = `${name ? `Hola, ${name}:` : 'Hola:'}
 
-Tu cuenta en ImpulsaCap está lista. Para preparar tu primera postulación:
-1. Completa el perfil de tu proyecto.
-2. Elige un fondo del catálogo o de las convocatorias abiertas.
-3. Sigue la Hoja de Ruta paso a paso.
+Tu cuenta en ImpulsaCap está lista. Postular a un fondo tiene 4 etapas:
+1. Prepara tu empresa (una sola vez): datos, perfil del proyecto y carpeta tributaria.
+2. Elige tu fondo: los que calzan con tu empresa y cuándo cierran.
+3. Postula en 6 pasos: requisitos, formulario, presupuesto, documentos, evaluación simulada y envío.
+4. Gana y ejecuta: si ganas, te acompañamos con gastos, hitos e informes; si no, con un plan para volver a postular.
 
 Ir a ImpulsaCap: ${app}
 
@@ -221,7 +223,8 @@ export function purchaseEmail(args: { amount: number; paymentId: string; expires
     bodyHtml:
       p('Recibimos tu pago y tu plan ya está activo. Estos son los detalles:') +
       detailTable(rows) +
-      p('<br>Ya puedes usar el formulador, los documentos y cartas, la auditoría simulada, el expediente y el asesor experto en hasta 3 postulaciones a la vez.') +
+      p('<br>Ya puedes usar el formulador, los documentos y cartas, la evaluación simulada, el expediente y el asesor experto en hasta 3 postulaciones a la vez.') +
+      p('Y si ganas un fondo, el plan también incluye los borradores de informes de avance y final; si no ganas, el plan de mejora con la evaluación del comité.') +
       p('El plan es un pago único y no se renueva automáticamente. Te avisaremos antes de que venza.'),
     cta: { label: 'Ir a mis postulaciones', url: app },
   });
@@ -230,6 +233,8 @@ export function purchaseEmail(args: { amount: number; paymentId: string; expires
 Monto pagado: ${formatCLP(args.amount)} CLP
 N° de operación: ${args.paymentId}
 Activo hasta: ${vence}
+
+Incluye el formulador, documentos y cartas, evaluación simulada, expediente y asesor experto en hasta 3 postulaciones a la vez. Si ganas, también los informes de avance y final; si no, el plan de mejora.
 
 El plan es un pago único y no se renueva automáticamente. Te avisaremos antes de que venza.
 
@@ -254,7 +259,7 @@ export function adminSaleEmail(args: {
     ['Usuario', args.userEmail || '(sin correo)'],
     ['Empresa', args.companyName || '(sin completar)'],
     ['Monto', `${formatCLP(args.amount)} CLP`],
-    ['Tipo', args.isFirstPurchase ? (args.sellerCode ? `Primera compra con código ${args.sellerCode}` : 'Primera compra (50% dcto.)') : 'Renovación / compra adicional'],
+    ['Tipo', args.isFirstPurchase ? (args.sellerCode ? `Primera compra con código ${args.sellerCode}` : 'Primera compra') : 'Renovación / compra adicional'],
     ...(args.sellerCode ? [['Comisión del vendedor', `${formatCLP(args.commission || 0)} (${args.sellerCode})`] as [string, string]] : []),
     ['N° de operación', args.paymentId],
     ['Plan activo hasta', formatDateCL(args.expiresAt)],
@@ -283,7 +288,7 @@ export function reminderEmail(kind: '7d' | 'expired', expiresAt: string) {
     heading: isExpired ? 'Tu plan venció' : 'Tu plan vence en 7 días',
     bodyHtml:
       p(intro) +
-      p('El Plan Trimestral cuesta $14.990 CLP por 3 meses, en un pago único sin renovación automática.') +
+      p('El Plan Trimestral cuesta $14.990 CLP por 3 meses (unos $5.000 al mes), en un pago único sin renovación automática.') +
       `<p style="margin:16px 0 0;font-size:12px;color:#94a3b8">Recibes este aviso porque tienes una cuenta con Plan Trimestral en ImpulsaCap. Si no quieres recibir más recordatorios, responde este correo con la palabra "BAJA".</p>`,
     cta: { label: 'Renovar mi plan', url: `${app}/?pagar=1` },
   });
@@ -378,13 +383,13 @@ export function earlyAccessUserEmail(args: { expiresAt: string; price: number })
       p('Como beneficio de lanzamiento para pymes, tienes el <strong>Plan Trimestral completo gratis</strong>: redacción de tu postulación con IA, documentos y cartas, auditoría simulada y expediente PDF.') +
       detailTable([
         ['Prueba gratis hasta', formatDateCL(args.expiresAt)],
-        ['Precio de lanzamiento', `${formatCLP(args.price)} por 3 meses (IVA incluido)`],
+        ['Precio', `${formatCLP(args.price)} por 3 meses (IVA incluido)`],
       ]) +
       p('Te enviaremos por este correo tu enlace para activar el plan y seguir trabajando sin perder nada. Tus datos y postulaciones quedan guardados.') +
       p('Aprovecha estos días para subir tu carpeta tributaria y avanzar en tu postulación.'),
     cta: { label: 'Empezar mi prueba', url: getAppUrl() }
   });
-  const text = `Tu prueba gratis del Plan Trimestral está activa hasta el ${formatDateCL(args.expiresAt)}. Te enviaremos tu enlace para activarlo a ${formatCLP(args.price)} (precio de lanzamiento).`;
+  const text = `Tu prueba gratis del Plan Trimestral está activa hasta el ${formatDateCL(args.expiresAt)}. Te enviaremos tu enlace para activarlo a ${formatCLP(args.price)} por 3 meses (IVA incluido).`;
   return { subject: 'Tu prueba gratis de ImpulsaCap está activa', html, text };
 }
 
@@ -406,7 +411,7 @@ export function earlyAccessAdminEmail(args: { userEmail: string; companyName?: s
 
 export function paymentAvailableEmail(args: { deadline: string; price: number }) {
   const html = layout({
-    preheader: 'Activa tu Plan Trimestral a precio de lanzamiento',
+    preheader: 'Activa tu Plan Trimestral: unos $5.000 al mes',
     heading: 'Activa tu Plan Trimestral',
     bodyHtml:
       p('Gracias por probar ImpulsaCap. Tus datos y postulaciones siguen guardados: activa tu Plan Trimestral para seguir preparando tu postulación con todas las herramientas.') +
@@ -418,7 +423,7 @@ export function paymentAvailableEmail(args: { deadline: string; price: number })
     cta: { label: 'Activar mi plan', url: `${getAppUrl()}/?pagar=1` }
   });
   const text = `Tus datos en ImpulsaCap siguen guardados. Activa tu Plan Trimestral a ${formatCLP(args.price)} (3 meses, IVA incluido) para seguir: ${getAppUrl()}/?pagar=1`;
-  return { subject: 'Activa tu Plan Trimestral a precio de lanzamiento', html, text };
+  return { subject: 'Activa tu Plan Trimestral ImpulsaCap', html, text };
 }
 
 export function sellerSaleEmail(args: { sellerName: string; code: string; amount: number; commission: number; companyName?: string }) {
