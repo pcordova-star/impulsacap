@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { ChileanFund, CompanyProfile, FormulationOutput, BlindAuditResult, GeneratedDocument } from '../types/funds';
 import { CHILEAN_FUNDS } from '../data/chileanFunds';
 import { resolveFund } from '../utils/convocatoriaFund';
-import { ApplicationItem, ApplicationStatus } from '../types/application';
+import { ApplicationItem, ApplicationStatus, ApplicationResult } from '../types/application';
 import { RoadmapConfirmations, DocChecklistStatuses } from '../types/expediente';
 import { auth, db } from '../firebase';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
@@ -249,8 +249,14 @@ export function useApplications(profile: CompanyProfile) {
   }, [persistLocal]);
 
   // Derived application collections
+  // En curso: no archivadas y sin resultado. Una postulación con resultado (ganada o no) ya no usa cupo.
   const activeApplications = useMemo(() => {
-    return applications.filter(a => a.status !== 'archivada');
+    return applications.filter(a => a.status !== 'archivada' && !a.result);
+  }, [applications]);
+
+  /** Con resultado: proyectos ganados (en ejecución) y no ganados (para mejorar y volver a postular) */
+  const resolvedApplications = useMemo(() => {
+    return applications.filter(a => a.status !== 'archivada' && Boolean(a.result));
   }, [applications]);
 
   const archivedApplications = useMemo(() => {
@@ -434,10 +440,10 @@ export function useApplications(profile: CompanyProfile) {
   const activeAppIdRef = useRef<string | null>(null);
   activeAppIdRef.current = activeApplication?.id || null;
 
-  const patchActive = useCallback(async (
+  const patchById = useCallback(async (
+    id: string | null,
     build: (app: ApplicationItem) => { local: Partial<ApplicationItem>; remote?: Record<string, any> }
   ) => {
-    const id = activeAppIdRef.current;
     if (!id) return false;
     const list = applicationsRef.current;
     const app = list.find(a => a.id === id);
@@ -455,7 +461,7 @@ export function useApplications(profile: CompanyProfile) {
           ownerId: app.ownerId,
           fundId: app.fundId,
           fundName: app.fundName,
-          status: app.status,
+          status: (local.status as string) || app.status,
           ...(remote ?? local),
           updatedAt: now
         }, { merge: true });
@@ -468,6 +474,84 @@ export function useApplications(profile: CompanyProfile) {
     return true;
   }, [currentUser, persistLocal]);
 
+  const patchActive = useCallback((
+    build: (app: ApplicationItem) => { local: Partial<ApplicationItem>; remote?: Record<string, any> }
+  ) => patchById(activeAppIdRef.current, build), [patchById]);
+
+  /** Cambia campos de cualquier postulación (resultado, ejecución, evaluación del comité) */
+  const updateApplicationFields = useCallback(async (id: string, fields: Partial<ApplicationItem>) => {
+    return patchById(id, () => ({ local: fields }));
+  }, [patchById]);
+
+  /** Marca el resultado del concurso (o lo deshace con null). Si la marcaba sin haberla dado por enviada, queda enviada. */
+  const setApplicationResult = useCallback(async (id: string, result: ApplicationResult | null, extra: Partial<ApplicationItem> = {}) => {
+    return patchById(id, app => ({
+      local: {
+        result,
+        ...(result && app.status !== 'enviada' ? { status: 'enviada' as ApplicationStatus } : {}),
+        ...extra
+      }
+    }));
+  }, [patchById]);
+
+  /** Nueva postulación al mismo fondo a partir de una no adjudicada: copia el trabajo y las mejoras pendientes */
+  const reapplyFrom = useCallback(async (appId: string): Promise<{ ok: boolean; application?: ApplicationItem; error?: string }> => {
+    const src = applicationsRef.current.find(a => a.id === appId);
+    if (!src) return { ok: false, error: 'Postulación no encontrada' };
+    const inProgress = applicationsRef.current.filter(a => a.status !== 'archivada' && !a.result);
+    const existing = inProgress.find(a => a.fundId === src.fundId);
+    if (existing) {
+      setActiveApplicationId(existing.id);
+      return { ok: true, application: existing };
+    }
+    if (inProgress.length >= 3) {
+      return { ok: false, error: 'Ya tienes 3 postulaciones en curso. Archiva una para volver a postular a este fondo.' };
+    }
+    const currentUid = currentUser?.uid || getCurrentUser()?.id || 'guest';
+    const newId = `app_${currentUid}_${src.fundId.slice(0, 40)}_${Date.now()}`.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 128);
+    const { portal: _portal, ...checks } = ((src.roadmapConfirmations as any)?.checks || {}) as Record<string, boolean>;
+    const now = new Date().toISOString();
+    const newApp: ApplicationItem = {
+      id: newId,
+      ownerId: currentUid,
+      fundId: src.fundId,
+      fundName: src.fundName,
+      ...(src.fundSnapshot ? { fundSnapshot: src.fundSnapshot } : {}),
+      status: 'en_preparacion',
+      createdAt: now,
+      updatedAt: now,
+      answersBySection: src.answersBySection || {},
+      generatedTextsBySection: src.generatedTextsBySection || {},
+      formulation: src.formulation || null,
+      auditResult: null,
+      docStatuses: src.docStatuses,
+      roadmapConfirmations: { ...(src.roadmapConfirmations || { confirmedInicioActividades: false, confirmedEstatutoSocial: false, confirmedGarantia: false }), checks } as any,
+      generatedDocs: src.generatedDocs || [],
+      reapplyContext: {
+        fromApplicationId: src.id,
+        improvements: src.rejectionReview?.plan?.improvements || [],
+        done: {}
+      }
+    };
+    // Un solo cambio de estado: la nueva postulación y la marca en la anterior (dos guardados seguidos se pisaban)
+    const rejectionReview = { ...(src.rejectionReview || {}), reappliedAs: newId };
+    const next = [...applicationsRef.current.map(a => (a.id === src.id ? { ...a, rejectionReview, updatedAt: now } : a)), newApp];
+    applicationsRef.current = next;
+    setApplications(next);
+    persistLocal(next);
+    if (currentUser?.uid) {
+      try {
+        await setDoc(doc(db, 'applications', newId), newApp);
+        await setDoc(doc(db, 'applications', src.id), { ownerId: src.ownerId, fundId: src.fundId, fundName: src.fundName, status: src.status, rejectionReview, updatedAt: now }, { merge: true });
+      } catch (err) {
+        console.warn('Could not sync reapply to Firestore:', err);
+        warnCloudSaveFailed();
+      }
+    }
+    setActiveApplicationId(newId);
+    return { ok: true, application: newApp };
+  }, [currentUser, persistLocal, setActiveApplicationId]);
+
   const updateActiveFormulation = useCallback(async (formulation: FormulationOutput) => {
     return patchActive(() => ({ local: { formulation } }));
   }, [patchActive]);
@@ -479,6 +563,10 @@ export function useApplications(profile: CompanyProfile) {
   const updateActiveRoadmapConfirmations = useCallback(async (roadmapConfirmations: Partial<RoadmapConfirmations>) => {
     await patchActive(app => ({
       local: {
+        // Al confirmar que la envió en el portal oficial, la postulación queda "enviada" (espera resultado)
+        ...((roadmapConfirmations as any)?.checks?.portal && app.status !== 'enviada' && app.status !== 'archivada'
+          ? { status: 'enviada' as ApplicationStatus }
+          : {}),
         roadmapConfirmations: {
           ...(app.roadmapConfirmations || {
             confirmedInicioActividades: false,
@@ -553,6 +641,7 @@ export function useApplications(profile: CompanyProfile) {
     applications,
     activeApplications,
     archivedApplications,
+    resolvedApplications,
     activeApplication,
     activeApplicationId,
     activeFund,
@@ -569,6 +658,9 @@ export function useApplications(profile: CompanyProfile) {
     addActiveGeneratedDoc,
     updateActiveGeneratedDocStatus,
     deleteActiveGeneratedDoc,
-    saveActiveSectionAnswers
+    saveActiveSectionAnswers,
+    updateApplicationFields,
+    setApplicationResult,
+    reapplyFrom
   };
 }

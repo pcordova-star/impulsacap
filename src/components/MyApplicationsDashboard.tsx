@@ -33,8 +33,11 @@ import {
   Layers,
   X,
   Bell,
-  AlertTriangle
+  AlertTriangle,
+  Trophy,
+  Lightbulb
 } from 'lucide-react';
+import { executionTotals, upcomingMilestones, clp, fmtDay, initExecution } from '../data/execution';
 
 import { db, auth } from '../firebase';
 import { doc, setDoc, arrayUnion } from 'firebase/firestore';
@@ -43,6 +46,8 @@ interface MyApplicationsDashboardProps {
   profile: CompanyProfile;
   activeApplications: ApplicationItem[];
   archivedApplications: ApplicationItem[];
+  /** Con resultado marcado: ganadas (en ejecución) y no ganadas */
+  resolvedApplications?: ApplicationItem[];
   convocatorias?: Convocatoria[];
   funds?: ChileanFund[];
   currentUser?: CompanyUser | null;
@@ -62,6 +67,7 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
   profile,
   activeApplications,
   archivedApplications,
+  resolvedApplications = [],
   convocatorias = [],
   funds = CHILEAN_FUNDS,
   currentUser,
@@ -245,7 +251,7 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
   const statusLabels: Record<string, { label: string; badgeClass: string }> = {
     'en_preparacion': { label: 'En Preparación', badgeClass: 'bg-blue-50 text-blue-700 border-blue-200' },
     'lista_para_enviar': { label: 'Lista para Enviar', badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-    'enviada': { label: 'Enviada', badgeClass: 'bg-purple-50 text-purple-700 border-purple-200' },
+    'enviada': { label: 'Enviada · esperando resultado', badgeClass: 'bg-purple-50 text-purple-700 border-purple-200' },
     'archivada': { label: 'Archivada', badgeClass: 'bg-slate-100 text-slate-600 border-slate-200' }
   };
 
@@ -324,7 +330,9 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
             {profile.companyName || 'Tu empresa'}
           </h1>
           <p className="text-sm text-slate-600">
-            {activeApplications.length === 0
+            {activeApplications.length === 0 && resolvedApplications.some(a => a.result?.outcome === 'adjudicada')
+              ? 'Tienes un proyecto ganado en ejecución. Abajo ves cómo va y qué vence pronto.'
+              : activeApplications.length === 0
               ? 'Todavía no tienes postulaciones. Abajo te explico cómo empezar.'
               : `Tienes ${activeApplications.length} ${activeApplications.length === 1 ? 'postulación en curso' : 'postulaciones en curso'}. Sigue con el próximo paso de cada una.`}
           </p>
@@ -393,6 +401,70 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
           </div>
         </div>
       ))}
+
+      {/* 2b. RESULTADOS: proyectos ganados en ejecución y no ganados para mejorar */}
+      {resolvedApplications.length > 0 && (
+        <section className="space-y-3" aria-labelledby="resultados-titulo">
+          <h2 id="resultados-titulo" className="text-lg font-black text-slate-900 flex items-center gap-2">
+            <Trophy className="w-5 h-5 text-amber-500" />
+            Tus resultados
+          </h2>
+          <div className={`grid gap-4 ${resolvedApplications.length > 1 ? 'lg:grid-cols-2' : ''}`}>
+            {resolvedApplications.map(app => {
+              const fund = resolveFund(app, funds);
+              const won = app.result?.outcome === 'adjudicada';
+              if (won) {
+                const ex = app.execution || initExecution(app, fund);
+                const t = executionTotals(ex);
+                const next = upcomingMilestones(ex, 1)[0];
+                return (
+                  <article key={app.id} className="rounded-3xl bg-white border-2 border-emerald-300 shadow-sm p-5 sm:p-6 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 space-y-1">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold"><Trophy className="w-3.5 h-3.5" /> Ganado · en ejecución</span>
+                        <h3 className="text-lg font-black text-slate-900 leading-tight">{fund.name}</h3>
+                        {app.result?.awardedAmountCLP ? <p className="text-xs text-slate-500">Adjudicado: <strong className="text-emerald-700">{clp(app.result.awardedAmountCLP)}</strong></p> : null}
+                      </div>
+                      <button title="Archivar (ocultar del panel)" aria-label="Archivar" onClick={() => { if (confirm('¿Archivar este proyecto? Sus datos quedan guardados y puedes reactivarlo después.')) onArchiveApplication(app.id); }} className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer shrink-0"><Archive className="w-4 h-4" /></button>
+                    </div>
+                    <div>
+                      <div className="h-2 rounded-full bg-slate-100 overflow-hidden"><div className={`h-full rounded-full ${t.pct > 100 ? 'bg-rose-500' : 'bg-emerald-500'}`} style={{ width: `${Math.min(100, t.pct)}%` }} /></div>
+                      <p className="text-xs text-slate-600 mt-1">Gastado <strong>{clp(t.spent)}</strong>{t.approved ? ` de ${clp(t.approved)} (${t.pct}%)` : ''} · rendido {clp(t.rendered)}</p>
+                    </div>
+                    <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <p className="text-sm text-slate-900 min-w-0">
+                        {next ? <><span className="block text-[10px] font-bold uppercase tracking-wider text-emerald-700">Próximo vencimiento</span><strong>{fmtDay(next.dueDate)}</strong> · {next.title}</> : <><span className="block text-[10px] font-bold uppercase tracking-wider text-emerald-700">Próximo paso</span>{ex.startDate ? 'Registra tus gastos a medida que compras' : 'Firma el contrato y define la fecha de inicio'}</>}
+                      </p>
+                      <button onClick={() => onContinueApplication(app.id, 'resultado')} className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm cursor-pointer inline-flex items-center gap-1.5 shrink-0">Abrir la ejecución <ArrowRight className="w-3.5 h-3.5" /></button>
+                    </div>
+                  </article>
+                );
+              }
+              const review = app.rejectionReview;
+              return (
+                <article key={app.id} className="rounded-3xl bg-white border border-slate-200 shadow-sm p-5 sm:p-6 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 space-y-1">
+                      <span className="inline-flex px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-bold">No adjudicada</span>
+                      <h3 className="text-lg font-black text-slate-900 leading-tight">{fund.name}</h3>
+                    </div>
+                    <button title="Archivar (ocultar del panel)" aria-label="Archivar" onClick={() => { if (confirm('¿Archivar esta postulación? Sus datos quedan guardados.')) onArchiveApplication(app.id); }} className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer shrink-0"><Archive className="w-4 h-4" /></button>
+                  </div>
+                  <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <p className="text-sm text-slate-900 min-w-0">
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1"><Lightbulb className="w-3.5 h-3.5" /> Siguiente paso</span>
+                      {review?.reappliedAs ? 'Ya volviste a postular: corrige lo que falló en la nueva postulación.' : review?.plan ? `Tu plan de mejora está listo (${review.plan.improvements.length} mejoras). Vuelve a postular con todo copiado.` : 'Trae la evaluación del comité y armamos un plan para volver a postular mejor.'}
+                    </p>
+                    <button onClick={() => review?.reappliedAs ? onNavigateTab?.(`open-app:${review.reappliedAs}`) : onContinueApplication(app.id, 'resultado')} className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-sm cursor-pointer inline-flex items-center gap-1.5 shrink-0">
+                      {review?.reappliedAs ? 'Abrir la nueva' : review?.plan ? 'Ver mi plan' : 'Armar mi plan de mejora'} <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* 3. POSTULACIONES EN CURSO (lo principal) */}
       <section className="space-y-3" aria-labelledby="mis-postulaciones-titulo">

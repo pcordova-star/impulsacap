@@ -246,7 +246,11 @@ export default function App() {
     addActiveGeneratedDoc,
     updateActiveGeneratedDocStatus,
     deleteActiveGeneratedDoc,
-    saveActiveSectionAnswers
+    saveActiveSectionAnswers,
+    resolvedApplications,
+    updateApplicationFields,
+    setApplicationResult,
+    reapplyFrom
   } = useApplications(profile);
 
   // Monitor de convocatorias oficiales en vivo desde Firestore
@@ -714,6 +718,13 @@ export default function App() {
       return;
     }
     if (rawTab === 'sii') { setShowSiiModal(true); return; }
+    if (rawTab.startsWith('open-app:')) {
+      setActiveApplicationId(rawTab.slice('open-app:'.length));
+      setActiveTab('postulation');
+      setPostulationSubTab('roadmap');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
     const { base: tab, target } = splitTarget(rawTab);
     if (tab !== 'my-company' && tab !== 'profile') setReturnContext(null);
     if (tab === 'catalog') {
@@ -732,6 +743,9 @@ export default function App() {
     } else if (tab === 'auditor') {
       setActiveTab('postulation');
       setPostulationSubTab('auditor');
+    } else if (tab === 'resultado') {
+      setActiveTab('postulation');
+      setPostulationSubTab('resultado');
     } else if (tab === 'profile') {
       setActiveTab('my-company');
     } else if (tab === 'advisor') {
@@ -919,6 +933,7 @@ export default function App() {
               profile={profile}
               activeApplications={activeApplications}
               archivedApplications={archivedApplications}
+              resolvedApplications={resolvedApplications}
               convocatorias={activeConvocatorias}
               funds={liveFunds}
               currentUser={currentUser}
@@ -996,6 +1011,13 @@ export default function App() {
               onOpenAuthModal={(mode) => { setAuthModalMode(mode || 'login'); setShowAuthModal(true); }}
               onSelectFund={handleSelectFundToFormulate}
               onNavigateTab={handleNavigateTab}
+              onUpdateApplicationFields={updateApplicationFields}
+              onSetApplicationResult={(id, result, extra) => {
+                const p = setApplicationResult(id, result, extra);
+                if (result?.outcome === 'adjudicada') showToast({ id: 'resultado', level: 'success', title: '¡Felicitaciones! 🎉', message: 'Te acompañamos en la ejecución: empieza por los primeros pasos.', durationMs: 7000 });
+                return p;
+              }}
+              onReapplyFrom={reapplyFrom}
             />
           ) : (
             <AuthGateView

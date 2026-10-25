@@ -57,7 +57,9 @@ export const AI_CREDITS: Record<string, number> = {
   'instant-match': 0,
   ayuda: 0,
   'perfil-web': 0,
-  'perfil-cv': 0
+  'perfil-cv': 0,
+  'informe-ejecucion': 2,
+  'plan-mejora': 3
 };
 
 /** Máximo de tokens que puede generar cada función (incluye el razonamiento del modelo). */
@@ -72,7 +74,9 @@ export const AI_MAX_OUTPUT: Record<string, number> = {
   formulate: 16384,
   'parse-tax-folder': 8192,
   'perfil-web': 4096,
-  'perfil-cv': 6144
+  'perfil-cv': 6144,
+  'informe-ejecucion': 8192,
+  'plan-mejora': 8192
 };
 
 /** Máximo de caracteres de texto que se envían a la IA en una llamada (~4 caracteres por token). */

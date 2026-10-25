@@ -94,6 +94,8 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 app.use('/api/gemini/parse-tax-folder', express.json({ limit: '15mb' }));
 // Currículums para el perfil del equipo (hasta 5 archivos de 5 MB)
 app.use('/api/perfil/desde-cv', express.json({ limit: '36mb' }));
+// Evaluación del comité en PDF (si no ganó)
+app.use('/api/gemini/plan-mejora', express.json({ limit: '15mb' }));
 // Reintenta la conexión de Firestore Admin antes de atender la API si aún no está autorizada
 app.use('/api', async (_req, _res, next) => {
   if (!isFirestoreAdminAuthorized) {
@@ -1626,6 +1628,122 @@ Genera el texto completo del documento en formato Markdown:`;
   }
 });
 
+// 4b. Etapa de ejecución: borrador del informe de avance o final (proyecto ganado)
+app.post('/api/gemini/informe-ejecucion', requireAuth, requireActivePlan, guardAi('informe-ejecucion'), async (req, res) => {
+  try {
+    const b = req.body || {};
+    const kind = b.kind === 'final' ? 'final' : 'avance';
+    const cut = (v: any, n: number) => String(v ?? '').slice(0, n);
+    const fund = officialFund(b.fund) || {};
+    const budget = (Array.isArray(b.budget) ? b.budget : []).slice(0, 40)
+      .map((l: any) => `- ${cut(l.item, 120)} (${cut(l.account, 80)}): aprobado $${Math.round(Number(l.approvedCLP) || 0).toLocaleString('es-CL')}, gastado $${Math.round(Number(l.spentCLP) || 0).toLocaleString('es-CL')}`).join('\n');
+    const milestones = (Array.isArray(b.milestones) ? b.milestones : []).slice(0, 40)
+      .map((m: any) => `- [${m.done ? 'cumplido' : 'pendiente'}] ${cut(m.title, 200)}${m.dueDate ? ` (vence ${cut(m.dueDate, 10)})` : ''}`).join('\n');
+    const prompt = `Eres un consultor chileno que acompaña a micro y pequeñas empresas en la ejecución de proyectos con subsidio del Estado.
+Redacta el BORRADOR de un informe ${kind === 'final' ? 'FINAL' : 'DE AVANCE'} del proyecto, para que la persona lo revise, lo ajuste al formato que le pida su ejecutivo y lo entregue.
+
+REGLAS:
+- Usa SOLO los datos de abajo. No inventes actividades, resultados, cifras, clientes ni ventas.
+- Lenguaje simple y concreto, como lo escribiría el dueño de una pyme. Nada de jerga técnica.
+- Si falta un dato importante, escribe [COMPLETAR: pregunta simple] (máximo 3 en todo el texto). Nunca pidas estadísticas, fuentes ni estudios.
+- Formato Markdown con estas secciones: 1. Datos del proyecto · 2. Actividades realizadas · 3. Resultados${kind === 'final' ? ' obtenidos' : ' a la fecha'} · 4. Uso del presupuesto (tabla simple por ítem: aprobado, gastado, % de avance) · 5. ${kind === 'final' ? 'Conclusiones y próximos pasos del negocio' : 'Dificultades y próximos pasos'}.
+- Breve: máximo una página y media.
+
+DATOS:
+- Fondo: ${cut(fund.name || b.fundName, 160)} (${cut(fund.agency, 40)})
+- Proyecto: ${cut(b.projectTitle, 200) || '[sin título]'}
+- Empresa: ${cut(b.companyName, 160)}
+- Inicio: ${cut(b.startDate, 10) || 'no informado'} · Duración: ${b.durationMonths ? `${Number(b.durationMonths)} meses` : 'no informada'}
+- Objetivo / resumen del proyecto: ${cut(b.summary, 1500) || 'no informado'}
+- Lo que la persona cuenta que hizo en este período: ${cut(b.activities, 4000) || 'no informado'}
+- Hitos:
+${milestones || '- sin hitos registrados'}
+- Presupuesto:
+${budget || '- sin presupuesto registrado'}
+
+Devuelve solo el texto del informe en Markdown.`;
+    const response = await ai.models.generateContent({ model: MODEL_NAME, contents: prompt, config: { temperature: 0.2 } });
+    const text = response.text || '';
+    if (!text) throw new Error('Respuesta vacía de Gemini');
+    return res.json({ text });
+  } catch (error: any) {
+    console.error('Error in /api/gemini/informe-ejecucion:', error?.message);
+    return res.status(503).json({ error: 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.' });
+  }
+});
+
+// 4c. Si no ganó: plan de mejora a partir de la evaluación del comité
+const MEJORA_SECTIONS = ['title_pitch', 'problem', 'solution', 'market', 'model', 'workplan', 'team', 'budget', 'documentos', 'otro'];
+app.post('/api/gemini/plan-mejora', requireAuth, requireActivePlan, guardAi('plan-mejora'), async (req, res) => {
+  try {
+    const b = req.body || {};
+    const cut = (v: any, n: number) => String(v ?? '').slice(0, n);
+    let evaluation = cut(b.evaluationText, 20000).trim();
+    if (b.fileBase64) {
+      try {
+        const clean = String(b.fileBase64).includes('base64,') ? String(b.fileBase64).split('base64,')[1] : String(b.fileBase64);
+        const parser = new PDFParse({ data: Buffer.from(clean, 'base64') });
+        const out = await parser.getText();
+        evaluation = `${evaluation}\n${cut(out?.text, 20000)}`.trim();
+      } catch (e: any) {
+        console.warn('plan-mejora: no se pudo leer el PDF', e?.message);
+      }
+    }
+    if (evaluation.replace(/\s+/g, ' ').length < 60) {
+      return res.status(422).json({ error: 'No pudimos leer la evaluación. Copia y pega el texto de los comentarios del comité (o sube el PDF con texto, no una foto).', code: 'EVALUATION_UNREADABLE' });
+    }
+    const fund = officialFund(b.fund) || {};
+    const f = b.formulation || {};
+    const prompt = `Eres un consultor chileno que ayuda a micro y pequeñas empresas a volver a postular a fondos del Estado.
+La persona NO ganó. Lee la evaluación del comité y su postulación, y arma un plan de mejora concreto y simple para la próxima convocatoria.
+
+REGLAS:
+- Básate en lo que dice la evaluación. No inventes puntajes ni comentarios que no estén.
+- Cada mejora: qué falló (en palabras simples) y qué hacer exactamente (una acción concreta que la persona pueda hacer sola).
+- Nada de jerga: nada de TAM/SAM/SOM, estudios ni estadísticas oficiales.
+- Ordena por impacto: primero lo que más puntaje le costó. Máximo 8 mejoras.
+- "section" debe ser una de: ${MEJORA_SECTIONS.join(', ')} (title_pitch = título y pitch; workplan = plan de trabajo; documentos = cartas y anexos; otro = cualquier otra cosa, como requisitos).
+- "scores": solo si la evaluación trae puntajes por criterio; si no, lista vacía.
+- "summary": 2 o 3 frases cálidas y honestas: por qué no ganó y que tiene arreglo.
+- "nextSteps": 3 a 5 pasos simples para volver a postular (sin inventar fechas de convocatorias).
+
+${fundRulesForPrompt(fund)}
+
+POSTULACIÓN QUE ENVIÓ:
+- Título: ${cut(f.projectTitle, 200)}
+- Problema: ${cut(f.problemStatement, 2500)}
+- Solución: ${cut(f.solutionAndInnovation, 2500)}
+- Modelo de negocio: ${cut(f.businessModel, 1500)}
+- Equipo: ${cut(f.teamCapabilities, 1500)}
+- Plan de trabajo: ${(Array.isArray(f.workPlanMilestones) ? f.workPlanMilestones : []).slice(0, 12).map((m: any) => `${cut(m.month, 20)} ${cut(m.title, 120)}`).join('; ')}
+- Presupuesto: ${(Array.isArray(f.budgetBreakdown) ? f.budgetBreakdown : []).slice(0, 20).map((x: any) => `${cut(x.item, 100)} $${Math.round(Number(x.corfoContributionCLP) || 0).toLocaleString('es-CL')}`).join('; ')}
+
+EVALUACIÓN DEL COMITÉ (texto entregado por la persona):
+${evaluation}
+
+Responde SOLO JSON con esta forma:
+{"summary":"...","scores":[{"criterion":"...","score":"...","comment":"..."}],"improvements":[{"section":"problem","problem":"...","action":"...","priority":"alta"}],"nextSteps":["..."]}`;
+    const response = await ai.models.generateContent({ model: MODEL_NAME, contents: prompt, config: { responseMimeType: 'application/json', temperature: 0.2 } });
+    const raw = JSON.parse(response.text || '{}');
+    const plan = {
+      summary: cut(raw.summary, 1200),
+      scores: (Array.isArray(raw.scores) ? raw.scores : []).slice(0, 12).map((x: any) => ({ criterion: cut(x.criterion, 160), score: cut(x.score, 30), comment: cut(x.comment, 600) })),
+      improvements: (Array.isArray(raw.improvements) ? raw.improvements : []).slice(0, 8).map((x: any) => ({
+        section: MEJORA_SECTIONS.includes(x.section) ? x.section : 'otro',
+        problem: cut(x.problem, 600),
+        action: cut(x.action, 800),
+        priority: ['alta', 'media', 'baja'].includes(x.priority) ? x.priority : 'media'
+      })).filter((x: any) => x.action),
+      nextSteps: (Array.isArray(raw.nextSteps) ? raw.nextSteps : []).slice(0, 6).map((x: any) => cut(x, 400)).filter(Boolean)
+    };
+    if (!plan.summary && plan.improvements.length === 0) throw new Error('Plan vacío');
+    return res.json({ plan, evaluationText: evaluation.slice(0, 20000) });
+  } catch (error: any) {
+    console.error('Error in /api/gemini/plan-mejora:', error?.message);
+    return res.status(503).json({ error: 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.' });
+  }
+});
+
 // 5. Asistente Conversacional Experto en Fondos Chilenos
 /**
  * Gemini exige que la conversación empiece con el usuario y alterne turnos.
@@ -2559,7 +2677,7 @@ app.post('/api/postulaciones/reactivar', requireAuth, async (req, res) => {
       let activeCount = 0;
       appsSnap.forEach(d => {
         const data = d.data();
-        if (d.id !== applicationId && data.status !== 'archivada') {
+        if (d.id !== applicationId && data.status !== 'archivada' && !data.result) {
           activeCount++;
         }
       });

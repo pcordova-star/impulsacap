@@ -36,6 +36,8 @@ export interface JourneyApplication {
   roadmapConfirmations?: any;
   generatedDocs?: any[];
   status?: string;
+  result?: { outcome: 'adjudicada' | 'no_adjudicada' } | null;
+  rejectionReview?: { reappliedAs?: string | null } | null;
 }
 
 export interface Journey {
@@ -158,6 +160,26 @@ export function computeJourney(input: {
       }
       stages.push({ ...base, next, detail: pending?.detail, action });
     });
+
+    // Después de enviar: esperar el resultado y, según cuál sea, ejecutar el proyecto o mejorar y volver a postular
+    const submitted = application.status === 'enviada' || Boolean(application.roadmapConfirmations?.checks?.portal) || Boolean(application.result);
+    if (submitted) {
+      const outcome = application.result?.outcome;
+      const base = { id: 'resultado', phase: 'postulacion' as Phase, phaseLabel: `Después de postular a ${fund.name}` };
+      if (!outcome) {
+        stages.push({ ...base, title: 'Espera el resultado y márcalo aquí', done: false,
+          why: 'Los resultados suelen tardar algunas semanas y llegan por correo o al portal del fondo. Cuando te avisen, márcalo: si ganaste, te acompañamos en la ejecución; si no, armamos un plan para volver a postular mejor.',
+          action: { label: 'Marcar el resultado', target: 'resultado' } });
+      } else if (outcome === 'adjudicada') {
+        stages.push({ ...base, title: 'Ejecuta tu proyecto ganado', done: false,
+          why: 'Ganar es la mitad del camino: ahora toca firmar, comprar según el presupuesto aprobado, rendir los gastos y entregar los informes. Te acompañamos para que no se te rechace ningún gasto.',
+          action: { label: 'Abrir la ejecución', target: 'resultado' } });
+      } else {
+        stages.push({ ...base, title: 'Mejora tu postulación y vuelve a intentarlo', done: Boolean(application.rejectionReview?.reappliedAs),
+          why: 'La mayoría de los proyectos que ganan no lo logran a la primera. Con la evaluación del comité armamos un plan de mejora y reutilizas todo tu trabajo en la próxima convocatoria.',
+          action: { label: 'Armar mi plan de mejora', target: 'resultado' } });
+      }
+    }
   }
 
   const currentIdx = stages.findIndex(s => !s.done);

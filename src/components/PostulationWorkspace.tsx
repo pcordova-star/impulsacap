@@ -1,9 +1,10 @@
-import { splitTarget, goToTarget, setReturnContext } from '../utils/navFocus';
+import { splitTarget, goToTarget, setReturnContext, request as requestNav } from '../utils/navFocus';
 import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { showToast } from '../utils/toast';
 import { ChileanFund, CompanyProfile, FormulationOutput, BlindAuditResult, CompanyUser, calculateProjectProfileCompletion } from '../types/funds';
 import { ExpedienteData } from '../types/expediente';
-import { ApplicationItem } from '../types/application';
+import { ApplicationItem, ApplicationResult } from '../types/application';
+import { ResultPanel, ReapplyBanner } from './ResultPanel';
 import { validateRut } from '../utils/rutValidator';
 import { computeRoadmap } from '../data/fundStandards';
 import { 
@@ -21,7 +22,10 @@ import {
   Copy,
   FolderOpen,
   MessageSquareCode,
-  AlertTriangle
+  AlertTriangle,
+  Trophy,
+  Hourglass,
+  Lightbulb
 } from 'lucide-react';
 import { MyActiveApplication } from './MyActiveApplication';
 import { ExpertChat } from './ExpertChat';
@@ -40,7 +44,7 @@ const OfficialDossierModal = React.lazy(() =>
   import('./OfficialDossierModal').then(m => ({ default: m.OfficialDossierModal }))
 );
 
-export type PostulationSubTab = 'roadmap' | 'formulator' | 'documents' | 'auditor' | 'advisor' | 'expediente';
+export type PostulationSubTab = 'roadmap' | 'formulator' | 'documents' | 'auditor' | 'advisor' | 'expediente' | 'resultado';
 
 interface PostulationWorkspaceProps {
   fund: ChileanFund;
@@ -67,6 +71,9 @@ interface PostulationWorkspaceProps {
   onOpenAuthModal: (mode?: 'login' | 'register') => void;
   onSelectFund: (fund: ChileanFund) => void;
   onNavigateTab: (tab: string) => void;
+  onUpdateApplicationFields?: (id: string, fields: Partial<ApplicationItem>) => Promise<boolean> | void;
+  onSetApplicationResult?: (id: string, result: ApplicationResult | null, extra?: Partial<ApplicationItem>) => Promise<boolean> | void;
+  onReapplyFrom?: (id: string) => Promise<{ ok: boolean; error?: string }>;
 }
 
 export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
@@ -93,7 +100,10 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
   onUpdateProfile,
   onOpenAuthModal,
   onSelectFund,
-  onNavigateTab
+  onNavigateTab,
+  onUpdateApplicationFields,
+  onSetApplicationResult,
+  onReapplyFrom
 }) => {
   const [showDossierModal, setShowDossierModal] = useState<boolean>(false);
 
@@ -138,11 +148,11 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
   const routeTab = (tab: string) => {
     const { base, target } = splitTarget(tab);
     if (base === 'sii') { onOpenSiiModal(); return; }
-    if (base === 'dossier' || base === 'guarantees') { if (base === 'dossier') setShowDossierModal(true); else onChangeSubTab('roadmap'); return; }
+    if (base === 'dossier' || base === 'guarantees') { if (base === 'dossier') setShowDossierModal(true); else { requestNav('roadmapView', 'guarantees'); onChangeSubTab('roadmap'); } return; }
     if (base.startsWith('url:')) { window.open(tab.slice(4), '_blank', 'noopener,noreferrer'); return; }
     const sub: PostulationSubTab | null =
       base === 'my-application' || base === 'roadmap' ? 'roadmap'
-      : (['formulator', 'documents', 'auditor', 'advisor', 'expediente'] as const).includes(base as any) ? (base as PostulationSubTab)
+      : (['formulator', 'documents', 'auditor', 'advisor', 'expediente', 'resultado'] as const).includes(base as any) ? (base as PostulationSubTab)
       : null;
     if (sub) {
       onChangeSubTab(sub);
@@ -178,12 +188,24 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
     return () => { window.removeEventListener('scroll', update); window.removeEventListener('resize', update); };
   }, []);
 
+  // Después de enviar aparece la pestaña del resultado; con resultado marcado pasa a ser la primera
+  const outcome = application?.result?.outcome;
+  const submitted = Boolean(application && (application.status === 'enviada' || (application.roadmapConfirmations as any)?.checks?.portal || application.result));
+  const resultTab = submitted
+    ? { id: 'resultado' as PostulationSubTab, label: outcome === 'adjudicada' ? 'Ejecución del proyecto' : outcome === 'no_adjudicada' ? 'Mejorar y volver a postular' : 'Resultado', icon: outcome === 'adjudicada' ? Trophy : outcome === 'no_adjudicada' ? Lightbulb : Hourglass }
+    : null;
+  useEffect(() => {
+    if (activeSubTab === 'resultado' && !submitted) onChangeSubTab('roadmap');
+  }, [activeSubTab, submitted]);
+
   const tabs: { id: PostulationSubTab; label: string; icon: React.FC<{ className?: string }> }[] = [
+    ...(resultTab && outcome ? [resultTab] : []),
     { id: 'roadmap', label: 'Hoja de Ruta', icon: CheckCircle2 },
     { id: 'formulator', label: 'Formulario y presupuesto', icon: Sparkles },
     { id: 'documents', label: 'Documentos y anexos', icon: FileText },
     { id: 'auditor', label: 'Evaluación simulada', icon: ShieldCheck },
     { id: 'expediente', label: 'Expediente y envío', icon: Award },
+    ...(resultTab && !outcome ? [resultTab] : []),
     { id: 'advisor', label: 'Asesor', icon: MessageSquareCode },
   ];
 
@@ -286,8 +308,32 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
 
       {/* 3. TOOL CONTENT AREA WITH LAZY LOADING SUSPENSE */}
       <div className="min-h-[400px]">
+        {activeSubTab === 'resultado' && application && submitted && (
+          <ResultPanel
+            application={application}
+            fund={fund}
+            profile={profile}
+            onUpdateFields={fields => onUpdateApplicationFields?.(application.id, fields)}
+            onSetResult={(result, extra) => onSetApplicationResult?.(application.id, result, extra)}
+            onReapply={async () => {
+              if (!onReapplyFrom) return { ok: false, error: 'No disponible' };
+              const r = await onReapplyFrom(application.id);
+              if (r.ok) { onChangeSubTab('roadmap'); showToast({ id: 'reapply', level: 'success', title: 'Nueva postulación creada', message: 'Copiamos tu trabajo. Ahora corrige lo que falló antes de enviarla.', durationMs: 6000 }); }
+              return r;
+            }}
+            onNavigate={routeTab}
+          />
+        )}
+
         {activeSubTab === 'roadmap' && (
           <div className="space-y-4">
+            {application?.reapplyContext && !submitted && (
+              <ReapplyBanner
+                context={application.reapplyContext}
+                onToggle={done => onUpdateApplicationFields?.(application.id, { reapplyContext: { ...application.reapplyContext!, done } })}
+                onNavigate={routeTab}
+              />
+            )}
             <MyActiveApplication
               profile={profile}
               selectedFund={fund}

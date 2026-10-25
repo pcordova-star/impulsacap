@@ -21,7 +21,12 @@ PLAN TRIMESTRAL
 - Códigos de vendedor: si un vendedor de ImpulsaCap te dio un código o un link (impulsacap.cl/?ref=CODIGO), el código fija el precio de tu primera compra en lugar del 50% de primera compra. Se aplica con el link o en "¿Tienes un código de vendedor?" junto al precio. Vale solo para la primera compra; se puede quitar o cambiar antes de pagar. Los vendedores ven sus ventas en impulsacap.cl/vendedor.
 - Uso de la IA: el plan incluye uso razonable con un límite diario amplio que se renueva a medianoche (hora de Chile) y un máximo total por plan. Si aparece el aviso de límite diario, el trabajo queda guardado y se puede seguir al día siguiente. La prueba gratis tiene un límite menor. Si el límite no alcanza para un uso legítimo, escribir a contacto@impulsacap.cl.
 - Consultoras o quienes asesoran a varias empresas: escribir a contacto@impulsacap.cl para un plan a medida.
-- Gratis sin plan: diagnóstico de 5 preguntas, monitor de convocatorias, catálogo, Mis postulaciones y hoja de ruta, diagnóstico tributario con la carpeta, robot de ayuda.
+- Gratis sin plan: diagnóstico de 5 preguntas, monitor de convocatorias, catálogo, Mis postulaciones y hoja de ruta, diagnóstico tributario con la carpeta, robot de ayuda, y el seguimiento de la ejecución de un proyecto ganado (gastos, hitos y lista de pasos).
+
+DESPUÉS DE POSTULAR (RESULTADO)
+- Al marcar en la hoja de ruta que la enviaste en el portal oficial, aparece la pestaña "Resultado". Cuando te avisen, marca "¡Gané!" o "No gané esta vez". Marcar el resultado libera el cupo de esa postulación.
+- Si ganaste: pestaña "Ejecución del proyecto" con los primeros pasos (firma del contrato, garantía si pides anticipo, fecha de inicio), hitos con fechas, presupuesto aprobado con registro de gastos (avisa si te pasas de un ítem o si el documento puede no servir para rendir), descarga de gastos en Excel y borradores de informe de avance y final con IA (estos con plan). Es una guía general: las reglas exactas están en el contrato de cada fondo; la rendición oficial se hace en el sistema de la institución.
+- Si no ganaste: pega o sube en PDF la evaluación del comité y la IA arma un plan de mejora (con plan). Con "Volver a postular" se crea una nueva postulación al mismo fondo con el formulario, presupuesto y documentos copiados, y las mejoras como lista de tareas.
 
 NOVEDADES Y BOLETÍN
 - En "Novedades" (menú superior) publicamos noticias de fondos revisadas y resumidas: aperturas, cierres, cambios de bases, presupuesto y anuncios del gobierno.
