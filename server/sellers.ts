@@ -1,6 +1,6 @@
 /**
  * Vendedores: códigos que identifican al vendedor, fijan el precio de la primera compra
- * (reemplazan al 50% de primera compra) y generan una comisión sobre lo pagado.
+ * (con un descuento sobre el precio normal) y generan una comisión sobre lo pagado.
  *
  * Colecciones (solo servidor):
  *  - sellers/{CODE}          { code, name, email, discountPct, commissionPct, active, createdAt, updatedAt }
@@ -10,8 +10,13 @@
  */
 import type { Firestore } from 'firebase-admin/firestore';
 
-export const PRICE_FULL = 39990;
-export const PRICE_FIRST = 19990;
+export const PRICE_FULL = 14990;
+/** Desde oct-2026 el precio es uno solo (sin 50% de primera compra) */
+export const PRICE_FIRST = 14990;
+/** Precios anteriores: se aceptan para pagos iniciados antes del cambio */
+export const LEGACY_PRICES = [19990, 39990];
+/** Un código de vendedor nunca baja el precio de esto (cubre costos de IA, pago y comisión) */
+export const PRICE_MIN_WITH_CODE = 9990;
 export const MAX_DISCOUNT_PCT = 90;
 export const MAX_COMMISSION_PCT = 80;
 
@@ -51,7 +56,7 @@ export const isValidCodeFormat = (code: string) => /^[A-Z0-9][A-Z0-9_-]{2,19}$/.
 export function priceWithDiscount(discountPct: number): number {
   const pct = Math.min(MAX_DISCOUNT_PCT, Math.max(0, Number(discountPct) || 0));
   // Redondeado hacia abajo a la decena: $15.990 en vez de $15.996
-  return Math.floor((PRICE_FULL * (1 - pct / 100)) / 10) * 10;
+  return Math.max(PRICE_MIN_WITH_CODE, Math.floor((PRICE_FULL * (1 - pct / 100)) / 10) * 10);
 }
 
 export function commissionFor(amount: number, commissionPct: number): number {
@@ -78,7 +83,7 @@ export async function hasApprovedPayment(db: Firestore, uid: string): Promise<bo
 
 /**
  * Precio que corresponde al usuario. Primera compra: el código vigente define el precio;
- * sin código, 50% de descuento. Compras siguientes: precio normal y sin código.
+ * sin código, el precio normal. Compras siguientes: precio normal y sin código.
  */
 export async function resolvePricing(db: Firestore, uid: string): Promise<Pricing> {
   const none = { code: null, discountPct: null, commissionPct: null, sellerName: null };

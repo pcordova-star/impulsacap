@@ -131,8 +131,8 @@ export const TermsPage: React.FC<LegalPageProps> = ({ onBack, onOpenOther }) => 
     <InfoTable
       headers={['Concepto', 'Condición']}
       rows={[
-        ['Precio', '$39.990 CLP, IVA incluido'],
-        ['Primera compra', '50% de descuento: $19.990 CLP, IVA incluido, una sola vez por usuario. Un código de vendedor vigente puede reemplazar este descuento por el que indique el código'],
+        ['Precio', '$14.990 CLP, IVA incluido'],
+        ['Códigos de vendedor', 'Un código de vendedor vigente puede dar un descuento en la primera compra, según indique el código'],
         ['Vigencia', '3 meses desde la aprobación del pago'],
         ['Renovación', 'No es automática. Si renuevas antes del vencimiento, los 3 meses se suman a la fecha de término vigente'],
         ['Medio de pago', 'Flow (flow.cl): Webpay, tarjetas de crédito y débito, y transferencia. ImpulsaCap no recibe ni almacena datos de tarjetas'],

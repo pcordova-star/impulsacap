@@ -149,7 +149,7 @@ export async function buildAdminSummary(
       companyName: profileByUid.get(p.uid)?.companyName || '',
       amount,
       status: p.status || 'desconocido',
-      kind: p.sellerCode ? `Primera compra · código ${p.sellerCode}` : amount === 19990 ? 'Primera compra' : amount === 39990 ? 'Renovación' : 'Otro monto',
+      kind: p.sellerCode ? `Primera compra · código ${p.sellerCode}` : amount === 14990 ? 'Plan Trimestral' : amount === 19990 ? 'Primera compra (precio anterior)' : amount === 39990 ? 'Renovación (precio anterior)' : 'Otro monto',
       date,
       day: date ? chileDayKey(new Date(date)) : null,
       serviceStarted: Boolean(p.serviceStartedAt)

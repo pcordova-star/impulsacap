@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { PLAN_PRICE, PLAN_PRICE_TEXT } from '../data/pricing';
 import { usePlan } from '../hooks/usePlan';
 import { resolveFund, fundFromConvocatoria } from '../utils/convocatoriaFund';
 import { computeJourney, fundFit } from '../data/journey';
@@ -624,7 +625,7 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
                 <li>✓ Asesor experto · 3 postulaciones · 3 meses</li>
               </ul>
               <p className="text-sm">
-                {isFirstPurchase && price < 39990 && <span className="line-through text-blue-200 mr-1.5">$39.990</span>}
+                {isFirstPurchase && price < PLAN_PRICE && <span className="line-through text-blue-200 mr-1.5">{PLAN_PRICE_TEXT}</span>}
                 <strong className="text-2xl font-black text-amber-300">${price.toLocaleString('es-CL')}</strong>
                 <span className="text-xs text-blue-100"> pago único, IVA incl.</span>
               </p>

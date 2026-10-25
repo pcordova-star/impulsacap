@@ -386,10 +386,10 @@ const SellersPanel: React.FC = () => {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  const priceFull = data?.limits.priceFull ?? 39990;
+  const priceFull = data?.limits.priceFull ?? 14990;
   const d = Number(form.discountPct);
   const c = Number(form.commissionPct);
-  const previewPrice = Number.isFinite(d) ? Math.floor((priceFull * (1 - Math.min(90, Math.max(0, d)) / 100)) / 10) * 10 : 0;
+  const previewPrice = Number.isFinite(d) ? Math.max(9990, Math.floor((priceFull * (1 - Math.min(90, Math.max(0, d)) / 100)) / 10) * 10) : 0;
   const previewCommission = Number.isFinite(c) ? Math.round(previewPrice * c / 100) : 0;
 
   const save = async (override?: Partial<typeof emptyForm> & { code: string }) => {
@@ -447,7 +447,7 @@ const SellersPanel: React.FC = () => {
   return (
     <Card
       title="Vendedores"
-      subtitle={`Códigos para la primera compra. El descuento reemplaza al 50% de primera compra; la comisión se calcula sobre lo pagado y se puede pagar pasados 10 días (plazo de retracto).${totalPending ? ` Comisiones por pagar: ${clp(totalPending)}.` : ''}`}
+      subtitle={`Códigos para la primera compra. El descuento se aplica sobre el precio normal ($14.990, mínimo $9.990 con código); la comisión se calcula sobre lo pagado y se puede pagar pasados 10 días (plazo de retracto).${totalPending ? ` Comisiones por pagar: ${clp(totalPending)}.` : ''}`}
       right={!showForm ? (
         <button type="button" onClick={() => { setShowForm(true); setEditing(null); setForm(emptyForm); setMsg(null); }} className="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-bold cursor-pointer">
           Nuevo vendedor
@@ -479,7 +479,7 @@ const SellersPanel: React.FC = () => {
           </div>
           <p className="text-xs text-slate-600">
             El cliente paga <strong>{clp(previewPrice)}</strong> su primer trimestre y el vendedor gana <strong>{clp(previewCommission)}</strong> por venta.
-            {previewPrice > (data?.limits.priceFirst ?? 19990) && <span className="text-amber-700"> Ojo: es más caro que el 50% de primera compra sin código ({clp(data?.limits.priceFirst ?? 19990)}).</span>}
+            {previewPrice <= 9990 && <span className="text-amber-700"> Ojo: el precio con código nunca baja de {clp(9990)}.</span>}
           </p>
           <div className="flex flex-wrap gap-2">
             <button type="submit" disabled={busy} className="px-4 py-2 rounded-lg bg-blue-700 text-white text-sm font-bold cursor-pointer disabled:opacity-60">{busy ? 'Guardando…' : 'Guardar'}</button>

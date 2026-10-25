@@ -28,7 +28,7 @@ const QUICK_ANSWERS: Record<string, string> = {
   '¿Cómo funciona ImpulsaCap?':
     'Te acompañamos en 3 etapas:\n1. Encuentra tu fondo: diagnóstico de 5 preguntas y monitor de convocatorias (gratis).\n2. Revisa si cumples: sube tu carpeta tributaria y ve a qué fondos calificas (gratis).\n3. Prepara tu postulación con el Plan Trimestral: redacción con IA, cartas, auditoría simulada y expediente PDF.\nLa postulación final la envías tú en el portal del fondo.',
   '¿Qué incluye el plan y cuánto cuesta?':
-    'El Plan Trimestral cuesta $39.990 (IVA incluido) y tu primera compra tiene 50% de descuento: $19.990. Es un pago único por 3 meses, sin renovación automática. Es para 1 empresa con hasta 3 postulaciones activas a la vez, e incluye redacción con IA, cartas y documentos, auditoría simulada, expediente PDF y asesor experto.',
+    'El Plan Trimestral cuesta $14.990 (IVA incluido), unos $5.000 al mes. Es un pago único por 3 meses, sin renovación automática. Es para 1 empresa con hasta 3 postulaciones activas a la vez, e incluye redacción con IA, cartas y documentos, auditoría simulada, expediente PDF y asesor experto.',
   '¿Cómo obtengo mi carpeta tributaria?':
     '1. Entra a sii.cl con tu RUT y clave.\n2. Ve a Servicios online > Situación tributaria > Carpeta tributaria electrónica.\n3. Elige "Acreditar tamaño de empresa", la regular o una personalizada con F29 y F22, y descárgala en PDF.\n4. Súbela en ImpulsaCap desde tu postulación (paso 1) o desde "Mi empresa".',
   'Pagué y no veo mi plan activo':

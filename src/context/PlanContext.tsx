@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { PLAN_PRICE } from '../data/pricing';
 import { auth, db } from '../firebase';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
@@ -34,7 +35,7 @@ const defaultPlanState: PlanState = {
   provisional: false,
   daysLeft: 0,
   isFirstPurchase: true,
-  price: 19990,
+  price: PLAN_PRICE,
   referralCode: null,
   referralDiscountPct: null,
   referralSellerName: null,
@@ -68,7 +69,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode }> = ({ children
     sellerName: string | null;
   }>({
     isFirstPurchase: true,
-    price: 19990,
+    price: PLAN_PRICE,
     code: null,
     discountPct: null,
     sellerName: null
@@ -95,7 +96,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (preview && !('error' in preview)) {
         setPricingState({ isFirstPurchase: true, price: preview.price, code: preview.code, discountPct: preview.discountPct, sellerName: preview.sellerName });
       } else {
-        setPricingState({ isFirstPurchase: true, price: 19990, code: null, discountPct: null, sellerName: null });
+        setPricingState({ isFirstPurchase: true, price: PLAN_PRICE, code: null, discountPct: null, sellerName: null });
       }
       return;
     }
@@ -106,7 +107,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const data = await res.json();
         setPricingState({
           isFirstPurchase: !!data.isFirstPurchase,
-          price: data.price || (data.isFirstPurchase ? 19990 : 39990),
+          price: data.price || PLAN_PRICE,
           code: data.code || null,
           discountPct: typeof data.discountPct === 'number' ? data.discountPct : null,
           sellerName: data.sellerName || null

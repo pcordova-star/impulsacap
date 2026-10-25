@@ -1009,7 +1009,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
           <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <p className="text-xs text-slate-700">
               Precio de tu primer trimestre: <strong className="text-slate-900">${price.toLocaleString('es-CL')}</strong> (IVA incluido)
-              {referralCode && typeof referralDiscountPct === 'number' ? <>, {referralDiscountPct}% de descuento con el código <strong>{referralCode}</strong></> : <>, 50% de descuento de primera compra</>}.
+              {referralCode && typeof referralDiscountPct === 'number' ? <>, {referralDiscountPct}% de descuento con el código <strong>{referralCode}</strong></> : <>, unos $5.000 al mes</>}.
             </p>
             <ReferralCodeField tone="light" />
           </div>

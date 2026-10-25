@@ -155,7 +155,7 @@ export default function App() {
     previewCode(code).then(p => {
       if ('error' in p) {
         clearStoredRef();
-        showToast({ id: `ref-invalid-${code}`, level: 'warning', title: `El código ${code} no está vigente`, message: 'Puedes seguir con el precio de primera compra.' });
+        showToast({ id: `ref-invalid-${code}`, level: 'warning', title: `El código ${code} no está vigente`, message: 'Puedes seguir con el precio normal.' });
       } else {
         showToast({
           id: `ref-ok-${code}`,

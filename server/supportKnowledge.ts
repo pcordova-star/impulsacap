@@ -15,10 +15,10 @@ CÓMO FUNCIONA (3 etapas)
 - Cada postulación tiene una Hoja de Ruta de 6 pasos: validación tributaria, acreditación legal y cartas, formulación técnica, presupuesto, auditoría y expediente.
 
 PLAN TRIMESTRAL
-- Precio normal $39.990 CLP, IVA incluido. Primera compra: 50% de descuento, $19.990 CLP (una vez por usuario).
+- Precio $14.990 CLP por 3 meses, IVA incluido (unos $5.000 al mes). Ya no hay descuento de primera compra: el precio bajó para todos. Con un código de vendedor la primera compra puede tener un descuento adicional.
 - Pago único por 3 meses. NO se renueva automáticamente. Se avisa por correo 7 días antes de vencer. Si se renueva antes de vencer, los 3 meses se suman.
 - Es para 1 empresa, con hasta 3 postulaciones activas a la vez. Al terminar o archivar una postulación se libera el cupo y se puede empezar otra dentro de los 3 meses.
-- Códigos de vendedor: si un vendedor de ImpulsaCap te dio un código o un link (impulsacap.cl/?ref=CODIGO), el código fija el precio de tu primera compra en lugar del 50% de primera compra. Se aplica con el link o en "¿Tienes un código de vendedor?" junto al precio. Vale solo para la primera compra; se puede quitar o cambiar antes de pagar. Los vendedores ven sus ventas en impulsacap.cl/vendedor.
+- Códigos de vendedor: si un vendedor de ImpulsaCap te dio un código o un link (impulsacap.cl/?ref=CODIGO), el código fija el precio de tu primera compra con un descuento sobre el precio normal. Se aplica con el link o en "¿Tienes un código de vendedor?" junto al precio. Vale solo para la primera compra; se puede quitar o cambiar antes de pagar. Los vendedores ven sus ventas en impulsacap.cl/vendedor.
 - Uso de la IA: el plan incluye uso razonable con un límite diario amplio que se renueva a medianoche (hora de Chile) y un máximo total por plan. Si aparece el aviso de límite diario, el trabajo queda guardado y se puede seguir al día siguiente. La prueba gratis tiene un límite menor. Si el límite no alcanza para un uso legítimo, escribir a contacto@impulsacap.cl.
 - Consultoras o quienes asesoran a varias empresas: escribir a contacto@impulsacap.cl para un plan a medida.
 - Gratis sin plan: diagnóstico de 5 preguntas, monitor de convocatorias, catálogo, Mis postulaciones y hoja de ruta, diagnóstico tributario con la carpeta, robot de ayuda, y el seguimiento de la ejecución de un proyecto ganado (gastos, hitos y lista de pasos).

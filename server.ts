@@ -59,6 +59,7 @@ import { aiGuard, aiContext, recordAiUsage, inputTextChars, AI_MAX_INPUT_CHARS, 
 import {
   PRICE_FULL,
   PRICE_FIRST,
+  LEGACY_PRICES,
   MAX_DISCOUNT_PCT,
   MAX_COMMISSION_PCT,
   normalizeCode,
@@ -2107,7 +2108,7 @@ async function grantEarlyAccess(uid: string, email: string | undefined) {
   return { earlyAccess: true, expiresAt, price };
 }
 
-// Consulta de estado de precios (determina si es primera compra para cobrar $19.990 o $39.990)
+// Consulta de estado de precios (primera compra, código de vendedor y precio a cobrar)
 app.get('/api/pagos/estado', requireAuth, async (req, res) => {
   try {
     const user = (req as AuthenticatedRequest).user!;
@@ -2308,7 +2309,7 @@ async function processApprovedPayment(info: ApprovedPayment): Promise<'activado'
     }
     const isAmountValid = order?.price
       ? transactionAmount === Number(order.price)
-      : (transactionAmount === PRICE_FIRST || transactionAmount === PRICE_FULL);
+      : (transactionAmount === PRICE_FIRST || transactionAmount === PRICE_FULL || LEGACY_PRICES.includes(transactionAmount));
 
     if (!isCurrencyValid || !isAmountValid) {
       console.warn(`Payment ${paymentId} rechazado_validacion: currency=${info.currency}, amount=${transactionAmount}`);
@@ -3499,14 +3500,14 @@ async function sendAllTestEmails(to: string) {
   const ticket: any = { ticketId: 'PRUEBA', email: to, name: 'Cliente de prueba', message: 'Este es un mensaje de prueba del soporte.', page: 'my-company', hasPlan: true, conversation: [{ role: 'user', text: 'Hola' }, { role: 'bot', text: 'Hola, ¿en qué te ayudo?' }] };
   const templates: [string, { subject: string; html: string; text: string }][] = [
     ['Bienvenida', welcomeEmail('Cliente')],
-    ['Compra confirmada (cliente)', purchaseEmail({ amount: 19990, paymentId: 'PRUEBA-123', expiresAt: exp })],
-    ['Nueva venta (administrador)', adminSaleEmail({ userEmail: 'cliente@ejemplo.cl', companyName: 'Empresa de prueba SpA', amount: 19990, isFirstPurchase: true, paymentId: 'PRUEBA-123', expiresAt: exp })],
+    ['Compra confirmada (cliente)', purchaseEmail({ amount: PRICE_FULL, paymentId: 'PRUEBA-123', expiresAt: exp })],
+    ['Nueva venta (administrador)', adminSaleEmail({ userEmail: 'cliente@ejemplo.cl', companyName: 'Empresa de prueba SpA', amount: PRICE_FULL, isFirstPurchase: true, paymentId: 'PRUEBA-123', expiresAt: exp })],
     ['Venta con código (vendedor)', sellerSaleEmail({ sellerName: 'Vendedor Prueba', code: 'PRUEBA', amount: 15990, commission: 3198, companyName: 'Empresa de prueba SpA' })],
     ['Recordatorio: vence en 7 días', reminderEmail('7d', new Date(Date.now() + 7 * 864e5).toISOString())],
     ['Recordatorio: venció hoy', reminderEmail('expired', new Date().toISOString())],
     ['Soporte: aviso al administrador', supportTicketAdminEmail(ticket)],
     ['Soporte: confirmación al cliente', supportTicketUserEmail(ticket)],
-    ['Invitación a contratar', paymentAvailableEmail({ deadline: new Date().toISOString(), price: 19990 })],
+    ['Invitación a contratar', paymentAvailableEmail({ deadline: new Date().toISOString(), price: PRICE_FULL })],
   ];
   const results: { name: string; sent: boolean; error?: string | null }[] = [];
   for (const [name, t] of templates) {

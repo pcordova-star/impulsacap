@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { PLAN_PRICE, PLAN_PRICE_TEXT } from '../data/pricing';
 import { 
   Sparkles, 
   ShieldCheck, 
@@ -87,7 +88,7 @@ export const PlanPaywallCard: React.FC<PlanPaywallCardProps> = ({
     }
   };
 
-  const formattedPrice = (price || (isFirstPurchase ? 19990 : 39990)).toLocaleString('es-CL');
+  const formattedPrice = (price || PLAN_PRICE).toLocaleString('es-CL');
 
   return (
     <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-900 via-indigo-950 to-slate-900 text-white border-2 border-emerald-500/80 shadow-2xl p-6 sm:p-8 animate-fade-in">
@@ -110,8 +111,8 @@ export const PlanPaywallCard: React.FC<PlanPaywallCardProps> = ({
               </div>
             )
           ) : (
-            <div className="px-3 py-1 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 text-xs font-black uppercase tracking-wider animate-pulse">
-              ⚡ 50% DCTO. PRIMERA COMPRA
+            <div className="px-3 py-1 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 text-xs font-black uppercase tracking-wider">
+              Unos $5.000 al mes
             </div>
           ))}
         </div>
@@ -182,10 +183,10 @@ export const PlanPaywallCard: React.FC<PlanPaywallCardProps> = ({
               Inversión única por 3 meses
             </span>
             <div className="flex items-baseline gap-3">
-              {isFirstPurchase && price < 39990 ? (
+              {isFirstPurchase && price < PLAN_PRICE ? (
                 <>
                   <span className="text-slate-400 text-lg line-through font-bold">
-                    $39.990
+                    {PLAN_PRICE_TEXT}
                   </span>
                   <span className="text-3xl sm:text-4xl font-black text-emerald-400">
                     ${formattedPrice}
@@ -193,7 +194,7 @@ export const PlanPaywallCard: React.FC<PlanPaywallCardProps> = ({
                   <span className="text-xs font-bold text-amber-300">
                     {referralCode
                       ? `— ${referralDiscountPct}% de descuento con el código ${referralCode}`
-                      : '— 50% de descuento en tu primer trimestre'}
+                      : ''}
                   </span>
                 </>
               ) : (

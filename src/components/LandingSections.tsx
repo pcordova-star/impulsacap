@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { PLAN_PRICE } from '../data/pricing';
 import {
   Search,
   ClipboardCheck,
@@ -351,8 +352,10 @@ export const PlanComparison: React.FC<{ onStartFree: () => void }> = ({ onStartF
             <h3 className="text-lg font-black">Plan Trimestral</h3>
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
               <p className="text-3xl font-black">{formatCLP(price)}</p>
-              {isFirstPurchase && price < 39990 && (
-                <p className="text-sm text-slate-400"><s>{formatCLP(39990)}</s> 50% en tu primera compra</p>
+              {isFirstPurchase && price < PLAN_PRICE ? (
+                <p className="text-sm text-slate-400"><s>{formatCLP(PLAN_PRICE)}</s> con tu código de vendedor</p>
+              ) : (
+                <p className="text-sm text-emerald-300 font-semibold">Unos $5.000 al mes</p>
               )}
             </div>
             <p className="text-sm text-slate-300">Pago único por 3 meses, IVA incluido. No se renueva solo.</p>

@@ -283,7 +283,7 @@ export function reminderEmail(kind: '7d' | 'expired', expiresAt: string) {
     heading: isExpired ? 'Tu plan venció' : 'Tu plan vence en 7 días',
     bodyHtml:
       p(intro) +
-      p('El Plan Trimestral cuesta $39.990 CLP por 3 meses, en un pago único sin renovación automática.') +
+      p('El Plan Trimestral cuesta $14.990 CLP por 3 meses, en un pago único sin renovación automática.') +
       `<p style="margin:16px 0 0;font-size:12px;color:#94a3b8">Recibes este aviso porque tienes una cuenta con Plan Trimestral en ImpulsaCap. Si no quieres recibir más recordatorios, responde este correo con la palabra "BAJA".</p>`,
     cta: { label: 'Renovar mi plan', url: `${app}/?pagar=1` },
   });

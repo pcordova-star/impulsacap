@@ -149,7 +149,7 @@ export const SellerPanel: React.FC = () => {
             {!c.active && <span className="px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold">Código pausado</span>}
           </div>
           <dl className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-            <div><dt className="text-xs text-slate-500">Precio para tu cliente</dt><dd className="font-bold text-slate-900">{clp(c.price)} <span className="font-normal text-slate-500">({c.discountPct}% dcto. sobre $39.990)</span></dd></div>
+            <div><dt className="text-xs text-slate-500">Precio para tu cliente</dt><dd className="font-bold text-slate-900">{clp(c.price)} <span className="font-normal text-slate-500">({c.discountPct}% dcto. sobre $14.990)</span></dd></div>
             <div><dt className="text-xs text-slate-500">Tu comisión</dt><dd className="font-bold text-slate-900">{c.commissionPct}% <span className="font-normal text-slate-500">= {clp(Math.round(c.price * c.commissionPct / 100))} por venta</span></dd></div>
             <div><dt className="text-xs text-slate-500">Aplica a</dt><dd className="text-slate-700">La primera compra de cada cliente</dd></div>
           </dl>
