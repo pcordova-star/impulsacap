@@ -3051,6 +3051,48 @@ app.get('/api/admin/novedades', requireAuth, requireAdminUser, async (req, res) 
   }
 });
 
+// Novedad escrita por el administrador (por ejemplo, un calendario anunciado): queda publicada de inmediato
+app.post('/api/admin/novedad-propia', requireAuth, requireAdminUser, async (req, res) => {
+  try {
+    if (!(await ensureFirestoreAdmin())) return res.status(503).json({ error: 'Firestore Admin no está autorizado.' });
+    const b = req.body || {};
+    const title = String(b.title || '').trim().slice(0, 140);
+    const summary = String(b.summary || '').trim().slice(0, 900);
+    if (title.length < 8 || summary.length < 20) return res.status(400).json({ error: 'Escribe un título y un resumen.' });
+    let url = String(b.url || '').trim().slice(0, 500);
+    if (url && !/^https?:\/\//i.test(url)) url = `https://${url}`;
+    const catalog = new Set(CHILEAN_FUNDS.map(f => f.id));
+    const now = new Date().toISOString();
+    const id = `propia_${Date.now().toString(36)}`;
+    await adminDb.collection('news_items').doc(id).set({
+      url: url || getAppUrl(),
+      originalTitle: title,
+      snippet: '',
+      sourceId: 'impulsacap',
+      sourceName: String(b.sourceName || 'ImpulsaCap').trim().slice(0, 80) || 'ImpulsaCap',
+      outlet: null,
+      kind: 'oficial',
+      publishedAt: now,
+      fetchedAt: now,
+      status: 'aprobada',
+      title,
+      summary,
+      type: (NEWS_TYPES as readonly string[]).includes(b.type) ? b.type : 'otro',
+      audience: String(b.audience || '').trim().slice(0, 200),
+      fundIds: (Array.isArray(b.fundIds) ? b.fundIds : []).map(String).filter((f: string) => catalog.has(f)).slice(0, 6),
+      importance: [1, 2, 3].includes(Number(b.importance)) ? Number(b.importance) : 2,
+      aiReviewed: false,
+      manual: true,
+      approvedAt: now,
+      digestSentAt: null
+    });
+    return res.json({ ok: true, id });
+  } catch (e: any) {
+    console.error('[novedades] Error al crear novedad propia:', e?.message);
+    return res.status(500).json({ error: 'No se pudo publicar la novedad.' });
+  }
+});
+
 app.post('/api/admin/novedades/:id', requireAuth, requireAdminUser, async (req, res) => {
   try {
     if (!(await ensureFirestoreAdmin())) return res.status(503).json({ error: 'Firestore Admin no está autorizado.' });
