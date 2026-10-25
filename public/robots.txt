@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /vendedor
+Disallow: /pago/
+Disallow: /api/
+
+Sitemap: https://impulsacap.cl/sitemap.xml

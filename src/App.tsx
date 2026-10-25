@@ -178,6 +178,11 @@ export default function App() {
     if (!(ROUTED_TABS as readonly string[]).includes(activeTab) && legalTabForPath(window.location.pathname)) {
       window.history.replaceState({}, '', '/');
     }
+    // Dirección oficial de la página para Google (sin parámetros como ?ref= o ?pagar=)
+    try {
+      const path = window.location.pathname.startsWith('/terminos') ? '/terminos' : window.location.pathname.startsWith('/privacidad') ? '/privacidad' : '/';
+      document.querySelector('link[rel="canonical"]')?.setAttribute('href', `https://impulsacap.cl${path}`);
+    } catch { /* sin efecto */ }
     // Conteo de visitas por sección (sin cookies)
     trackPageview(activeTab);
   }, [activeTab]);
