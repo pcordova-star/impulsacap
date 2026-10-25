@@ -362,11 +362,12 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
         <p className="mt-2 text-sm leading-relaxed text-slate-300 max-w-3xl">
           Postular a un fondo no tiene por qué ser un enredo. Cada fondo (Corfo, Sercotec, Start-Up Chile, ANID, FIA) tiene sus propias bases, y yo las uso para decirte si calzas, qué te van a pedir y cómo se evalúa. Tú pones la información de tu negocio; la plataforma la ordena y la redacta en el formato de cada concurso. La postulación final la envías tú en el portal oficial.
         </p>
-        <ol className="mt-5 grid gap-3 sm:grid-cols-3">
+        <ol className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {[
             { n: '1', t: 'Prepara tu empresa', d: 'Tus datos, tu proyecto y la carpeta tributaria. Se hace una sola vez y sirve para todos los fondos.' },
             { n: '2', t: 'Elige un fondo que calce', d: 'Te mostramos qué fondos cumples según tus datos. Puedes tener hasta 3 postulaciones a la vez.' },
-            { n: '3', t: 'Postula en 6 pasos', d: 'Requisitos, formulario, presupuesto, documentos, evaluación simulada y envío.' }
+            { n: '3', t: 'Postula en 6 pasos', d: 'Requisitos, formulario, presupuesto, documentos, evaluación simulada y envío.' },
+            { n: '4', t: 'Gana y ejecuta', d: 'Marca el resultado: si ganas, te acompañamos con gastos, hitos e informes; si no, con un plan para volver a postular.' }
           ].map(s => (
             <li key={s.n} className="rounded-2xl bg-white/5 border border-white/10 p-4">
               <p className="flex items-center gap-2 text-sm font-bold">

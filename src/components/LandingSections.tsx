@@ -9,7 +9,11 @@ import {
   ArrowRight,
   Sparkles,
   Plus,
-  RefreshCw
+  RefreshCw,
+  Trophy,
+  CalendarDays,
+  RotateCcw,
+  Building2
 } from 'lucide-react';
 import { usePlan } from '../hooks/usePlan';
 import { apiFetch } from '../utils/apiFetch';
@@ -77,73 +81,148 @@ const PreviewEligibility: React.FC = () => (
   </div>
 );
 
+const POSTULA_STEPS = ['Requisitos', 'Formulario', 'Presupuesto', 'Documentos', 'Evaluación', 'Envío'];
+
 const PreviewPrepare: React.FC = () => (
   <div className="relative rounded-2xl bg-white border border-slate-200 p-4 shadow-sm space-y-3" aria-hidden="true">
     <ExampleTag />
-    <p className="text-sm font-bold text-slate-900 pr-10">Problema y oportunidad</p>
+    <p className="text-[11px] text-slate-500">Tu hoja de ruta · 4 de 6 pasos</p>
+    <div className="grid grid-cols-6 gap-1 pr-2">
+      {POSTULA_STEPS.map((s, i) => (
+        <div key={s} className="space-y-1 min-w-0">
+          <div className={`h-1.5 rounded-full ${i < 4 ? 'bg-emerald-500' : i === 4 ? 'bg-blue-500' : 'bg-slate-200'}`} />
+          <p className={`text-[9px] leading-tight truncate ${i < 4 ? 'text-emerald-700 font-semibold' : i === 4 ? 'text-blue-700 font-bold' : 'text-slate-400'}`}>{s}</p>
+        </div>
+      ))}
+    </div>
+    <p className="text-sm font-bold text-slate-900">Problema y oportunidad</p>
     <p className="text-xs text-slate-600 leading-relaxed">
-      Las pymes de mantención industrial programan sus mantenciones en planillas, lo que provoca detenciones no planificadas. Hoy atendemos a{' '}
-      <span className="px-1 rounded bg-amber-100 text-amber-900 font-semibold whitespace-nowrap">[COMPLETAR: n.º de clientes]</span>{' '}
+      Las pymes de mantención programan sus mantenciones en planillas, lo que provoca detenciones no planificadas. Hoy atendemos a{' '}
+      <span className="px-1 rounded bg-amber-100 text-amber-900 font-semibold whitespace-nowrap">¿cuántos clientes?</span>{' '}
       empresas…
     </p>
     <div className="border-t border-slate-100 pt-3 flex items-center justify-between gap-2">
-      <span className="text-[11px] text-slate-500">Auditoría simulada</span>
-      <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">2 brechas por corregir</span>
+      <span className="text-[11px] text-slate-500">Evaluación simulada</span>
+      <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">2 puntos por mejorar</span>
+    </div>
+  </div>
+);
+
+const PreviewResult: React.FC = () => (
+  <div className="relative rounded-2xl bg-white border border-slate-200 p-4 shadow-sm space-y-3" aria-hidden="true">
+    <ExampleTag />
+    <p className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold"><Trophy className="w-3.5 h-3.5" /> Ganado · en ejecución</p>
+    <div>
+      <div className="h-2 rounded-full bg-slate-100 overflow-hidden"><div className="h-full w-[62%] rounded-full bg-emerald-500" /></div>
+      <p className="text-[11px] text-slate-600 mt-1">Gastado <strong>$8.100.000</strong> de $13.000.000 (62%)</p>
+    </div>
+    <div className="flex items-start gap-2 text-xs text-slate-700">
+      <CalendarDays className="w-3.5 h-3.5 text-blue-600 shrink-0 mt-0.5" />
+      <span>Informe de avance · vence el 1 de abril</span>
+    </div>
+    <div className="flex items-start gap-2 text-xs text-amber-800 bg-amber-50 rounded-lg px-2 py-1.5">
+      <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+      <span>Te pasas del ítem "Horno": pide una reasignación antes de comprar</span>
+    </div>
+    <div className="border-t border-slate-100 pt-3 flex items-center gap-2 text-[11px] text-slate-600">
+      <RotateCcw className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+      <span>¿No ganaste? Plan de mejora y vuelves a postular con todo copiado</span>
     </div>
   </div>
 );
 
 const STAGES = [
   {
-    icon: Search,
-    title: 'Encuentra tu fondo',
-    text: 'Respondes 5 preguntas y ves los fondos que calzan con tu empresa. El monitor revisa CORFO todos los días y te muestra cuándo cierra cada convocatoria.',
-    tools: ['Diagnóstico en 1 minuto', 'Monitor de convocatorias', 'Elige cualquier fondo, aunque no salga recomendado'],
-    Preview: PreviewDiscover
-  },
-  {
-    icon: ClipboardCheck,
-    title: 'Revisa si cumples',
-    text: 'Subes tu carpeta tributaria del SII y la app revisa los requisitos de admisibilidad: antigüedad, ventas e inicio de actividades.',
-    tools: ['Revisión de requisitos con tu carpeta tributaria', 'Cartas de respaldo', 'Cálculo de garantías y aportes'],
+    icon: Building2,
+    title: 'Prepara tu empresa',
+    when: 'Una sola vez',
+    text: 'Ingresas los datos de tu empresa, describes tu proyecto con tus palabras y subes tu carpeta tributaria del SII. Sirve para todos los fondos a los que postules.',
+    tools: ['Datos de la empresa y del proyecto', 'Lectura de tu carpeta tributaria', 'Revisión de requisitos: antigüedad, ventas e inicio de actividades'],
     Preview: PreviewEligibility
   },
   {
+    icon: Search,
+    title: 'Elige tu fondo',
+    when: 'En minutos',
+    text: 'Te mostramos los fondos que calzan con tu empresa y cuándo cierra cada convocatoria. Antes de empezar te decimos si cumples los requisitos, para no perder tiempo.',
+    tools: ['Diagnóstico de 5 preguntas', 'Monitor de convocatorias al día', '"¿Califico?" con tus propios datos'],
+    Preview: PreviewDiscover
+  },
+  {
     icon: PenLine,
-    title: 'Prepara tu postulación',
-    text: 'La IA te ayuda a redactar cada sección con los datos de tu empresa y marca lo que falta, sin inventar cifras. Antes de enviar, una auditoría simula la evaluación.',
-    tools: ['Redacción por secciones con IA', 'Auditoría simulada con la rúbrica', 'Expediente PDF y asesor experto'],
+    title: 'Postula en 6 pasos',
+    when: 'Con las bases de cada fondo',
+    text: 'Una hoja de ruta con las reglas del fondo: requisitos, formulario, presupuesto, documentos, evaluación simulada y envío. La IA redacta con tus datos y te pregunta lo que falta, sin inventar.',
+    tools: ['Formulario y presupuesto con IA', 'Cartas y documentos', 'Evaluación simulada y expediente para enviar'],
     Preview: PreviewPrepare
+  },
+  {
+    icon: Trophy,
+    title: 'Gana y ejecuta (o vuelve a intentarlo)',
+    when: 'Después del resultado',
+    isNew: true,
+    text: 'Si ganas, te acompañamos a firmar, comprar según el presupuesto aprobado, rendir cada gasto y entregar los informes. Si no, armamos un plan de mejora con la evaluación del comité y vuelves a postular sin partir de cero.',
+    tools: ['Control de gastos y avisos antes de comprar', 'Hitos, fechas e informes de avance y final', 'Plan de mejora y nueva postulación con todo copiado'],
+    Preview: PreviewResult
   }
 ];
 
+/** Resumen de las 4 etapas en una línea (para el inicio de la página) */
+export const StagesStrip: React.FC<{ dark?: boolean }> = ({ dark }) => (
+  <ol className={`grid grid-cols-2 gap-2 min-w-0 ${dark ? "sm:grid-cols-4 lg:grid-cols-2" : "sm:grid-cols-4"}`} aria-label="Las 4 etapas">
+    {STAGES.map((st, i) => (
+      <li key={st.title} className="min-w-0">
+        <a href="#como-funciona" className={`h-full flex items-start gap-2 rounded-xl px-3 py-2.5 border transition-colors ${dark ? 'bg-white/5 border-white/10 hover:bg-white/10' : 'bg-white border-slate-200 hover:border-blue-300'}`}>
+          <span className={`w-6 h-6 rounded-full text-xs font-black flex items-center justify-center shrink-0 ${dark ? 'bg-cyan-400 text-slate-950' : 'bg-slate-900 text-white'}`}>{i + 1}</span>
+          <span className="min-w-0">
+            <span className={`block text-xs font-bold leading-tight ${dark ? 'text-white' : 'text-slate-900'}`}>{i === 3 ? 'Gana y ejecuta' : st.title}</span>
+            <span className={`block text-[11px] leading-tight mt-0.5 ${dark ? 'text-slate-400' : 'text-slate-500'}`}>{st.isNew ? <span className="font-bold text-emerald-400">Nuevo</span> : st.when}</span>
+          </span>
+        </a>
+      </li>
+    ))}
+  </ol>
+);
+
 export const HowItWorks: React.FC = () => (
-  <section aria-labelledby="como-funciona" className="space-y-8 min-w-0">
-    <div className="max-w-2xl space-y-2">
-      <h2 id="como-funciona" className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-        Te acompañamos de principio a fin
+  <section aria-labelledby="como-funciona" className="space-y-8 min-w-0 scroll-mt-24" id="como-funciona-seccion">
+    <div className="max-w-3xl space-y-2">
+      <p className="text-xs font-black uppercase tracking-wider text-blue-700">Cómo funciona</p>
+      <h2 id="como-funciona" className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight scroll-mt-24">
+        4 etapas: desde preparar tu empresa hasta rendir el último peso
       </h2>
       <p className="text-slate-600 text-[15px] sm:text-base leading-relaxed">
-        Desde que buscas un fondo hasta que tienes la postulación lista para subir al portal.
+        Siempre sabes en qué etapa estás y qué toca hacer ahora. La postulación la envías tú en el portal oficial; nosotros te dejamos todo listo y te acompañamos también después del resultado.
       </p>
     </div>
 
-    <ol className="grid gap-6 lg:grid-cols-3 min-w-0">
+    <ol className="grid gap-6 md:grid-cols-2 min-w-0">
       {STAGES.map((stage, idx) => {
         const Icon = stage.icon;
         const Preview = stage.Preview;
         return (
-          <li key={stage.title} className="rounded-3xl bg-slate-50 border border-slate-200 p-5 sm:p-6 flex flex-col gap-5 min-w-0">
-            <div className="flex items-center gap-3">
+          <li key={stage.title} className={`relative rounded-3xl border p-5 sm:p-6 flex flex-col gap-5 min-w-0 ${stage.isNew ? 'bg-emerald-50/60 border-emerald-300' : 'bg-slate-50 border-slate-200'}`}>
+            {stage.isNew && <span className="absolute -top-3 right-5 px-2.5 py-1 rounded-full bg-emerald-600 text-white text-[11px] font-black shadow-sm">Nuevo</span>}
+            <div className="flex items-start gap-3">
               <span className="w-9 h-9 rounded-full bg-slate-900 text-white font-black text-sm flex items-center justify-center shrink-0">
                 {idx + 1}
               </span>
-              <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                {stage.title}
-                <Icon className="w-5 h-5 text-blue-600" aria-hidden="true" />
-              </h3>
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Etapa {idx + 1} · {stage.when}</p>
+                <h3 className="text-lg font-black text-slate-900 flex items-center gap-2 leading-tight">
+                  {stage.title}
+                  <Icon className="w-5 h-5 text-blue-600 shrink-0" aria-hidden="true" />
+                </h3>
+              </div>
             </div>
             <p className="text-sm text-slate-600 leading-relaxed">{stage.text}</p>
+            {idx === 2 && (
+              <ol className="flex flex-wrap gap-1.5" aria-label="Los 6 pasos de la postulación">
+                {POSTULA_STEPS.map((s, i) => (
+                  <li key={s} className="px-2 py-1 rounded-lg bg-white border border-slate-200 text-[11px] font-semibold text-slate-700">{i + 1}. {s}</li>
+                ))}
+              </ol>
+            )}
             <ul className="space-y-1.5">
               {stage.tools.map(t => (
                 <li key={t} className="flex items-start gap-2 text-sm text-slate-800">
@@ -170,14 +249,17 @@ const FREE_FEATURES = [
   'Diagnóstico de 5 preguntas',
   'Monitor de convocatorias',
   'Mis postulaciones y hoja de ruta',
-  'Revisión de requisitos con tu carpeta tributaria'
+  'Revisión de requisitos con tu carpeta tributaria',
+  'Si ganas: control de gastos, hitos y pasos para la ejecución'
 ];
 const PLAN_FEATURES = [
   'Redacción de la postulación con IA',
   'Cartas y documentos',
   'Auditoría simulada antes de enviar',
   'Expediente PDF',
-  'Asesor experto en cada postulación'
+  'Asesor experto en cada postulación',
+  'Informes de avance y final con IA si ganas',
+  'Plan de mejora con la evaluación del comité si no ganas'
 ];
 
 const CONSULTORA_MAILTO =
@@ -278,7 +360,7 @@ export const PlanComparison: React.FC<{ onStartFree: () => void }> = ({ onStartF
           <div className="rounded-2xl bg-white/5 border border-white/10 px-4 py-3 space-y-1">
             <p className="text-sm font-bold text-white">Para 1 empresa, hasta 3 postulaciones activas a la vez</p>
             <p className="text-xs text-slate-300 leading-relaxed">
-              Cuando terminas una postulación o la archivas, se libera el cupo y puedes empezar otra dentro de los 3 meses.
+              Cuando la archivas o marcas su resultado (ganaste o no), se libera el cupo y puedes empezar otra dentro de los 3 meses.
             </p>
           </div>
           <ul className="space-y-2.5 flex-1">
@@ -361,8 +443,20 @@ const FAQS = [
     a: 'No. Es un pago único que te da 3 meses de acceso. Te avisamos por correo 7 días antes de que venza, y si quieres seguir, renuevas tú.'
   },
   {
+    q: '¿Cuáles son las etapas para postular?',
+    a: 'Son 4: (1) preparas tu empresa una sola vez: datos, proyecto y carpeta tributaria; (2) eliges un fondo cuyos requisitos cumplas; (3) postulas en 6 pasos: requisitos, formulario, presupuesto, documentos, evaluación simulada y envío en el portal oficial; y (4) después del resultado, si ganas te acompañamos en la ejecución y, si no, a volver a postular mejor.'
+  },
+  {
+    q: '¿Qué pasa si gano el fondo?',
+    a: 'Marcas "¡Gané!" y se abre la etapa de ejecución: los primeros pasos (contrato, garantía, fecha de inicio), tus hitos con fechas, el presupuesto aprobado con registro de gastos y avisos antes de comprar algo que podría no aceptarse, y borradores de los informes de avance y final. Las reglas exactas son las de tu contrato; la rendición oficial la haces en el sistema del fondo.'
+  },
+  {
+    q: '¿Y si no gano?',
+    a: 'Es muy común no ganar a la primera. Traes la evaluación del comité, armamos un plan de mejora con lo que falló y creamos una nueva postulación al mismo fondo con todo tu trabajo copiado, para que solo corrijas lo necesario en la próxima convocatoria.'
+  },
+  {
     q: '¿Me aseguran que voy a ganar el fondo?',
-    a: 'No. La decisión es del organismo que evalúa. Lo que sí hacemos es ayudarte a presentar una postulación completa y a corregir brechas antes de enviarla.'
+    a: 'No, y nadie puede asegurarlo: la decisión es del organismo que evalúa. Lo que sí hacemos es ayudarte a presentar una postulación completa, corregir brechas antes de enviarla y, si no ganas, volver a postular mejor sin partir de cero.'
   }
 ];
 

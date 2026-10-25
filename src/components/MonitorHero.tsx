@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { StagesStrip } from './LandingSections';
 import { Convocatoria, ConvocatoriasSyncMeta } from '../types/convocatoria';
 import { Sparkles, ArrowRight, Clock, MapPin, ChevronDown, ExternalLink, Coins, CalendarClock } from 'lucide-react';
 
@@ -172,7 +173,7 @@ export const MonitorHero: React.FC<MonitorHeroProps> = ({
               Postula a fondos CORFO con todo listo, sin perderte ninguna convocatoria
             </h1>
             <p className="text-[15px] sm:text-lg text-slate-300 leading-relaxed max-w-xl">
-              ImpulsaCap te dice a qué fondos puedes postular, te avisa cuándo cierran y te ayuda a preparar la postulación completa: requisitos, formulario, cartas y expediente.
+              ImpulsaCap te dice a qué fondos puedes postular, te avisa cuándo cierran y te ayuda a preparar la postulación completa. Y si ganas, te acompaña en la ejecución y la rendición.
             </p>
           </div>
           <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3">
@@ -193,6 +194,10 @@ export const MonitorHero: React.FC<MonitorHeroProps> = ({
                 <ArrowRight className="w-4 h-4" />
               </button>
             )}
+          </div>
+          <div className="space-y-2 min-w-0">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Tu camino en 4 etapas</p>
+            <StagesStrip dark />
           </div>
         </div>
 
