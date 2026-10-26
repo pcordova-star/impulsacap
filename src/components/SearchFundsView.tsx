@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { FundUseFinder } from './FundUseFinder';
 import { ChileanFund, CompanyUser, CompanyProfile } from '../types/funds';
 import { Convocatoria } from '../types/convocatoria';
 import { FundCatalog } from './FundCatalog';
@@ -105,6 +106,10 @@ export const SearchFundsView: React.FC<SearchFundsViewProps> = ({
       </div>
 
       {/* Subview Content */}
+      {activeSubTab === 'programs' && !pickMode && (
+        <FundUseFinder compact funds={funds} pickLabel="Postular a este fondo" onPickFund={onSelectFundToFormulate} />
+      )}
+
       {activeSubTab === 'programs' && (
         <FundCatalog
           funds={funds}

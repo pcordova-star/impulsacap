@@ -23,6 +23,12 @@ PLAN TRIMESTRAL
 - Consultoras o quienes asesoran a varias empresas: escribir a contacto@impulsacap.cl para un plan a medida.
 - Gratis sin plan: diagnóstico de 5 preguntas, monitor de convocatorias, catálogo, Mis postulaciones y hoja de ruta, diagnóstico tributario con la carpeta, robot de ayuda, y el seguimiento de la ejecución de un proyecto ganado (gastos, hitos y lista de pasos).
 
+QUÉ FINANCIA CADA FONDO
+- En el inicio y en "Buscar fondos" está "¿Para qué necesitas la plata?": eliges qué quieres financiar (máquinas, vehículos, contratar personas, arreglar el local, arriendo, mercadería, marketing, software, prototipos, asesorías, vender afuera) y muestra qué fondos lo financian, cuáles con límites y cuáles no.
+- Vehículos con patente: casi ningún fondo los financia. Sercotec acepta solo los que no necesitan permiso de circulación. Corfo Semilla no financia vehículos ni inmuebles.
+- Máquinas y equipos: Sercotec (Capital Semilla, Abeja, Crece, Digitaliza tu Almacén) los financia; Corfo solo si son indispensables y con tope (20% del subsidio en Semilla, 30% en Crea y Valida e Innova Región).
+- Ningún fondo financia IVA, deudas ni gastos personales.
+
 DESPUÉS DE POSTULAR (RESULTADO)
 - Al marcar en la hoja de ruta que la enviaste en el portal oficial, aparece la pestaña "Resultado". Cuando te avisen, marca "¡Gané!" o "No gané esta vez". Marcar el resultado libera el cupo de esa postulación.
 - Si ganaste: pestaña "Ejecución del proyecto" con los primeros pasos (firma del contrato, garantía si pides anticipo, fecha de inicio), hitos con fechas, presupuesto aprobado con registro de gastos (avisa si te pasas de un ítem o si el documento puede no servir para rendir), descarga de gastos en Excel y borradores de informe de avance y final con IA (estos con plan). Es una guía general: las reglas exactas están en el contrato de cada fondo; la rendición oficial se hace en el sistema de la institución.

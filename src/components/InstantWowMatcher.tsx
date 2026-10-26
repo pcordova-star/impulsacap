@@ -63,6 +63,8 @@ interface InstantWowMatcherProps {
   onAuthSuccess?: (user: CompanyUser) => void;
   /** Fondo sugerido por el diagnóstico cuando el usuario se registra sin elegir uno */
   onSuggestFund?: (fund: ChileanFund | null) => void;
+  /** Fondo que la persona eligió antes (por ejemplo en "¿Para qué necesitas la plata?"): se revisa primero */
+  preferredFundId?: string | null;
 }
 
 export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
@@ -71,7 +73,8 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
   setProfile,
   currentUser: propUser,
   onAuthSuccess,
-  onSuggestFund
+  onSuggestFund,
+  preferredFundId
 }) => {
   // Step in guided onboarding: 1 to 5
   const [onboardingStep, setOnboardingStep] = useState<number>(1);
@@ -900,7 +903,7 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
                         {projectSummary.trim().length > 0 ? `${projectSummary.length} caracteres` : 'Puedes escribir 1 o 2 líneas sencillas'}
                       </span>
                       <button
-                        onClick={() => executeMatch()}
+                        onClick={() => executeMatch(undefined, undefined, undefined, undefined, undefined, preferredFundId || undefined)}
                         disabled={loading || !projectSummary.trim()}
                         className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-gradient-to-r from-blue-600 via-teal-600 to-emerald-600 hover:from-blue-700 hover:to-emerald-700 text-white font-extrabold text-sm shadow-md shadow-blue-600/20 active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
                       >

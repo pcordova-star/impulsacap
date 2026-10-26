@@ -10,6 +10,7 @@ import { NewApplicationModal } from './components/NewApplicationModal';
 import { HelpBot } from './components/HelpBot';
 import { MonitorHero } from './components/MonitorHero';
 import { HowItWorks, PlanComparison, LandingFaq } from './components/LandingSections';
+import { FundUseFinder } from './components/FundUseFinder';
 import { SiiUploaderModal } from './components/SiiUploaderModal';
 import { AuthModal } from './components/AuthModal';
 import { ServiceStartModal } from './components/ServiceStartModal';
@@ -573,6 +574,7 @@ export default function App() {
     if (!done) setWelcomeOpen(true);
   }, [currentUser, applicationsLoading, applications.length]);
 
+  const [preferredFundId, setPreferredFundId] = useState<string | null>(null);
   const handleSuggestFund = (fund: ChileanFund | null) => {
     setSuggestedFund(fund);
     setWelcomeOpen(true);
@@ -912,6 +914,18 @@ export default function App() {
             {/* 2. CÓMO FUNCIONA: las 3 etapas del recorrido */}
             <HowItWorks />
 
+            {/* 2b. ¿PARA QUÉ NECESITAS LA PLATA? qué financia cada fondo */}
+            <FundUseFinder
+              funds={liveFunds}
+              pickLabel={currentUser ? 'Postular a este fondo' : 'Ver si califico'}
+              onPickFund={(f) => {
+                if (currentUser) { handleSelectFundToFormulate(f); return; }
+                setPreferredFundId(f.id);
+                showToast({ id: 'fondo-preferido', level: 'info', title: `Revisemos si calificas a ${f.name}`, message: 'Responde las 5 preguntas: lo revisamos primero.', durationMs: 6000 });
+                document.getElementById('asistente-5-preguntas')?.scrollIntoView({ behavior: 'smooth' });
+              }}
+            />
+
             {/* 3. ASISTENTE DE 5 PREGUNTAS */}
             <div id="asistente-5-preguntas" className="min-w-0 max-w-full scroll-mt-24">
               <InstantWowMatcher
@@ -921,6 +935,7 @@ export default function App() {
                 currentUser={currentUser}
                 onAuthSuccess={handleAuthSuccess}
                 onSuggestFund={handleSuggestFund}
+                preferredFundId={preferredFundId}
               />
             </div>
 
