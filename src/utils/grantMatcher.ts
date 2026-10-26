@@ -330,6 +330,42 @@ export function evaluateChileanGrantMatch(
         break;
       }
 
+      case 'corfo_innova_region': {
+        if ((isTechStartup || isScienceRD || isProcessChallenge) && hasSalesOrEstablished) score += 45;
+        if (norm.includes('innova region') || norm.includes('innova región') || norm.includes('prototipo')) score += 25;
+        if (isStartingOrNoSales && !hasSalesOrEstablished) score -= 50;
+        if (isTraditional && !isProcessChallenge) score -= 35;
+        reason = 'Tu empresa ya vende y quiere desarrollar un producto o proceso nuevo. Corfo Innova Región cofinancia hasta $60.000.000 (80% si eres micro o pequeña) para pasar del prototipo a la validación, con focos propios de cada región.';
+        break;
+      }
+
+      case 'corfo_consolida_expande': {
+        if (hasSalesOrEstablished && (isGlobalScalable || norm.includes('expandir') || norm.includes('escalar') || norm.includes('exportar') || norm.includes('extranjero'))) score += 45;
+        if (norm.includes('consolida')) score += 30;
+        if (isStartingOrNoSales && !hasSalesOrEstablished) score -= 60;
+        if (isTraditional) score -= 40;
+        reason = 'Tu innovación ya está validada y quieres escalarla en Chile o afuera. Corfo Consolida y Expande cofinancia hasta $150.000.000 para el escalamiento comercial o productivo.';
+        break;
+      }
+
+      case 'startup_chile_growth': {
+        if (isTechStartup && hasSalesOrEstablished) score += 40;
+        if (isGlobalScalable) score += 25;
+        if (norm.includes('growth') || norm.includes('levantar capital') || norm.includes('inversionistas')) score += 25;
+        if (isStartingOrNoSales && !hasSalesOrEstablished) score -= 60;
+        if (isTraditional) score -= 55;
+        reason = 'Tu startup tecnológica ya vende y quiere crecer rápido. Start-Up Chile Growth entrega hasta $75.000.000 sin ceder acciones a empresas con ventas de $80M a $800M al año.';
+        break;
+      }
+
+      case 'sercotec_digitaliza_almacen': {
+        const almacen = /almacen|minimarket|botiller|panader|carnicer|rotiser|bazar|negocio de barrio|kiosco/.test(norm);
+        if (almacen) score += 80; else score -= 45;
+        if (almacen && hasSalesOrEstablished) score += 15;
+        reason = 'Tienes un almacén o negocio de barrio. Sercotec Digitaliza tu Almacén financia hasta $3.000.000 para caja y sistema de ventas, control de inventario, vitrinas, balanzas e iluminación.';
+        break;
+      }
+
       case 'corfo_semilla_inicia': {
         if (isTechStartup && (isStartingOrNoSales || !hasSalesOrEstablished)) score += 50;
         if (norm.includes('semilla inicia') || (norm.includes('inicia') && isTechStartup)) score += 35;

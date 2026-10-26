@@ -187,6 +187,78 @@ const BUDGETS: Record<string, FundBudgetAccount[]> = {
       justificationPlaceholder: 'Ej: Necesarios para cumplir los nuevos pedidos'
     }
   ],
+  corfo_innova_region: [
+    CORFO_RRHH(['Personal que desarrolla y valida la solución']),
+    {
+      key: 'operaciones', account: 'Gastos de Operación', plainName: 'Prototipos, validación y entidades colaboradoras', share: 0.4, cap: 'Entidades colaboradoras: hasta 40% del subsidio',
+      whatGoes: ['Prototipado y validación técnica y comercial', 'Entidades colaboradoras (universidad, centro tecnológico)', 'Materiales, pruebas, certificaciones y propiedad intelectual', 'Estrategia de marketing y validación de mercado', 'Formulación externa del proyecto (micro y pequeñas: hasta $2.000.000)'],
+      whatNot: ['Inmuebles', 'Gastos no ligados al proyecto', 'IVA recuperable'],
+      example: 'Validación del prototipo con un centro tecnológico ($15.000.000) y pruebas con clientes ($5.000.000)',
+      itemPlaceholder: 'Ej: Pruebas del prototipo en planta de un cliente piloto',
+      justificationPlaceholder: 'Ej: Necesario para validar que la solución funciona a escala real'
+    },
+    {
+      key: 'inversion', account: 'Gastos de Inversión', plainName: 'Equipos para el desarrollo', share: 0.1, cap: 'Máximo 30% del subsidio',
+      whatGoes: ['Equipos y activos necesarios para desarrollar y validar'],
+      whatNot: ['Bienes raíces y vehículos'],
+      example: 'Equipo de medición ($4.000.000)',
+      itemPlaceholder: 'Ej: Sensores para el piloto',
+      justificationPlaceholder: 'Ej: Indispensables para medir el desempeño del prototipo'
+    },
+    {
+      key: 'administracion', account: 'Gastos de Administración', plainName: 'Gestión del proyecto y garantías', share: 0.05, cap: 'Máximo 10% del subsidio',
+      whatGoes: ['Gestión y control financiero del proyecto', 'Costo de la garantía de fiel cumplimiento (mínimo 30 UF)'],
+      whatNot: ['Gastos generales no atribuibles al proyecto'],
+      example: 'Póliza de garantía y contabilidad ($1.200.000)',
+      itemPlaceholder: 'Ej: Póliza de fiel cumplimiento y contabilidad',
+      justificationPlaceholder: 'Ej: Exigido por las bases para recibir el subsidio'
+    }
+  ],
+  corfo_consolida: [
+    CORFO_RRHH(['Equipo comercial y técnico que escala la solución']),
+    {
+      key: 'operaciones', account: 'Gastos de Operación', plainName: 'Escalamiento, validación en nuevos mercados y marketing', share: 0.5,
+      whatGoes: ['Escalamiento comercial o productivo', 'Validación y empaquetamiento técnico en los mercados de destino', 'Marketing, ferias y prospección internacional', 'Certificaciones y propiedad intelectual', 'Asesorías especializadas'],
+      whatNot: ['Seguir desarrollando un producto que aún no está validado', 'Inmuebles', 'IVA recuperable'],
+      example: 'Certificación para exportar ($12.000.000) y piloto comercial en Perú ($20.000.000)',
+      itemPlaceholder: 'Ej: Piloto comercial con distribuidor en Colombia',
+      justificationPlaceholder: 'Ej: Permite validar la solución en el mercado de destino antes de escalar'
+    },
+    {
+      key: 'inversion', account: 'Gastos de Inversión', plainName: 'Equipos para escalar', share: 0.1, cap: 'Revisa el tope en las bases técnicas',
+      whatGoes: ['Equipos necesarios para escalar la producción o el servicio'],
+      whatNot: ['Bienes raíces y vehículos'],
+      example: 'Línea de envasado ($15.000.000)',
+      itemPlaceholder: 'Ej: Equipo para aumentar la capacidad de producción',
+      justificationPlaceholder: 'Ej: Sin este equipo no se puede atender la nueva demanda'
+    },
+    {
+      key: 'administracion', account: 'Gastos de Administración', plainName: 'Gestión del proyecto y garantías', share: 0.05,
+      whatGoes: ['Gestión y control financiero del proyecto', 'Costo de garantías'],
+      whatNot: ['Gastos generales no atribuibles al proyecto'],
+      example: 'Contabilidad y póliza ($2.500.000)',
+      itemPlaceholder: 'Ej: Contabilidad de rendiciones y póliza',
+      justificationPlaceholder: 'Ej: Rendir correctamente ante Corfo'
+    }
+  ],
+  sercotec_almacen: [
+    {
+      key: 'gestion', account: 'Acciones de Gestión Empresarial', plainName: 'Asesoría, capacitación y marketing', share: 0.12, cap: 'Entre $200.000 y $500.000 del subsidio',
+      whatGoes: ['Asesoría en gestión del almacén (costos, compras, inventario)', 'Capacitación', 'Marketing para atraer clientes del barrio'],
+      whatNot: ['Pago a consultores por preparar la postulación'],
+      example: 'Asesoría en control de inventario ($300.000) y letrero y redes sociales ($150.000)',
+      itemPlaceholder: 'Ej: Asesoría para ordenar compras e inventario',
+      justificationPlaceholder: 'Ej: Para no perder mercadería y comprar mejor'
+    },
+    {
+      key: 'activos', account: 'Inversiones', plainName: 'Tecnología y equipamiento del almacén', share: 0.88, cap: 'Entre $2.500.000 y $2.800.000 del subsidio',
+      whatGoes: ['Sistema de punto de venta (POS) y caja', 'Control digital de inventario', 'Balanzas digitales, cortadoras y vitrinas', 'Iluminación LED y generador eléctrico'],
+      whatNot: ['Vehículos', 'Bienes raíces', 'Compras a ti mismo o a familiares'],
+      example: 'Sistema POS con lector de códigos ($900.000), vitrina refrigerada ($1.400.000) y balanza digital ($300.000)',
+      itemPlaceholder: 'Ej: Sistema de punto de venta con lector de códigos',
+      justificationPlaceholder: 'Ej: Atender más rápido y saber qué productos se venden más'
+    }
+  ],
   anid: [
     {
       key: 'personal', account: 'Gastos en personal', plainName: 'Investigadores y equipo del proyecto', share: 0.5,
@@ -578,6 +650,161 @@ export const FUND_RULES: Record<string, FundRules> = {
     portal: { name: 'Start-Up Chile', url: 'https://www.startupchile.org' },
     duration: 'Programa de 4 meses; ejecución del subsidio en 6 meses.',
     budget: BUDGETS.startup_chile
+  },
+
+  corfo_innova_region: {
+    family: 'corfo_innovacion',
+    bases: { title: 'Bases técnicas Innova Región (Res. E N°94-2024, Corfo InnovaChile) y focalización de cada región', url: 'https://www.fomentoantofagasta.gob.cl/wp-content/uploads/2026/05/RE-N%C2%B094-18_03_2024-Bases-Instrumento-Innova-Region.pdf', verifiedAt: '2026-10-25', note: 'Cada región publica su convocatoria con focos temáticos propios: revisa que tu proyecto calce con el foco de tu región.' },
+    requirements: [
+      { id: 'tipo', label: 'Empresa constituida en Chile o persona natural mayor de 18 años', detail: 'Universidades, IP y CFT no pueden ser beneficiarias.', check: { kind: 'companyType', allowed: ['persona_natural', 'spa', 'srl', 'eirl', 'sa'] } },
+      { id: 'primera_categoria', label: 'Inicio de actividades en primera categoría, vigente', check: { kind: 'firstCategory', required: true } },
+      { id: 'antiguedad', label: 'Al menos 18 meses desde el inicio de actividades', check: { kind: 'age', minMonths: 18 } },
+      { id: 'ventas', label: 'Ventas dentro de los 18 meses anteriores a postular', check: { kind: 'sales', minCLP: 1 } },
+      { id: 'domicilio', label: 'Domicilio tributario en la región de la convocatoria (tuyo o de un asociado)' },
+      { id: 'trl', label: 'La solución ya superó la prueba de concepto (TRL 3)' },
+      { id: 'foco', label: 'El proyecto calza con los focos temáticos de la convocatoria de tu región' }
+    ],
+    applicationDocs: [
+      { id: 'formulario', label: 'Formulario de postulación en línea, con planillas y anexos', link: 'formulator' },
+      { id: 'presupuesto', label: 'Presupuesto y plan de trabajo', link: 'formulator' },
+      { id: 'sello40', label: 'Información del Sello 40 horas (si lo tienes: suma 5% a la nota)' }
+    ],
+    formalizationDocs: ['Garantía de fiel cumplimiento (mínimo 30 UF)', 'Objeto social coherente con el proyecto', 'Acreditación de ventas de los 18 meses anteriores y del tramo de tamaño', 'Domicilio tributario en la región', 'Antecedentes de empresa liderada por mujeres (si corresponde)', 'Sin rendiciones pendientes con Corfo'],
+    formSections: [
+      { title: 'a) Resumen y b) Objetivos', blocks: ['title_pitch'] },
+      { title: 'c) Problema, desafío u oportunidad y mercado objetivo', blocks: ['problem', 'market'], evaluates: 'Diagnóstico 5% · Mercado 5%' },
+      { title: 'd) Propuesta de solución: metodología y novedad', blocks: ['solution', 'workplan'], evaluates: 'Metodología 20% · Novedad 20%' },
+      { title: 'e) Introducción al mercado o implementación productiva', blocks: ['model'], evaluates: 'Impacto 15% · Escalabilidad 10%' },
+      { title: 'f) Participantes y equipo de trabajo', blocks: ['team'], evaluates: 'Capacidades 10% · Equipo 15%' },
+      { title: 'g) Presupuesto', blocks: ['budget'] }
+    ],
+    evaluation: {
+      scale: '1 a 5', passMark: null, minEach: 3.0, target: 4.0,
+      rule: 'Necesitas al menos 3,00 en cada criterio para ser recomendado. No hay nota final de corte: se adjudica por ranking según el presupuesto de la región. Las pymes con Sello 40 horas suman 5% a la nota final.'
+    },
+    coFinance: { text: 'Subsidio de hasta $60.000.000. Corfo cubre hasta 80% (micro y pequeña), 60% (mediana) o 40% (grande). Si la empresa es liderada por mujeres, hasta 10 puntos más (tope $67.500.000). Al menos la mitad del aporte de la empresa debe ser en dinero.', bySizePct: { micro_pequena: 80, mediana: 60, grande: 40 }, femalePct: 10, femaleMaxCLP: 67500000, minCashText: 'Al menos 50% del aporte en dinero (pecuniario).' },
+    partners: 'Puedes sumar asociados que cofinancian y entidades colaboradoras (universidades o centros tecnológicos) que ejecutan parte del desarrollo.',
+    guarantee: { required: true, text: 'Garantía de fiel cumplimiento de al menos 30 UF (su costo se puede cargar al proyecto).' },
+    portal: { name: 'Portal de postulación de Corfo', url: 'https://www.corfo.cl' },
+    duration: 'Hasta 24 meses (máximo 30 con prórrogas; 36 meses si depende de ciclos biológicos).',
+    budget: BUDGETS.corfo_innova_region
+  },
+
+  corfo_consolida_expande: {
+    family: 'corfo_innovacion',
+    bases: { title: 'Consolida y Expande Innovación (Corfo InnovaChile): bases técnicas y manual del postulante', url: 'https://wapp4.corfo.cl/archivos/WCSCONTI/CONV/1476734111183/Manualdelpostulante.pdf', verifiedAt: '2026-10-25', note: 'Revisa la ponderación detallada y la nota mínima en las bases técnicas de la convocatoria vigente.' },
+    requirements: [
+      { id: 'tipo', label: 'Empresa constituida en Chile o persona natural mayor de 18 años', detail: 'Instituciones de educación superior no pueden ser beneficiarias.', check: { kind: 'companyType', allowed: ['persona_natural', 'spa', 'srl', 'eirl', 'sa'] } },
+      { id: 'primera_categoria', label: 'Inicio de actividades en primera categoría, vigente', check: { kind: 'firstCategory', required: true } },
+      { id: 'antiguedad', label: 'Al menos 18 meses desde el inicio de actividades', check: { kind: 'age', minMonths: 18 } },
+      { id: 'ventas', label: 'Ventas dentro de los 18 meses anteriores a postular', check: { kind: 'sales', minCLP: 1 } },
+      { id: 'validado', label: 'Producto, servicio o proceso innovador que requirió I+D y ya está validado técnica o comercialmente' },
+      { id: 'no_repetir', label: 'El producto no ha sido cofinanciado antes por este instrumento (salvo para escalar a mercados internacionales)' }
+    ],
+    applicationDocs: [
+      { id: 'formulario', label: 'Formulario en la plataforma de postulación', link: 'formulator' },
+      { id: 'solucion', label: 'Presentación de la solución con cuadro comparativo frente a alternativas existentes', link: 'formulator' },
+      { id: 'presupuesto', label: 'Planilla de presupuesto y plan de trabajo', link: 'formulator' },
+      { id: 'plan_negocios', label: 'Plan de negocios actualizado (formato InnovaChile)', link: 'formulator' },
+      { id: 'cv', label: 'Currículum del equipo técnico' }
+    ],
+    formalizationDocs: ['Acreditación de ventas y del tramo de tamaño', 'Objeto social coherente con el proyecto', 'Garantías según las bases', 'Antecedentes de empresa liderada por mujeres (si corresponde)'],
+    formSections: [
+      { title: 'Información del proyecto: objetivos y mercado objetivo', blocks: ['title_pitch', 'market'] },
+      { title: 'Problema u oportunidad (diagnóstico)', blocks: ['problem'], evaluates: 'Problema u oportunidad 30%' },
+      { title: 'Solución: metodología, novedad y diferenciación', blocks: ['solution', 'workplan'], evaluates: 'Solución (parte del 70%)' },
+      { title: 'Plan de negocios: estrategia y escalabilidad', blocks: ['model'], evaluates: 'Plan de negocios (parte del 70%)' },
+      { title: 'Capacidades de la beneficiaria y asociados', blocks: ['team'] },
+      { title: 'Presupuesto y plan de trabajo', blocks: ['budget'] }
+    ],
+    evaluation: {
+      scale: '1 a 5', passMark: null, target: 4.0,
+      rule: 'Problema u oportunidad pesa 30% y la solución (con el plan de negocios y las capacidades) 70%. Hay un hito de continuidad al mes 3 con el plan de negocios actualizado. Revisa en las bases la nota mínima de la convocatoria.'
+    },
+    coFinance: { text: 'Subsidio de hasta $150.000.000. Corfo cubre hasta 60% (micro y pequeña), 50% (mediana) o 40% (grande), y hasta 10% más si la empresa es liderada por mujeres. Al menos la mitad del aporte de la empresa debe ser en dinero.', bySizePct: { micro_pequena: 60, mediana: 50, grande: 40 }, femalePct: 10, minCashText: 'Al menos 50% del aporte en dinero (pecuniario).' },
+    partners: 'Puedes sumar asociados y contratar entidades para actividades externalizadas.',
+    guarantee: { required: true, text: 'Según las bases de la convocatoria (Corfo suele pedir garantía de fiel cumplimiento y, si pides anticipo, de anticipo).' },
+    portal: { name: 'Plataforma de postulación de Corfo', url: 'https://www.corfo.cl' },
+    duration: 'Hasta 24 meses, con hito de continuidad al mes 3.',
+    budget: BUDGETS.corfo_consolida
+  },
+
+  startup_chile_growth: {
+    family: 'startup_chile',
+    bases: { title: 'Start-Up Chile: programa BIG (brochure oficial BIG 12)', url: 'https://startupchile.org/content/uploads/brochure-big-12-esp-1.pdf', verifiedAt: '2026-10-25', note: 'Cada generación publica sus bases en startupchile.org; revisa requisitos, duración y fechas al abrir.' },
+    requirements: [
+      { id: 'base_tec', label: 'Startup de base tecnológica con alto potencial de crecimiento, usando Chile como plataforma' },
+      { id: 'tipo', label: 'Empresa con fines de lucro constituida en Chile', check: { kind: 'companyType', allowed: ['spa', 'srl', 'eirl', 'sa'] } },
+      { id: 'antiguedad', label: 'Al menos 24 meses de actividad registrada en el SII', check: { kind: 'age', minMonths: 24 } },
+      { id: 'ventas', label: 'Ventas netas entre $80.000.000 y $800.000.000 en los 12 meses anteriores a la apertura', check: { kind: 'sales', minCLP: 80000000, maxCLP: 800000000 } },
+      { id: 'lider', label: 'Líder del equipo a tiempo completo en Chile durante el programa y con al menos 10% de la empresa' }
+    ],
+    applicationDocs: [
+      { id: 'formulario', label: 'Postulación en línea en startupchile.org', link: 'formulator' },
+      { id: 'pitch', label: 'Pitch del proyecto (según formulario de la generación)', link: 'pitch' },
+      { id: 'ventas', label: 'Acreditación de ventas de los últimos 12 meses', link: 'taxFolder' }
+    ],
+    formalizationDocs: ['Antecedentes legales de la empresa', 'Aporte de la empresa en dinero (50% del costo; 40% si la líder es mujer)', 'Contrato con la entidad patrocinadora'],
+    formSections: [
+      { title: 'Proyecto: problema, solución y tecnología', blocks: ['problem', 'solution'] },
+      { title: 'Mercado, modelo de negocio y tracción', blocks: ['market', 'model'] },
+      { title: 'Equipo fundador', blocks: ['team'] },
+      { title: 'Plan de crecimiento para el programa', blocks: ['workplan'] },
+      { title: 'Pitch', blocks: ['title_pitch'] },
+      { title: 'Presupuesto', blocks: ['budget'] }
+    ],
+    pitch: { label: 'Pitch del proyecto', seconds: 60, content: 'Tracción, ventas y crecimiento, mercado global, plan de expansión y equipo.' },
+    evaluation: { scale: '1 a 5 (referencial)', passMark: null, target: 4.0, rule: 'Start-Up Chile evalúa equipo, tracción, escalabilidad global e impacto en Chile; no publica una nota de corte. Se seleccionan pocos proyectos por generación.' },
+    coFinance: { text: 'Subsidio de hasta $75.000.000: Corfo cubre 50% del costo total (60% si la líder del equipo es mujer). El resto lo aporta la empresa en dinero.', femalePct: 60 },
+    partners: 'Entidad Patrocinadora que firma contrato con la empresa si es seleccionada.',
+    guarantee: { required: false, text: 'Según las bases de la generación.' },
+    portal: { name: 'Start-Up Chile', url: 'https://www.startupchile.org' },
+    duration: 'Según la generación (en las últimas, entre 6 y 12 meses).',
+    budget: BUDGETS.startup_chile
+  },
+
+  sercotec_digitaliza_almacen: {
+    family: 'sercotec',
+    bases: { title: 'Reglamento Digitaliza tu Almacén 2026 (Res. N°10.861, Sercotec)', url: 'https://www.sercotec.cl/wp-content/uploads/2026/02/Resolucion-N10861-Reglamento-Digitaliza-tu-Almacen-2026.pdf', verifiedAt: '2026-10-25', note: 'Cada región publica sus bases con fechas, aporte y rúbrica del formulario.' },
+    requirements: [
+      { id: 'tipo', label: 'Persona natural o empresa con inicio de actividades en primera categoría', check: { kind: 'firstCategory', required: true } },
+      { id: 'giro', label: 'Almacén o negocio de barrio que vende al consumidor final (almacén, minimarket, panadería, carnicería, rotisería, botillería, bazar)' },
+      { id: 'antiguedad', label: 'Más de 12 meses funcionando', check: { kind: 'age', minMonths: 12 } },
+      { id: 'ventas', label: 'Ventas netas anuales de hasta 5.000 UF', check: { kind: 'sales', maxUF: 5000 } },
+      req.noDebts(),
+      req.pensionRegistry(),
+      { id: 'no_beneficiario', label: 'No haber sido beneficiario antes de este programa ni tener rendiciones pendientes con Sercotec' },
+      { id: 'curso', label: 'Inscribirte en el curso virtual "Almacenes de Chile" del portal de Sercotec' }
+    ],
+    applicationDocs: [
+      { id: 'formulario', label: 'Formulario de postulación en sercotec.cl', link: 'formulator' },
+      { id: 'costos', label: 'Plan de trabajo con gestión e inversiones', link: 'formulator' },
+      { id: 'carpeta', label: 'F29 o Carpeta Tributaria (o autorización en Mi SII)', link: 'taxFolder' }
+    ],
+    formalizationDocs: ['Certificado F30-1 y de deuda de la Tesorería (TGR)', 'Verificadores que pidan las bases de tu región', 'Pago del aporte empresarial antes de firmar el contrato'],
+    formSections: [
+      { title: 'Tu almacén y tus clientes', blocks: ['problem'] },
+      { title: 'Qué quieres mejorar y cómo', blocks: ['solution'] },
+      { title: 'Cómo atiendes y llegas a tus clientes', blocks: ['market'] },
+      { title: 'Ventas, costos y recursos clave', blocks: ['model'] },
+      { title: 'Qué harás con el subsidio', blocks: ['workplan'] },
+      { title: 'Tu experiencia en el rubro', blocks: ['team'] },
+      { title: 'Plan de trabajo: gestión e inversiones', blocks: ['budget'] }
+    ],
+    evaluation: {
+      scale: 'Nota con dos decimales', passMark: null, target: 4.0,
+      rule: 'Primero se revisa la admisibilidad y se pone nota al formulario para armar un ranking. Luego: evaluación técnica en terreno 40% y Comité de Evaluación Regional 60%.',
+      stages: [
+        { name: 'Formulario', weight: 0, detail: 'Admisibilidad y nota para el ranking' },
+        { name: 'Evaluación técnica en terreno', weight: 40, detail: 'Visita al almacén' },
+        { name: 'Comité de Evaluación Regional', weight: 60, detail: 'Selección final' }
+      ]
+    },
+    coFinance: { text: 'Subsidio de hasta $3.000.000 netos: $200.000 a $500.000 en gestión empresarial y $2.500.000 a $2.800.000 en inversiones. El aporte lo fija cada región (máximo 20% del subsidio). El IVA lo pagas tú.', contributionOfSubsidyPct: 20 },
+    guarantee: { required: false, text: 'No se exigen garantías.' },
+    portal: { name: 'Sercotec', url: 'https://www.sercotec.cl' },
+    duration: 'Según las bases de tu región.',
+    budget: BUDGETS.sercotec_almacen
   },
 
   sercotec_semilla_emprende: {

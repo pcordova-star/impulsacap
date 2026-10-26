@@ -235,6 +235,42 @@ function specificChecks(fund: ChileanFund, c: Ctx): Check[] {
         : { verdict: 'no_cumple', reason: `Pide ventas anuales entre 200 y 25.000 UF; tienes ${Math.round(c.last12UF).toLocaleString('es-CL')} UF en 12 meses` });
       if (!c.firstCategory) out.push({ verdict: 'no_cumple', reason: 'Pide inicio de actividades en primera categoría' });
       break;
+    case 'corfo_innova_region':
+    case 'corfo_consolida_expande':
+      if (age !== null) out.push(age >= 18
+        ? { verdict: 'cumple', reason: `Antigüedad de ${ageText(age)} (pide al menos 18 meses)` }
+        : { verdict: 'no_cumple', reason: `Antigüedad de ${ageText(age)}; pide al menos 18 meses` });
+      out.push(c.last12 > 0 || (c.previous12 || 0) > 0
+        ? { verdict: 'cumple', reason: 'Registra ventas en los últimos 18 meses' }
+        : { verdict: 'no_cumple', reason: 'Pide ventas en los 18 meses anteriores a postular' });
+      if (!c.firstCategory) out.push({ verdict: 'revisar', reason: 'Pide inicio de actividades en primera categoría vigente' });
+      out.push(fund.id === 'corfo_innova_region'
+        ? { verdict: 'revisar', reason: 'Se abre por región: tu proyecto debe calzar con los focos de la convocatoria de tu región' }
+        : { verdict: 'revisar', reason: 'Tu innovación ya debe estar validada técnica o comercialmente: es para escalar, no para desarrollar' });
+      break;
+    case 'startup_chile_growth':
+      if (age !== null) out.push(age >= 24
+        ? { verdict: 'cumple', reason: `Antigüedad de ${ageText(age)} (pide al menos 24 meses)` }
+        : { verdict: 'no_cumple', reason: `Antigüedad de ${ageText(age)}; pide al menos 24 meses` });
+      out.push(c.last12 >= 80_000_000 && c.last12 <= 800_000_000
+        ? { verdict: 'cumple', reason: `Ventas de 12 meses (${clp(c.last12)}) entre $80.000.000 y $800.000.000` }
+        : { verdict: 'no_cumple', reason: `Pide ventas de 12 meses entre $80.000.000 y $800.000.000; tienes ${clp(c.last12)}` });
+      out.push({ verdict: 'revisar', reason: 'Debe ser una startup de base tecnológica con potencial global' });
+      break;
+    case 'sercotec_digitaliza_almacen': {
+      if (age !== null) out.push(age >= 12
+        ? { verdict: 'cumple', reason: `Antigüedad de ${ageText(age)} (pide más de 12 meses)` }
+        : { verdict: 'no_cumple', reason: `Antigüedad de ${ageText(age)}; pide más de 12 meses funcionando` });
+      out.push(c.last12UF <= 5000
+        ? { verdict: 'cumple', reason: `Ventas de ${Math.round(c.last12UF).toLocaleString('es-CL')} UF (máximo 5.000 UF)` }
+        : { verdict: 'no_cumple', reason: 'Es para almacenes con ventas de hasta 5.000 UF al año' });
+      if (!c.firstCategory) out.push({ verdict: 'no_cumple', reason: 'Pide inicio de actividades en primera categoría' });
+      const almacen = c.activityCodes.some(code => /^47/.test(code));
+      out.push(almacen
+        ? { verdict: 'cumple', reason: 'Tu giro es de comercio al por menor' }
+        : { verdict: 'revisar', reason: 'Es para almacenes y negocios de barrio que venden al consumidor final' });
+      break;
+    }
     case 'anid_fondef_idea':
       out.push({ verdict: 'revisar', reason: 'Postula una universidad o centro de I+D; tu empresa participa como asociada y aporta' });
       break;

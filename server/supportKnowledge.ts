@@ -9,7 +9,7 @@ QUÉ ES IMPULSACAP
 - La postulación oficial la envía el usuario en el portal del fondo (por ejemplo, el de CORFO). ImpulsaCap deja todo listo.
 
 CÓMO FUNCIONA (3 etapas)
-1. Encuentra tu fondo: diagnóstico de 5 preguntas (gratis), monitor de convocatorias de CORFO actualizado a diario (gratis), catálogo de fondos ("Buscar fondos"); se puede elegir cualquier fondo aunque no salga recomendado.
+1. Encuentra tu fondo: diagnóstico de 5 preguntas (gratis), monitor de convocatorias de CORFO actualizado a diario (gratis), catálogo de fondos ("Buscar fondos": Corfo Semilla Inicia, Semilla Expande, Crea y Valida, Súmate a Innovar, Innova Región y Consolida y Expande; Start-Up Chile Build, Ignite y Growth; Sercotec Capital Semilla Emprende, Capital Abeja Emprende, Crece y Digitaliza tu Almacén; ANID Fondef IDeA; FIA); se puede elegir cualquier fondo aunque no salga recomendado.
 2. Revisa si cumples: diagnóstico tributario gratis subiendo la Carpeta Tributaria del SII; revisión de requisitos; cartas de respaldo; cálculo de garantías.
 3. Prepara tu postulación (Plan Trimestral): redacción por secciones con IA usando los datos de la empresa (marca [COMPLETAR] lo que falta, no inventa), documentos y cartas, auditoría simulada con la rúbrica del fondo (orientativa), expediente PDF y Asesor Experto dentro de cada postulación.
 - Cada postulación tiene una Hoja de Ruta de 6 pasos: validación tributaria, acreditación legal y cartas, formulación técnica, presupuesto, auditoría y expediente.

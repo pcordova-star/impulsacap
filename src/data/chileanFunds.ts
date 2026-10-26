@@ -572,6 +572,202 @@ export const CHILEAN_FUNDS: ChileanFund[] = [
       { account: 'Imprevistos', description: 'Con autorización previa.', maxPct: 5 }
     ]
   }
+  ,{
+    id: 'corfo_innova_region',
+    name: 'CORFO Innova Región',
+    agency: 'CORFO',
+    category: 'I+D+i y Tecnológico',
+    badge: 'Hasta $60M • Empresas de 18+ meses con ventas • Convocatorias por región',
+    maxSubsidyCLP: 60000000,
+    subsidyFormatted: 'Hasta $60.000.000 ($67.500.000 si es liderada por mujeres)',
+    maxCoFinancePct: 80,
+    femaleBonusPct: 10,
+    beneficiaryTypes: ['persona_natural', 'spa', 'srl', 'eirl', 'sa'],
+    salesRequirement: 'Al menos 18 meses de inicio de actividades en primera categoría (vigente) y ventas dentro de los 18 meses anteriores a postular.',
+    salesBracketsEligible: ['menor_60m', 'micro_200_a_2400uf', 'pequena_2400_a_25000uf', 'mediana_25000_a_100000uf', 'grande_mayor_100000uf'],
+    trlRange: 'Desde prototipo (sobre TRL 3, con prueba de concepto) hasta validación técnica a escala o validación comercial',
+    trlEligible: ['prototipo_lab', 'mvp_validado', 'primeras_ventas'],
+    requiresInnovation: true,
+    requiresCommercialValidation: false,
+    status: 'Próxima Convocatoria',
+    callStatus: 'por_confirmar',
+    closeDate: null,
+    lastVerified: '2026-10-25',
+    callSchedule: 'Cada región abre su propia convocatoria, con focos temáticos propios (en 2026 abrieron, entre otras, Antofagasta, Valparaíso, Araucanía y Arica)',
+    summary: 'Cofinancia el desarrollo de productos o procesos nuevos o mejorados en tu región, desde el prototipo hasta la validación técnica o comercial.',
+    description: 'Lo abre cada Comité de Desarrollo Productivo Regional o dirección regional de Corfo, con focos temáticos que cambian por región. Corfo cubre hasta 80% (micro y pequeña), 60% (mediana) o 40% (grande), con un tope de $60.000.000. La empresa debe tener domicilio tributario en la región (o un asociado que lo tenga) y la solución debe haber superado la prueba de concepto (TRL 3).',
+    evaluationCriteria: [
+      { name: 'Problema: diagnóstico', weight: 5, description: 'Claridad y respaldo del problema, desafío u oportunidad.' },
+      { name: 'Mercado objetivo', weight: 5, description: 'A quién va dirigida la solución y cuánto vale la oportunidad.' },
+      { name: 'Solución: metodología', weight: 20, description: 'Calidad y coherencia del plan para desarrollar y validar la solución.' },
+      { name: 'Solución: grado de novedad y diferenciación', weight: 20, description: 'Qué tiene de nuevo frente a lo que existe y a la competencia.' },
+      { name: 'Introducción al mercado: impacto', weight: 15, description: 'Impacto económico o productivo esperado para la empresa y la región.' },
+      { name: 'Introducción al mercado: escalabilidad', weight: 10, description: 'Potencial de crecer y llegar a más mercados.' },
+      { name: 'Capacidades de beneficiario, asociados y entidades', weight: 10, description: 'Capacidades técnicas y de gestión de los participantes.' },
+      { name: 'Equipo de trabajo', weight: 15, description: 'Experiencia y dedicación del equipo del proyecto.' }
+    ],
+    eligibleExpenses: [
+      'Equipo del proyecto (sueldos u honorarios por el tiempo dedicado).',
+      'Prototipado, validación técnica y comercial, equipos, materiales y entidades colaboradoras.',
+      'Protección de propiedad intelectual, certificaciones y estrategia de marketing.',
+      'Formulación externa del proyecto (micro y pequeñas, hasta $2.000.000) y costo de garantías.'
+    ],
+    ineligibleExpenses: [
+      'Inversión sobre 30% del subsidio y administración sobre 10% del subsidio.',
+      'Inmuebles.',
+      'IVA recuperable.'
+    ],
+    requiredDocuments: [
+      'Formulario de postulación en línea con sus planillas y anexos.',
+      'Presupuesto y plan de trabajo.',
+      'Información del Sello 40 horas (si corresponde).'
+    ],
+    corfoAccountsBudget: [
+      { account: 'Recursos Humanos', description: 'Equipo de trabajo del proyecto.' },
+      { account: 'Gastos de Operación', description: 'Desarrollo, validación y entidades colaboradoras (hasta 40% del subsidio).', maxPct: 40 },
+      { account: 'Gastos de Inversión', description: 'Equipos y activos.', maxPct: 30 },
+      { account: 'Gastos de Administración', description: 'Gestión y garantías.', maxPct: 10 }
+    ]
+  },
+  {
+    id: 'corfo_consolida_expande',
+    name: 'CORFO Consolida y Expande Innovación',
+    agency: 'CORFO',
+    category: 'Crecimiento y Escalamiento',
+    badge: 'Hasta $150M • Escalar una innovación ya validada • Empresas de 18+ meses con ventas',
+    maxSubsidyCLP: 150000000,
+    subsidyFormatted: 'Hasta $150.000.000',
+    maxCoFinancePct: 60,
+    femaleBonusPct: 10,
+    beneficiaryTypes: ['persona_natural', 'spa', 'srl', 'eirl', 'sa'],
+    salesRequirement: 'Al menos 18 meses de inicio de actividades en primera categoría (vigente) y ventas dentro de los 18 meses anteriores a postular.',
+    salesBracketsEligible: ['menor_60m', 'micro_200_a_2400uf', 'pequena_2400_a_25000uf', 'mediana_25000_a_100000uf', 'grande_mayor_100000uf'],
+    trlRange: 'Innovación ya validada técnica o comercialmente, lista para escalar',
+    trlEligible: ['primeras_ventas', 'escalamiento_global'],
+    requiresInnovation: true,
+    requiresCommercialValidation: true,
+    status: 'Próxima Convocatoria',
+    callStatus: 'por_confirmar',
+    closeDate: null,
+    lastVerified: '2026-10-25',
+    callSchedule: 'Convocatoria nacional (en 2026 abrió en junio; se espera otra antes de fin de año)',
+    summary: 'Cofinancia el escalamiento nacional o internacional de un producto, servicio o proceso innovador que ya fue validado y que requirió I+D.',
+    description: 'Es el paso siguiente a Crea y Valida: no es para desarrollar, sino para escalar comercial o productivamente y validar o empaquetar la solución en los mercados de destino. Corfo cubre hasta 60% (micro y pequeña), 50% (mediana) o 40% (grande), con tope de $150.000.000, y 10% adicional si la empresa es liderada por mujeres. Se postula con un plan de negocios y tiene un hito de continuidad al mes 3.',
+    evaluationCriteria: [
+      { name: 'Problema u oportunidad', weight: 30, description: 'Diagnóstico de la oportunidad de escalar en los mercados de destino.' },
+      { name: 'Solución, plan de negocios y capacidades', weight: 70, description: 'Metodología, novedad, plan de negocios (estrategia y escalabilidad) y capacidades del equipo y asociados. Revisa la ponderación detallada en las bases técnicas de la convocatoria.' }
+    ],
+    eligibleExpenses: [
+      'Equipo del proyecto.',
+      'Escalamiento comercial y productivo, validación y empaquetamiento técnico en mercados de destino.',
+      'Marketing, certificaciones, propiedad intelectual y aterrizaje en otros mercados.'
+    ],
+    ineligibleExpenses: [
+      'Desarrollo de un producto que todavía no ha sido validado.',
+      'Inmuebles.',
+      'IVA recuperable.'
+    ],
+    requiredDocuments: [
+      'Formulario en la plataforma de postulación.',
+      'Presentación de la solución con cuadro comparativo frente a alternativas existentes.',
+      'Planilla de presupuesto y plan de trabajo.',
+      'Plan de negocios actualizado.',
+      'Currículum del equipo técnico.'
+    ],
+    corfoAccountsBudget: [
+      { account: 'Recursos Humanos', description: 'Equipo del proyecto.' },
+      { account: 'Gastos de Operación', description: 'Escalamiento, validación en mercados de destino y marketing.' },
+      { account: 'Gastos de Inversión', description: 'Equipos para escalar (revisa el tope en las bases).' },
+      { account: 'Gastos de Administración', description: 'Gestión y garantías.' }
+    ]
+  },
+  {
+    id: 'startup_chile_growth',
+    name: 'Start-Up Chile Growth',
+    agency: 'START-UP CHILE',
+    category: 'Crecimiento y Escalamiento',
+    badge: '$75M • Startups tecnológicas con ventas de $80M a $800M • 50% (60% mujeres)',
+    maxSubsidyCLP: 75000000,
+    subsidyFormatted: 'Hasta $75.000.000 CLP',
+    maxCoFinancePct: 50,
+    femaleBonusPct: 10,
+    beneficiaryTypes: ['spa', 'srl', 'eirl', 'sa'],
+    salesRequirement: 'Ventas netas de $80.000.000 a $800.000.000 en los 12 meses anteriores a la apertura, y empresa chilena con al menos 24 meses de actividad ante el SII.',
+    salesBracketsEligible: ['micro_200_a_2400uf', 'pequena_2400_a_25000uf'],
+    trlRange: 'Startup con ventas en crecimiento que busca expandirse y levantar capital',
+    trlEligible: ['primeras_ventas', 'escalamiento_global'],
+    requiresInnovation: true,
+    requiresCommercialValidation: true,
+    status: 'Próxima Convocatoria',
+    callStatus: 'por_confirmar',
+    closeDate: null,
+    lastVerified: '2026-10-25',
+    callSchedule: 'Junto con Build e Ignite en cada generación (revisa startupchile.org)',
+    summary: 'Aceleración para startups tecnológicas que ya venden y quieren crecer desde Chile: hasta $75.000.000 sin ceder participación.',
+    description: 'Corfo cubre 50% del costo (60% si la líder del equipo es mujer); el resto lo aporta la empresa en dinero. Incluye mentorías, preparación para levantar capital, redes comerciales y apoyo en gestión del equipo. El líder del equipo trabaja a tiempo completo desde Chile.',
+    evaluationCriteria: [
+      { name: 'Equipo', weight: 25, description: 'Capacidad y dedicación del equipo fundador (ponderación referencial).' },
+      { name: 'Tracción y crecimiento', weight: 35, description: 'Ventas, clientes y ritmo de crecimiento (ponderación referencial).' },
+      { name: 'Escalabilidad global', weight: 20, description: 'Potencial de expansión internacional desde Chile (ponderación referencial).' },
+      { name: 'Impacto en Chile', weight: 20, description: 'Empleo de calidad y aporte al ecosistema (ponderación referencial).' }
+    ],
+    eligibleExpenses: ['Contrataciones, expansión comercial, desarrollo de producto, viajes y propiedad intelectual.'],
+    ineligibleExpenses: ['Pago de deudas y gastos personales.'],
+    requiredDocuments: ['Postulación en línea en startupchile.org.', 'Acreditación de ventas de los últimos 12 meses.'],
+    corfoAccountsBudget: [
+      { account: 'Recursos Humanos', description: 'Equipo y nuevas contrataciones.' },
+      { account: 'Gastos de Operación', description: 'Expansión comercial, producto y levantamiento de capital.' },
+      { account: 'Gastos de Administración', description: 'Gestión y rendiciones.' }
+    ]
+  },
+  {
+    id: 'sercotec_digitaliza_almacen',
+    name: 'SERCOTEC Digitaliza tu Almacén',
+    agency: 'SERCOTEC',
+    category: 'Crecimiento y Escalamiento',
+    badge: 'Hasta $3M • Almacenes y negocios de barrio • Ventas hasta 5.000 UF',
+    maxSubsidyCLP: 3000000,
+    subsidyFormatted: 'Hasta $3.000.000 CLP netos',
+    maxCoFinancePct: 83,
+    beneficiaryTypes: ['persona_natural', 'spa', 'srl', 'eirl', 'sa'],
+    salesRequirement: 'Almacenes y negocios de barrio con inicio de actividades en primera categoría, más de 12 meses funcionando y ventas netas anuales de hasta 5.000 UF.',
+    salesBracketsEligible: ['menor_60m', 'micro_200_a_2400uf', 'pequena_2400_a_25000uf'],
+    trlRange: 'Almacén funcionando que quiere modernizarse',
+    trlEligible: ['primeras_ventas'],
+    requiresInnovation: false,
+    requiresCommercialValidation: true,
+    status: 'Próxima Convocatoria',
+    callStatus: 'por_confirmar',
+    closeDate: null,
+    lastVerified: '2026-10-25',
+    callSchedule: 'Convocatorias regionales a comienzos de año (en 2026, enero y febrero)',
+    summary: 'Subsidio para modernizar almacenes de barrio: caja y sistema de ventas, control de inventario, balanzas, vitrinas, iluminación y gestión.',
+    description: 'Para almaceneros, minimarkets, panaderías, carnicerías, rotiserías, botillerías y bazares que atienden al consumidor final en su barrio. Sercotec financia hasta $3.000.000 netos: entre $200.000 y $500.000 en gestión empresarial y entre $2.500.000 y $2.800.000 en inversiones. El aporte del negocio lo fija cada región (máximo 20% del subsidio) y el IVA lo pagas tú. Se pide hacer el curso virtual "Almacenes de Chile".',
+    evaluationCriteria: [
+      { name: 'Evaluación técnica en terreno', weight: 40, description: 'Antes, el formulario pasa por admisibilidad y recibe nota para un ranking. Luego se visita el almacén para revisar el negocio y la coherencia del plan.' },
+      { name: 'Comité de Evaluación Regional', weight: 60, description: 'El comité regional decide la lista de seleccionados.' }
+    ],
+    eligibleExpenses: [
+      'Tecnología: sistema de punto de venta (POS), control digital de inventario, caja registradora moderna.',
+      'Equipamiento: vitrinas, balanzas digitales, cortadoras, iluminación LED, generador eléctrico.',
+      'Gestión: asesoría, capacitación y marketing para atraer clientes (entre $200.000 y $500.000).'
+    ],
+    ineligibleExpenses: [
+      'IVA (lo pagas tú).',
+      'Pago de deudas.',
+      'Compras a ti mismo o a familiares.'
+    ],
+    requiredDocuments: [
+      'Formulario de postulación en sercotec.cl.',
+      'Inicio de actividades en el SII y RUT.',
+      'F29 o Carpeta Tributaria (o autorización en Mi SII).',
+      'Inscripción en el curso virtual "Almacenes de Chile".'
+    ],
+    corfoAccountsBudget: [
+      { account: 'Acciones de Gestión Empresarial', description: 'Asesoría, capacitación y marketing ($200.000 a $500.000).' },
+      { account: 'Inversiones', description: 'Tecnología y equipamiento ($2.500.000 a $2.800.000).' }
+    ]
+  }
 ];
 
 export const REQUIRED_DOCUMENTS_GUIDE = [

@@ -2709,11 +2709,16 @@ function matchConvocatoriaToFundId(titulo: string, url?: string): string | null 
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
 
+  if (text.includes('digitaliza tu almacen') || (text.includes('almacen') && text.includes('sercotec'))) return 'sercotec_digitaliza_almacen';
+  if (text.includes('innova region')) return 'corfo_innova_region';
+  if (text.includes('consolida y expande')) return 'corfo_consolida_expande';
+  if ((text.includes('startup chile') || text.includes('start-up chile')) && text.includes('growth')) return 'startup_chile_growth';
   if (text.includes('semilla inicia')) return 'corfo_semilla_inicia';
   if (text.includes('semilla expande')) return 'corfo_semilla_expande';
   if (text.includes('crea y valida')) return 'corfo_crea_valida';
   if (text.includes('sumate a innovar')) return 'corfo_sumate_innovar';
-  if (text.includes('startup chile') || text.includes('start-up chile') || text.includes('ignite') || text.includes('build')) return 'startup_chile_ignite';
+  if ((text.includes('startup chile') || text.includes('start-up chile')) && text.includes('build')) return 'startup_chile_build';
+  if (text.includes('startup chile') || text.includes('start-up chile') || text.includes('ignite')) return 'startup_chile_ignite';
   if (text.includes('semilla emprende') || text.includes('capital semilla')) return 'sercotec_semilla_emprende';
   if (text.includes('abeja emprende') || text.includes('capital abeja')) return 'sercotec_abeja_emprende';
   if (text.includes('crece') && (text.includes('sercotec') || text.includes('desarrollo de negocios'))) return 'sercotec_crece';

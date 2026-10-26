@@ -58,6 +58,10 @@ export function matchConvocatoriaToFundId(titulo: string, url?: string): string 
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
 
+  if (text.includes('digitaliza tu almacen') || (text.includes('almacen') && text.includes('sercotec'))) return 'sercotec_digitaliza_almacen';
+  if (text.includes('innova region')) return 'corfo_innova_region';
+  if (text.includes('consolida y expande')) return 'corfo_consolida_expande';
+  if ((text.includes('startup chile') || text.includes('start-up chile')) && text.includes('growth')) return 'startup_chile_growth';
   if (text.includes('semilla inicia')) return 'corfo_semilla_inicia';
   if (text.includes('semilla expande')) return 'corfo_semilla_expande';
   if (text.includes('crea y valida')) return 'corfo_crea_valida';

@@ -97,6 +97,38 @@ const INTROS: Record<string, FundIntro> = {
     comoSeGana: 'Cada capítulo (relevancia del problema y plan de trabajo) debe sacar al menos 3, igual que el promedio final.',
     consejo: 'Si eres empresa, el camino es encontrar a un grupo de investigación que trabaje en tu problema y sumarte como asociada. Tu carta de compromiso y tu aporte pesan en la evaluación.'
   },
+  corfo_innova_region: {
+    hook: 'El fondo de Corfo para innovar en tu región, con foco en lo que la región necesita.',
+    queEs: 'Es un subsidio de Corfo de hasta $60.000.000 para desarrollar un producto o proceso nuevo o mejorado, desde el prototipo hasta validarlo en terreno o con clientes. Lo abre cada región por separado y cada una define sus focos (por ejemplo minería, turismo, agua o alimentos). No se devuelve ni pide parte de tu empresa.',
+    paraQuien: 'Empresas o personas con al menos 18 meses de inicio de actividades en primera categoría y ventas en los últimos 18 meses, con domicilio en la región de la convocatoria. Tu solución ya tiene que haber pasado la prueba de concepto.',
+    queFinancia: 'Prototipos, pruebas y validación, entidades colaboradoras (universidades o centros tecnológicos), equipos (hasta 30% del subsidio), propiedad intelectual, certificaciones y el equipo del proyecto. Corfo cubre hasta 80% si eres micro o pequeña empresa.',
+    comoSeGana: 'Lo que más pesa es la metodología (20%), qué tan nueva es tu solución (20%), el impacto (15%) y el equipo (15%). Necesitas al menos 3,0 en cada criterio y después se ordena por nota hasta agotar el presupuesto de la región.',
+    consejo: 'Antes de escribir, lee la resolución de focos de tu región: un proyecto fuera de foco no pasa aunque sea bueno. Y muestra que ya tienes una prueba de concepto (fotos, resultados de pruebas, un cliente que lo probó).'
+  },
+  corfo_consolida_expande: {
+    hook: 'Para cuando tu innovación ya funciona y quieres llevarla a más mercados.',
+    queEs: 'Es un subsidio de Corfo de hasta $150.000.000 para escalar un producto, servicio o proceso innovador que ya validaste: crecer en Chile o salir al extranjero. Es el paso siguiente a Crea y Valida.',
+    paraQuien: 'Empresas o personas con al menos 18 meses de inicio de actividades en primera categoría y ventas en los últimos 18 meses, con una innovación que requirió I+D y ya está validada técnica o comercialmente.',
+    queFinancia: 'Escalamiento comercial o productivo, validación y adaptación en los mercados de destino, marketing internacional, certificaciones y el equipo. Corfo cubre hasta 60% si eres micro o pequeña empresa (más 10% si la lidera una mujer).',
+    comoSeGana: 'El problema u oportunidad pesa 30% y la solución, con tu plan de negocios y las capacidades del equipo, 70%. Se postula con un plan de negocios y tiene un hito de continuidad al mes 3.',
+    consejo: 'Este fondo no es para seguir desarrollando: si tu producto todavía no está validado, mira Crea y Valida o Innova Región. Llega con evidencia de validación (ventas, pilotos, certificaciones) y un plan de negocios con números.'
+  },
+  startup_chile_growth: {
+    hook: 'Para startups tecnológicas que ya venden y quieren crecer rápido desde Chile.',
+    queEs: 'Es la línea de Start-Up Chile para startups consolidadas: hasta $75.000.000 sin ceder participación, con mentorías, preparación para levantar capital y redes para expandirse.',
+    paraQuien: 'Empresas tecnológicas constituidas en Chile, con al menos 24 meses de actividad y ventas entre $80.000.000 y $800.000.000 en los últimos 12 meses. El líder del equipo trabaja a tiempo completo desde Chile.',
+    queFinancia: 'Contrataciones, expansión comercial, desarrollo de producto y levantamiento de capital. Corfo cubre 50% (60% si la líder es mujer) y la empresa pone el resto en dinero.',
+    comoSeGana: 'Se evalúan el equipo, la tracción, el potencial de crecer fuera de Chile y el impacto en el país. Se seleccionan pocos proyectos por generación.',
+    consejo: 'Tus números son tu mejor argumento: ventas mes a mes, crecimiento, clientes y retención. Y ten claro cuánto vas a aportar en dinero, porque es la mitad del proyecto.'
+  },
+  sercotec_digitaliza_almacen: {
+    hook: 'Para modernizar el almacén del barrio y vender más.',
+    queEs: 'Es un subsidio de Sercotec de hasta $3.000.000 netos para almacenes y negocios de barrio: tecnología para vender y controlar el inventario, equipos y un poco de asesoría. No se devuelve.',
+    paraQuien: 'Almacenes, minimarkets, panaderías, carnicerías, rotiserías, botillerías y bazares con inicio de actividades en primera categoría, más de 12 meses funcionando y ventas de hasta 5.000 UF al año.',
+    queFinancia: 'Entre $2.500.000 y $2.800.000 en inversiones (caja y sistema de ventas, control de inventario, balanzas, vitrinas, iluminación LED, generador) y entre $200.000 y $500.000 en asesoría, capacitación o marketing. El aporte lo fija cada región (máximo 20%) y el IVA lo pagas tú.',
+    comoSeGana: 'Primero se revisa que cumplas y se pone nota al formulario. Después vienen una visita a tu almacén (40%) y el comité regional (60%).',
+    consejo: 'Explica con ejemplos del día a día qué vas a mejorar: "perdemos mercadería porque no sabemos qué vence" o "la fila es larga porque cobramos a mano". Y cuenta cuánto esperas vender más con lo que vas a comprar.'
+  },
   fia_innovacion_agro: {
     hook: 'Innovación para el campo, los alimentos y lo forestal.',
     queEs: 'Es un concurso de la Fundación para la Innovación Agraria (FIA) que cofinancia el desarrollo y la validación de tecnologías para el sector silvoagropecuario y agroalimentario. FIA pone hasta 80% del proyecto, con un máximo de $50.000.000.',
