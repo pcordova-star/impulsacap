@@ -13,29 +13,7 @@ export function useConvocatorias() {
 
   // Fetch convocatorias from Firestore or API
   const fetchConvocatorias = useCallback(async () => {
-    try {
-      // 1. Intentar Firestore directamente (lectura pública)
-      const convosRef = collection(db, 'convocatorias');
-      const snap = await getDocs(convosRef);
-
-      if (!snap.empty) {
-        const list: Convocatoria[] = [];
-        snap.forEach(d => {
-          list.push(enrichConvocatoria(d.data()));
-        });
-        setConvocatorias(list);
-
-        const metaDoc = await getDoc(doc(db, 'meta', 'convocatoriasSync'));
-        if (metaDoc.exists()) {
-          setSyncMeta(metaDoc.data() as ConvocatoriasSyncMeta);
-        }
-        return;
-      }
-    } catch (e) {
-      console.warn('Firestore direct fetch failed, trying API fallback:', e);
-    }
-
-    // 2. Fallback a /api/convocatorias
+    // Respaldo: /api/convocatorias (si la lectura en vivo no responde)
     try {
       const res = await fetch('/api/convocatorias');
       if (res.ok) {
@@ -54,31 +32,40 @@ export function useConvocatorias() {
   }, []);
 
   useEffect(() => {
-    fetchConvocatorias().finally(() => setLoading(false));
-
-    // Suscribirse a cambios en Firestore si está disponible
+    // Una sola lectura en vivo (antes se leía todo dos veces por visita: una lectura y una suscripción)
+    let gotFirst = false;
+    let fellBack = false;
+    const fallback = () => {
+      if (fellBack) return;
+      fellBack = true;
+      fetchConvocatorias().finally(() => setLoading(false));
+    };
+    const safety = setTimeout(() => { if (!gotFirst) fallback(); }, 8000);
+    let unsubConvos = () => {};
+    let unsubMeta = () => {};
     try {
-      const unsubConvos = onSnapshot(collection(db, 'convocatorias'), (snapshot) => {
-        if (!snapshot.empty) {
-          const list: Convocatoria[] = [];
-          snapshot.forEach(d => {
-            list.push(enrichConvocatoria(d.data()));
-          });
-          setConvocatorias(list);
-        }
-      }, () => {});
+      unsubConvos = onSnapshot(collection(db, 'convocatorias'), (snapshot) => {
+        gotFirst = true;
+        clearTimeout(safety);
+        if (snapshot.empty) { fallback(); return; }
+        const list: Convocatoria[] = [];
+        snapshot.forEach(d => { list.push(enrichConvocatoria(d.data())); });
+        setConvocatorias(list);
+        setLoading(false);
+      }, () => { clearTimeout(safety); fallback(); });
 
-      const unsubMeta = onSnapshot(doc(db, 'meta', 'convocatoriasSync'), (docSnap) => {
-        if (docSnap.exists()) {
-          setSyncMeta(docSnap.data() as ConvocatoriasSyncMeta);
-        }
+      unsubMeta = onSnapshot(doc(db, 'meta', 'convocatoriasSync'), (docSnap) => {
+        if (docSnap.exists()) setSyncMeta(docSnap.data() as ConvocatoriasSyncMeta);
       }, () => {});
-
-      return () => {
-        unsubConvos();
-        unsubMeta();
-      };
-    } catch {}
+    } catch {
+      clearTimeout(safety);
+      fallback();
+    }
+    return () => {
+      clearTimeout(safety);
+      unsubConvos();
+      unsubMeta();
+    };
   }, [fetchConvocatorias]);
 
   // Convocatorias activas (vigentes y abiertas/próximas)

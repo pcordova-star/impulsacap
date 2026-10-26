@@ -5,25 +5,18 @@ import { CompanyProfile, ChileanFund, FormulationOutput, BlindAuditResult, Compa
 import { CHILEAN_FUNDS } from './data/chileanFunds';
 import { Navbar } from './components/Navbar';
 import { InstantWowMatcher } from './components/InstantWowMatcher';
-import { SearchFundsView } from './components/SearchFundsView';
-import { MyCompanyView } from './components/MyCompanyView';
-import { PostulationWorkspace, PostulationSubTab } from './components/PostulationWorkspace';
-import { MyApplicationsDashboard } from './components/MyApplicationsDashboard';
+import type { PostulationSubTab } from './components/PostulationWorkspace';
 import { NewApplicationModal } from './components/NewApplicationModal';
 import { HelpBot } from './components/HelpBot';
 import { MonitorHero } from './components/MonitorHero';
 import { HowItWorks, PlanComparison, LandingFaq } from './components/LandingSections';
 import { SiiUploaderModal } from './components/SiiUploaderModal';
 import { AuthModal } from './components/AuthModal';
-import { TermsPage, PrivacyPage } from './components/LegalPages';
 import { ServiceStartModal } from './components/ServiceStartModal';
 import { WelcomeStartModal } from './components/WelcomeStartModal';
 import { ToastCenter } from './components/ToastCenter';
 import { EarlyAccessModal } from './components/EarlyAccessModal';
-import { AdminDashboard } from './components/AdminDashboard';
-import { NewsView } from './components/NewsView';
 import { QualifyModal } from './components/QualifyModal';
-import { SellerPanel } from './components/SellerPanel';
 import { showToast } from './utils/toast';
 import { splitTarget, goToTarget, setReturnContext } from './utils/navFocus';
 import { fundFromConvocatoria } from './utils/convocatoriaFund';
@@ -65,6 +58,17 @@ import {
 } from './utils/authEvents';
 
 // Lazy-loaded components for optimal performance (Requirement 9)
+// Vistas que no se usan en la página de inicio: se cargan al abrirlas (la primera visita descarga menos)
+const SearchFundsView = React.lazy(() => import('./components/SearchFundsView').then(m => ({ default: m.SearchFundsView })));
+const MyCompanyView = React.lazy(() => import('./components/MyCompanyView').then(m => ({ default: m.MyCompanyView })));
+const PostulationWorkspace = React.lazy(() => import('./components/PostulationWorkspace').then(m => ({ default: m.PostulationWorkspace })));
+const MyApplicationsDashboard = React.lazy(() => import('./components/MyApplicationsDashboard').then(m => ({ default: m.MyApplicationsDashboard })));
+const TermsPage = React.lazy(() => import('./components/LegalPages').then(m => ({ default: m.TermsPage })));
+const PrivacyPage = React.lazy(() => import('./components/LegalPages').then(m => ({ default: m.PrivacyPage })));
+const AdminDashboard = React.lazy(() => import('./components/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
+const NewsView = React.lazy(() => import('./components/NewsView').then(m => ({ default: m.NewsView })));
+const SellerPanel = React.lazy(() => import('./components/SellerPanel').then(m => ({ default: m.SellerPanel })));
+
 const SmartDiagnostic = React.lazy(() => 
   import('./components/SmartDiagnostic').then(m => ({ default: m.SmartDiagnostic }))
 );
@@ -804,7 +808,8 @@ export default function App() {
                 className="inline-flex items-center gap-1.5 text-emerald-300 hover:text-emerald-200 font-bold whitespace-nowrap cursor-pointer transition-colors"
               >
                 <Lock className="w-3 h-3" />
-                <span>Acceso Empresas: Iniciar Sesión / Registrarse</span>
+                <span className="sm:hidden">¿Ya tienes cuenta? Inicia sesión</span>
+                <span className="hidden sm:inline">Acceso Empresas: Iniciar Sesión / Registrarse</span>
               </button>
             )}
 
@@ -819,11 +824,11 @@ export default function App() {
               <>
                 <button
                   onClick={() => setShowSiiModal(true)}
-                  className="text-emerald-300 hover:text-emerald-200 font-semibold flex items-center gap-1 cursor-pointer"
+                  className="hidden sm:flex text-emerald-300 hover:text-emerald-200 font-semibold items-center gap-1 cursor-pointer"
                 >
                   <span>📄 Subir F29 SII</span>
                 </button>
-                <span className="text-slate-600">•</span>
+                <span className="hidden sm:inline text-slate-600">•</span>
                 <button
                   onClick={() => setActiveTab('my-company')}
                   className="text-blue-300 hover:text-blue-200 font-semibold font-mono cursor-pointer"
@@ -834,7 +839,7 @@ export default function App() {
             ) : (
               <button
                 onClick={() => { setAuthModalMode('register'); setShowAuthModal(true); }}
-                className="text-emerald-300 hover:text-emerald-200 font-bold cursor-pointer"
+                className="hidden sm:inline text-emerald-300 hover:text-emerald-200 font-bold cursor-pointer"
               >
                 Crear Cuenta de Empresa
               </button>
@@ -856,6 +861,7 @@ export default function App() {
 
       {/* Main Container */}
       <main className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 pt-4 pb-28 sm:py-8 min-w-0 max-w-full overflow-x-hidden">
+        <Suspense fallback={<div className="py-24 flex flex-col items-center gap-3 text-slate-500" role="status"><Sparkles className="w-6 h-6 text-blue-600 animate-spin" /><span className="text-sm font-semibold">Cargando…</span></div>}>
         {/* Tab: Pago Resultado (Mercado Pago) */}
         {activeTab === 'pago-resultado' && (
           <PaymentResult
@@ -1095,6 +1101,7 @@ export default function App() {
             />
           </Suspense>
         )}
+        </Suspense>
       </main>
 
       {/* Robot de Ayuda de la Plataforma (Visible en todas las pantallas con y sin sesión - Requisito 2) */}

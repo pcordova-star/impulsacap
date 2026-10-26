@@ -1,3 +1,4 @@
+import { createCounterBuffer } from './counterBuffer';
 /**
  * Control financiero del uso de IA (Gemini).
  *
@@ -123,19 +124,24 @@ export function estimateCostUsd(usage: any): { inTok: number; outTok: number; co
 }
 
 /** Registra el consumo real de una llamada (no bloquea la respuesta si falla). */
+let _dailyBuffer: ReturnType<typeof createCounterBuffer> | null = null;
+function dailyBuffer(db: Firestore) {
+  if (!_dailyBuffer) _dailyBuffer = createCounterBuffer(async () => db, 4000);
+  return _dailyBuffer;
+}
+
 export async function recordAiUsage(db: Firestore, ctx: AiContext, usage: any, model: string) {
   const { inTok, outTok, costUsd } = estimateCostUsd(usage);
   const inc = FieldValue.increment;
   const ep = ctx.endpoint.replace(/[^a-z0-9-]/gi, '_');
-  const writes: Promise<any>[] = [
-    db.collection('ai_usage_daily').doc(ctx.day).set({
-      day: ctx.day,
-      calls: inc(1), inTok: inc(inTok), outTok: inc(outTok), costUsd: inc(costUsd),
-      endpoints: { [ep]: { calls: inc(1), costUsd: inc(costUsd) } },
-      models: { [model.replace(/[^a-z0-9.-]/gi, '_')]: inc(1) },
-      updatedAt: new Date().toISOString()
-    }, { merge: true })
-  ];
+  // El total del día es un solo documento: se agrupa en memoria y se escribe cada pocos segundos
+  dailyBuffer(db).add(`ai_usage_daily/${ctx.day}`, {
+    calls: 1, inTok, outTok, costUsd,
+    [`endpoints.${ep}.calls`]: 1,
+    [`endpoints.${ep}.costUsd`]: costUsd,
+    [`models.${model.replace(/[^a-z0-9-]/gi, '_')}`]: 1
+  }, { day: ctx.day, updatedAt: new Date().toISOString() });
+  const writes: Promise<any>[] = [];
   if (ctx.uid) {
     writes.push(db.collection('ai_usage_users').doc(`${ctx.uid}_${ctx.day}`).set({
       uid: ctx.uid, day: ctx.day, calls: inc(1), inTok: inc(inTok), outTok: inc(outTok), costUsd: inc(costUsd), updatedAt: new Date().toISOString()
@@ -170,7 +176,15 @@ export function aiGuard(opts: {
       if (db) {
         // 1. Presupuesto global del día
         const dailySnap = await db.collection('ai_usage_daily').doc(day).get();
-        const daily = dailySnap.exists ? dailySnap.data() || {} : {};
+        const daily: any = dailySnap.exists ? { ...(dailySnap.data() || {}) } : {};
+        // Sumar lo que esta instancia aún no escribe (los totales del día se agrupan en memoria)
+        if (_dailyBuffer) {
+          const path = `ai_usage_daily/${day}`;
+          daily.costUsd = (Number(daily.costUsd) || 0) + _dailyBuffer.pendingValue(path, 'costUsd');
+          const epKey = opts.endpoint.replace(/[^a-z0-9-]/gi, '_');
+          const pendCalls = _dailyBuffer.pendingValue(path, `endpoints.${epKey}.calls`);
+          if (pendCalls) daily.endpoints = { ...(daily.endpoints || {}), [opts.endpoint]: { ...((daily.endpoints || {})[opts.endpoint] || {}), calls: (Number(daily.endpoints?.[opts.endpoint]?.calls) || 0) + pendCalls } };
+        }
         if ((Number(daily.costUsd) || 0) >= L.dailyBudgetUsd) {
           opts.onBudgetExceeded?.(day, Number(daily.costUsd) || 0);
           return res.status(503).json({ error: 'La IA alcanzó su capacidad máxima por hoy. Vuelve a intentarlo mañana; tu trabajo queda guardado.', code: 'AI_DAILY_BUDGET' });

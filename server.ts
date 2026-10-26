@@ -9,6 +9,7 @@ import { initializeApp as initAdminApp, getApps as getAdminApps } from 'firebase
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import { getFirestore as getAdminFirestore, FieldValue } from 'firebase-admin/firestore';
 import fs from 'fs';
+import zlib from 'zlib';
 import { PDFParse } from 'pdf-parse';
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
@@ -55,6 +56,7 @@ import {
   sellerSaleEmail,
   getAppUrl,
 } from './server/email';
+import { createCounterBuffer } from './server/counterBuffer';
 import { aiGuard, aiContext, recordAiUsage, inputTextChars, AI_MAX_INPUT_CHARS, AI_MAX_OUTPUT, AiLimitError, AI_LIMITS, chileDay } from './server/aiUsage';
 import {
   PRICE_FULL,
@@ -3091,6 +3093,7 @@ app.post('/api/admin/novedad-propia', requireAuth, requireAdminUser, async (req,
       approvedAt: now,
       digestSentAt: null
     });
+    novedadesCache = null;
     return res.json({ ok: true, id });
   } catch (e: any) {
     console.error('[novedades] Error al crear novedad propia:', e?.message);
@@ -3114,6 +3117,7 @@ app.post('/api/admin/novedades/:id', requireAuth, requireAdminUser, async (req, 
     if (typeof b.type === 'string' && (NEWS_TYPES as readonly string[]).includes(b.type)) update.type = b.type;
     if ([1, 2, 3].includes(Number(b.importance))) update.importance = Number(b.importance);
     await ref.set(update, { merge: true });
+    novedadesCache = null;
     return res.json({ ok: true });
   } catch (e: any) {
     console.error('[novedades] Error al actualizar:', e?.message);
@@ -3122,8 +3126,14 @@ app.post('/api/admin/novedades/:id', requireAuth, requireAdminUser, async (req, 
 });
 
 // Público: novedades aprobadas (sección "Novedades" de la app)
+let novedadesCache: { at: number; items: any[] } | null = null;
 app.get('/api/novedades', async (_req, res) => {
   try {
+    // Se guarda 3 minutos en memoria: con muchas visitas no se lee la base en cada una
+    if (novedadesCache && Date.now() - novedadesCache.at < 3 * 60 * 1000) {
+      res.set('Cache-Control', 'public, max-age=300');
+      return res.json({ items: novedadesCache.items });
+    }
     if (!(await ensureFirestoreAdmin())) return res.json({ items: [] });
     const since = new Date(Date.now() - 75 * 864e5).toISOString();
     const snap = await adminDb.collection('news_items').where('status', '==', 'aprobada').get();
@@ -3133,6 +3143,7 @@ app.get('/api/novedades', async (_req, res) => {
       .slice(0, 50)
       .map(x => ({ title: x.title, summary: x.summary, type: x.type, audience: x.audience, url: x.url, sourceName: x.outlet || x.sourceName, kind: x.kind, fundIds: x.fundIds || [], importance: x.importance || 1, date: x.publishedAt || x.approvedAt }));
     res.set('Cache-Control', 'public, max-age=300');
+    novedadesCache = { at: Date.now(), items };
     return res.json({ items });
   } catch (e: any) {
     console.error('[novedades] Error en /api/novedades:', e?.message);
@@ -3160,12 +3171,16 @@ app.all('/api/novedades/desuscribir', async (req, res) => {
 });
 
 // GET /api/convocatorias (Consulta pública con filtros de región y vigencia)
+let convocatoriasCache: { at: number; list: any[]; meta: any } | null = null;
 app.get('/api/convocatorias', async (req, res) => {
   try {
     let convocatorias: any[] = [];
     let meta: any = { lastSyncAt: null, total: 0, totalVigentes: 0 };
 
-    if (isFirestoreAdminAuthorized) {
+    if (convocatoriasCache && Date.now() - convocatoriasCache.at < 2 * 60 * 1000) {
+      convocatorias = [...convocatoriasCache.list];
+      meta = convocatoriasCache.meta;
+    } else if (isFirestoreAdminAuthorized) {
       const snap = await adminDb.collection('convocatorias').get();
       snap.forEach(d => convocatorias.push(d.data()));
 
@@ -3173,6 +3188,7 @@ app.get('/api/convocatorias', async (req, res) => {
       if (metaDoc.exists) {
         meta = metaDoc.data();
       }
+      convocatoriasCache = { at: Date.now(), list: [...convocatorias], meta };
     }
 
     const { region, vigente } = req.query;
@@ -3653,6 +3669,51 @@ const pageviewLimiter = rateLimit({
 });
 const BOT_UA = /bot|crawl|spider|slurp|headless|lighthouse|preview|facebookexternalhit|whatsapp|telegram|pingdom|uptime|monitor|curl|wget|python|go-http/i;
 
+// Errores de pantalla de los visitantes (para detectarlos rápido cuando hay mucho tráfico)
+const clientErrorLimiter = rateLimit({ windowMs: 60 * 1000, max: 5, standardHeaders: true, legacyHeaders: false, statusCode: 429, message: { error: 'Demasiados reportes.' } });
+let clientErrorsThisMinute = 0;
+setInterval(() => { clientErrorsThisMinute = 0; }, 60 * 1000).unref?.();
+app.post('/api/metrics/error', clientErrorLimiter, express.json({ limit: '16kb', type: () => true }), async (req, res) => {
+  res.status(204).end();
+  try {
+    if (++clientErrorsThisMinute > 60) return; // tope global para no llenar la base con un error repetido
+    if (!(await ensureFirestoreAdmin())) return;
+    const b = req.body || {};
+    const message = String(b.message || '').slice(0, 500);
+    if (!message) return;
+    console.warn('[pantalla] Error de un visitante:', message);
+    await adminDb.collection('client_errors').add({
+      message,
+      stack: String(b.stack || '').slice(0, 2000),
+      url: String(b.url || '').slice(0, 200),
+      ua: String(b.ua || '').slice(0, 200),
+      at: new Date().toISOString()
+    });
+  } catch { /* sin efecto */ }
+});
+
+app.get('/api/admin/errores', requireAuth, requireAdminUser, async (_req, res) => {
+  try {
+    if (!(await ensureFirestoreAdmin())) return res.status(503).json({ error: 'Firestore Admin no está autorizado.' });
+    const since = new Date(Date.now() - 864e5).toISOString();
+    const snap = await adminDb.collection('client_errors').where('at', '>=', since).limit(300).get();
+    const groups = new Map<string, { message: string; url: string; at: string; count: number }>();
+    snap.docs.forEach(d => {
+      const e = d.data() as any;
+      const g = groups.get(e.message) || { message: e.message, url: e.url, at: e.at, count: 0 };
+      g.count++;
+      if (e.at > g.at) { g.at = e.at; g.url = e.url; }
+      groups.set(e.message, g);
+    });
+    res.set('Cache-Control', 'no-store');
+    return res.json({ total24h: snap.size, items: Array.from(groups.values()).sort((a, b) => b.count - a.count).slice(0, 30) });
+  } catch (e: any) {
+    console.error('[pantalla] Error al listar:', e?.message);
+    return res.status(500).json({ error: 'No se pudieron cargar los errores.' });
+  }
+});
+
+const pageviewBuffer = createCounterBuffer(async () => ((await ensureFirestoreAdmin()) ? adminDb : null), 5000);
 app.post('/api/metrics/pageview', pageviewLimiter, async (req, res) => {
   res.status(204).end();
   try {
@@ -3662,12 +3723,12 @@ app.post('/api/metrics/pageview', pageviewLimiter, async (req, res) => {
     const rawPage = String(req.body?.page || '');
     const page = (TRACKED_PAGES as readonly string[]).includes(rawPage) ? rawPage : 'otra';
     const day = chileDayKey(new Date());
-    await adminDb.collection('stats_daily').doc(day).set({
-      date: day,
-      views: FieldValue.increment(1),
-      visitors: FieldValue.increment(req.body?.newVisitorToday === true ? 1 : 0),
-      pages: { [page]: FieldValue.increment(1) }
-    }, { merge: true });
+    // Un documento por día: se agrupa en memoria y se escribe cada pocos segundos (aguanta picos de visitas)
+    pageviewBuffer.add(`stats_daily/${day}`, {
+      views: 1,
+      visitors: req.body?.newVisitorToday === true ? 1 : 0,
+      [`pages.${page}`]: 1
+    }, { date: day });
   } catch (err: any) {
     console.warn('[metrics] No se pudo registrar la visita:', err?.message);
   }
@@ -4129,9 +4190,45 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static(path.resolve(__dirname, 'dist')));
+    const distDir = path.resolve(__dirname, 'dist');
+    // Archivos de /assets llevan un hash en el nombre: se guardan en el navegador por un año.
+    // Se envían comprimidos (brotli o gzip) y la compresión se hace una sola vez por instancia.
+    const compressedCache = new Map<string, Buffer>();
+    app.get(/^\/assets\/.+\.(js|css|svg|json)$/, (req, res, next) => {
+      const accept = String(req.headers['accept-encoding'] || '');
+      const enc = /\bbr\b/.test(accept) ? 'br' : /\bgzip\b/.test(accept) ? 'gzip' : null;
+      if (!enc) return next();
+      const file = path.join(distDir, path.normalize(req.path).replace(/^([/\\])+/, ''));
+      if (!file.startsWith(distDir + path.sep) || !fs.existsSync(file)) return next();
+      const key = `${enc}:${file}`;
+      let body = compressedCache.get(key);
+      if (!body) {
+        const raw = fs.readFileSync(file);
+        body = enc === 'br'
+          ? zlib.brotliCompressSync(raw, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 6 } })
+          : zlib.gzipSync(raw, { level: 7 });
+        compressedCache.set(key, body);
+      }
+      const ext = path.extname(file).slice(1);
+      res.set({
+        'Content-Type': ext === 'js' ? 'application/javascript; charset=utf-8' : ext === 'css' ? 'text/css; charset=utf-8' : ext === 'svg' ? 'image/svg+xml' : 'application/json',
+        'Content-Encoding': enc,
+        'Vary': 'Accept-Encoding',
+        'Cache-Control': 'public, max-age=31536000, immutable'
+      });
+      return res.end(body);
+    });
+    app.use(express.static(distDir, {
+      index: false,
+      setHeaders: (res, filePath) => {
+        if (filePath.includes(`${path.sep}assets${path.sep}`)) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        else res.setHeader('Cache-Control', 'public, max-age=3600');
+      }
+    }));
     app.get('*', (req, res) => {
-      res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
+      // La página siempre se pide de nuevo: así nadie queda con una versión vieja después de publicar
+      res.setHeader('Cache-Control', 'no-cache');
+      res.sendFile(path.resolve(distDir, 'index.html'));
     });
   }
 

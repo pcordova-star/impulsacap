@@ -53,6 +53,8 @@ const TRL_LABEL: Record<string, string> = {
   escalamiento_global: 'escalamiento'
 };
 
+const ALMACEN_RE = /almacen|minimarket|botiller|panader|carnicer|rotiser|bazar|negocio de barrio|kiosco/;
+
 const KEYWORDS: { re: RegExp; funds: string[]; reason: string }[] = [
   { re: /agro|agricol|campo|cultivo|riego|fruta|vino|vinedo|ganad|leche|apicul|miel|semilla|forestal|alimento|hortaliz|invernadero/, funds: ['fia_innovacion_agro'], reason: 'Tu proyecto es del sector agroalimentario, foco de FIA.' },
   { re: /investigaci|cientific|universidad|laboratorio|patente|i\+d|biotec|molecul|ensayo/, funds: ['anid_fondef_idea', 'corfo_crea_valida'], reason: 'Tiene un componente de investigación y desarrollo.' },
@@ -62,6 +64,10 @@ const KEYWORDS: { re: RegExp; funds: string[]; reason: string }[] = [
   { re: /tienda|almacen|negocio|local|peluquer|restauran|cafe|panader|taller|artesan|emprendimiento|comercio|servicio/, funds: ['sercotec_semilla_emprende', 'sercotec_abeja_emprende', 'sercotec_crece'], reason: 'Es un negocio tradicional, el foco de los fondos SERCOTEC.' },
   { re: /crecer|ampliar|maquinaria|equipamiento|aumentar ventas|nuevo local|expandir/, funds: ['sercotec_crece', 'corfo_semilla_expande'], reason: 'Busca crecer un negocio que ya vende.' },
   { re: /proveedor|cliente grande|gran empresa|asesor|consultor|experto|innovar en/, funds: ['corfo_sumate_innovar'], reason: 'Quiere innovar con apoyo de expertos externos.' },
+  { re: ALMACEN_RE, funds: ['sercotec_digitaliza_almacen'], reason: 'Es un almacén o negocio de barrio, justo para quienes es este fondo.' },
+  { re: /prototipo|desarroll|validar|nuevo producto|nuevo proceso|innovaci|region/, funds: ['corfo_innova_region'], reason: 'Busca desarrollar y validar algo nuevo en su región.' },
+  { re: /export|internacional|escalar|expandir|nuevos mercados|extranjer/, funds: ['corfo_consolida_expande', 'startup_chile_growth'], reason: 'Quiere escalar una solución que ya funciona a más mercados.' },
+  { re: /software|app|plataforma|saas|tecnolog|startup|levantar capital|inversionista/, funds: ['startup_chile_growth'], reason: 'Es una startup tecnológica que ya vende y quiere crecer.' },
 ];
 
 const INNOVATION_RE = /innov|tecnolog|nuevo|software|app|plataforma|prototipo|patente|i\+d|desarroll|digital|inteligencia|sensor|automatiz|sostenib/;
@@ -115,9 +121,12 @@ export function rankCatalogFunds(funds: ChileanFund[], a: MatchAnswers, openFund
     // Fondos sectoriales: solo suben si el proyecto es de ese sector
     const SECTORAL: Record<string, RegExp> = {
       fia_innovacion_agro: KEYWORDS[0].re,
-      anid_fondef_idea: KEYWORDS[1].re
+      anid_fondef_idea: KEYWORDS[1].re,
+      sercotec_digitaliza_almacen: ALMACEN_RE
     };
     if (SECTORAL[fund.id] && !SECTORAL[fund.id].test(text)) score -= 20;
+    // Un almacén calza más con el fondo hecho para almacenes que con uno general
+    if (fund.id === 'sercotec_digitaliza_almacen' && ALMACEN_RE.test(text)) score += 10;
     if (fund.requiresInnovation && !innovative) score -= 12;
     if (!fund.requiresInnovation && !innovative) score += 6;
     if (isFemaleOnly(fund) && a.isFemaleLed) { score += 15; reasons.unshift('Es un fondo exclusivo para mujeres emprendedoras.'); }

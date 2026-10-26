@@ -773,6 +773,36 @@ const NewsRow: React.FC<{ n: AdminNews; estado: string; onDone: () => void }> = 
   );
 };
 
+/** Errores de pantalla que vieron los visitantes (para reaccionar rápido con mucho tráfico) */
+const ClientErrorsPanel: React.FC = () => {
+  const [d, setD] = useState<{ total24h: number; items: { message: string; url: string; at: string; count: number }[] } | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const load = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/admin/errores');
+      const b = await res.json().catch(() => ({}));
+      if (res.ok) setD(b); else setErr(b.error || 'No se pudo cargar.');
+    } catch (e: any) { setErr(e?.message || 'No se pudo cargar.'); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  return (
+    <Card title="Errores de pantalla (últimas 24 horas)" subtitle="Si algo falla en el navegador de un visitante, aparece aquí. Agrupados por mensaje." right={<button type="button" onClick={load} className="text-xs font-bold text-blue-700 hover:underline cursor-pointer">Actualizar</button>}>
+      {err && <p className="text-xs text-rose-700">{err}</p>}
+      {d && d.total24h === 0 && <p className="text-sm text-emerald-700">Sin errores en las últimas 24 horas.</p>}
+      {d && d.total24h > 0 && (
+        <ul className="divide-y divide-slate-100 text-xs">
+          {d.items.map((e, i) => (
+            <li key={i} className="py-2 flex flex-wrap justify-between gap-2">
+              <span className="font-mono text-slate-800 break-all min-w-0 flex-1">{e.message}</span>
+              <span className="text-slate-500 shrink-0">{e.count} {e.count === 1 ? 'vez' : 'veces'} · {e.url} · {new Date(e.at).toLocaleString('es-CL', { timeZone: 'America/Santiago' })}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+};
+
 /** Publicar una novedad escrita por ti (sale en Novedades y en el próximo boletín) */
 const OwnNewsForm: React.FC<{ onDone: () => void }> = ({ onDone }) => {
   const [open, setOpen] = useState(false);
@@ -1205,6 +1235,7 @@ export const AdminDashboard: React.FC = () => {
         )}
       </Card>
 
+      <ClientErrorsPanel />
       <NewsPanel />
 
       <AiUsagePanel />
