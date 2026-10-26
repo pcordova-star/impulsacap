@@ -182,7 +182,10 @@ export function computeJourney(input: {
     }
   }
 
-  const currentIdx = stages.findIndex(s => !s.done);
+  // Ya enviada (o con resultado): lo que toca es esa etapa (esperar y marcar, ejecutar o mejorar),
+  // aunque en la plataforma hayan quedado pasos previos sin marcar
+  const resultIdx = stages.findIndex(s => s.id === 'resultado' && !s.done);
+  const currentIdx = resultIdx >= 0 ? resultIdx : stages.findIndex(s => !s.done);
   const current = currentIdx >= 0 ? stages[currentIdx] : null;
   return {
     stages,

@@ -957,6 +957,24 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
                 </div>
               )}
 
+              {/* El fondo que eligió en "¿Para qué necesitas la plata?" y no calza: se explica por qué */}
+              {(() => {
+                if (!preferredFundId || matchResult.primaryFund?.fundId === preferredFundId) return null;
+                const pf = CHILEAN_FUNDS.find(f => f.id === preferredFundId);
+                if (!pf) return null;
+                const { eligible, near } = rankCatalogFunds(CHILEAN_FUNDS, buildProfileFromAnswers(stage, sales, constitution, isFemale, projectSummary) as any);
+                const ok = eligible.some(r => r.fund.id === preferredFundId);
+                const blocked = near.find(r => r.fund.id === preferredFundId);
+                const why = blocked?.reasons?.[0]?.replace(/^No cumples hoy un requisito: /, '') || '';
+                return (
+                  <div className={`p-4 rounded-2xl text-sm border ${ok ? 'bg-blue-50 border-blue-200 text-blue-900' : 'bg-amber-50 border-amber-200 text-amber-900'}`}>
+                    {ok
+                      ? <>Revisamos <strong>{pf.name}</strong>, el fondo que elegiste: también calzas. Aparece entre tus opciones; abajo verás cuál te conviene más.</>
+                      : <>Revisamos <strong>{pf.name}</strong>, el fondo que elegiste: con tus respuestas <strong>no calzas</strong>{why ? ` (${why.replace(/\.$/, '')})` : ''}. {!why && pf.salesRequirement ? <>Pide: {pf.salesRequirement} </> : null}Te mostramos los que sí te sirven.</>}
+                  </div>
+                );
+              })()}
+
               {matchResult.primaryFund && matchResult.allRequirementsMet === false && (
                 <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-sm text-amber-900">
                   Con tus respuestas no cumples todos los requisitos de ningún fondo del catálogo. Te mostramos el más cercano y qué te falta.

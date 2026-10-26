@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { request as requestNav } from '../utils/navFocus';
 import { PLAN_PRICE, PLAN_PRICE_TEXT } from '../data/pricing';
 import { usePlan } from '../hooks/usePlan';
 import { resolveFund, fundFromConvocatoria } from '../utils/convocatoriaFund';
@@ -316,6 +317,7 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
   const goNext = (app: ApplicationItem, target: string) => {
     if (target === 'sii') { onOpenSiiModal(); return; }
     if (target.startsWith('url:')) { window.open(target.slice(4), '_blank', 'noopener,noreferrer'); return; }
+    if (target === 'guarantees') requestNav('roadmapView', 'guarantees');
     if (target === 'dossier' || target === 'guarantees') { onContinueApplication(app.id, 'my-application'); return; }
     onContinueApplication(app.id, target);
   };
@@ -458,7 +460,7 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
                       {review?.reappliedAs ? 'Ya volviste a postular: corrige lo que falló en la nueva postulación.' : review?.plan ? `Tu plan de mejora está listo (${review.plan.improvements.length} mejoras). Vuelve a postular con todo copiado.` : 'Trae la evaluación del comité y armamos un plan para volver a postular mejor.'}
                     </p>
                     <button onClick={() => review?.reappliedAs ? onNavigateTab?.(`open-app:${review.reappliedAs}`) : onContinueApplication(app.id, 'resultado')} className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-sm cursor-pointer inline-flex items-center gap-1.5 shrink-0">
-                      {review?.reappliedAs ? 'Abrir la nueva' : review?.plan ? 'Ver mi plan' : 'Armar mi plan de mejora'} <ArrowRight className="w-3.5 h-3.5" />
+                      {review?.reappliedAs ? 'Abrir la nueva' : review?.plan ? 'Ver mi plan de mejora' : 'Armar mi plan de mejora'} <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </article>

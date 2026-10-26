@@ -353,7 +353,10 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
       formulation: expediente?.formulation || formulation,
       auditResult,
       roadmapConfirmations: { checks, confirmedGarantia },
-      generatedDocs: expediente?.generatedDocs || []
+      generatedDocs: expediente?.generatedDocs || [],
+      status: expediente?.status,
+      result: expediente?.result || null,
+      rejectionReview: expediente?.rejectionReview || null
     },
     hasActivePlan
   });

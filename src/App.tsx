@@ -19,7 +19,7 @@ import { ToastCenter } from './components/ToastCenter';
 import { EarlyAccessModal } from './components/EarlyAccessModal';
 import { QualifyModal } from './components/QualifyModal';
 import { showToast } from './utils/toast';
-import { splitTarget, goToTarget, setReturnContext } from './utils/navFocus';
+import { splitTarget, goToTarget, setReturnContext, request as requestNav } from './utils/navFocus';
 import { fundFromConvocatoria } from './utils/convocatoriaFund';
 import { ReturnBar } from './components/ReturnBar';
 import { captureRefFromUrl, previewCode, clearStoredRef, notifyReferralChanged } from './utils/referral';
@@ -547,7 +547,10 @@ export default function App() {
       answersBySection: app?.answersBySection || {},
       generatedTextsBySection: app?.generatedTextsBySection || {},
       formulation: app?.formulation || null,
-      auditResult: app?.auditResult || null
+      auditResult: app?.auditResult || null,
+      status: app?.status,
+      result: app?.result || null,
+      rejectionReview: app?.rejectionReview || null
     };
   }, [activeApplication, activeFund, profile, currentUser]);
 
@@ -1245,7 +1248,8 @@ export default function App() {
         onGo={(target) => {
           if (target === 'sii') { setShowSiiModal(true); return; }
           if (target.startsWith('url:')) { window.open(target.slice(4), '_blank', 'noopener,noreferrer'); return; }
-          if (target === 'dossier' || target === 'guarantees') { handleNavigateTab('my-application'); return; }
+          if (target === 'guarantees') { requestNav('roadmapView', 'guarantees'); handleNavigateTab('my-application'); return; }
+          if (target === 'dossier') { handleNavigateTab('my-application'); return; }
           handleNavigateTab(target);
         }}
       />

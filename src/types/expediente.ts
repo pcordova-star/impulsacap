@@ -48,4 +48,8 @@ export interface ExpedienteData {
   generatedTextsBySection: Record<string, string>;
   formulation: FormulationOutput | null;
   auditResult: BlindAuditResult | null;
+  /** Estado de la postulación y resultado del concurso (para el consultor y la hoja de ruta) */
+  status?: string;
+  result?: { outcome: 'adjudicada' | 'no_adjudicada' } | null;
+  rejectionReview?: { reappliedAs?: string | null } | null;
 }
