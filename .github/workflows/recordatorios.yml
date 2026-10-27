@@ -16,10 +16,14 @@ jobs:
           APP_URL: ${{ secrets.APP_URL }}
           IMPORT_TOKEN: ${{ secrets.CONVOCATORIAS_IMPORT_TOKEN }}
         run: |
-          status=$(curl -sS -o respuesta.json -w "%{http_code}" -X POST \
-            -H "x-import-token: ${IMPORT_TOKEN}" \
-            "${APP_URL%/}/api/admin/recordatorios")
-          echo "HTTP ${status}"
+          # Hasta 4 intentos: si la app estaba apagada, al encender tarda unos segundos en conectarse a Firestore
+          for i in 1 2 3 4; do
+            status=$(curl -sS -m 120 -o respuesta.json -w "%{http_code}" -X POST \
+              -H "x-import-token: ${IMPORT_TOKEN}" \
+              "${APP_URL%/}/api/admin/recordatorios" || true)
+            echo "Intento $i: HTTP ${status}"
+            case "$status" in 5*|000*|"") sleep 20 ;; *) break ;; esac
+          done
           # El repo es público: solo se imprimen los totales
           jq -r '"Revisados: \(.revisados // 0) · aviso 7 días: \(.aviso7d // 0) · aviso vencido: \(.avisoVencido // 0) · errores: \(.errores // 0)"' respuesta.json || true
           if [ "$status" != "200" ]; then exit 1; fi
