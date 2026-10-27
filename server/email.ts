@@ -449,3 +449,53 @@ Tu comisión: ${formatCLP(args.commission)}
 Tu panel: ${getAppUrl()}/vendedor`;
   return { subject: `Nueva venta con tu código ${args.code}: ${formatCLP(args.commission)} de comisión`, html, text };
 }
+
+// ---------------------------------------------------------------------------
+// Programa de prueba (primeros cupos): acceso gratis por unos días a cambio de comentarios
+// ---------------------------------------------------------------------------
+export const FEEDBACK_EMAIL = 'contacto@impulsacap.cl';
+
+export function betaWelcomeEmail(args: { expiresAt: string; days: number }) {
+  const html = layout({
+    preheader: `Tu prueba de ${args.days} días en ImpulsaCap está activa`,
+    heading: 'Bienvenido al programa de prueba',
+    bodyHtml:
+      p(`Gracias por ayudarnos a mejorar ImpulsaCap. Tienes <strong>${args.days} días</strong> con todas las herramientas para <strong>una postulación</strong>: formulario con IA, documentos, evaluación simulada y expediente.`) +
+      detailTable([
+        ['Prueba activa hasta', formatDateCL(args.expiresAt)],
+        ['Postulaciones incluidas', '1'],
+      ]) +
+      p('<strong>Tu compromiso:</strong> antes de que termine la prueba, envíanos tus comentarios respondiendo este correo o escribiendo a ' + FEEDBACK_EMAIL + '. Nos sirve mucho saber:') +
+      p('1. ¿Qué parte no entendiste o te costó?<br>2. ¿Dónde te trabaste o dejaste de avanzar?<br>3. ¿Qué te pareció lo que redactó la IA? ¿Encontraste algún error?<br>4. ¿Pagarías el Plan Trimestral? ¿Por qué sí o por qué no?') +
+      p('Recorre el camino completo: completa tu perfil, elige un fondo, redacta el formulario y abre el expediente. Tus datos quedan guardados al terminar la prueba.'),
+    cta: { label: 'Empezar mi postulación', url: getAppUrl() }
+  });
+  const text = `Tu prueba de ${args.days} días en ImpulsaCap está activa hasta el ${formatDateCL(args.expiresAt)} (1 postulación). Antes de que termine, envíanos tus comentarios a ${FEEDBACK_EMAIL}: qué te costó, dónde te trabaste, qué te pareció lo que redactó la IA y si pagarías el plan.`;
+  return { subject: 'Tu prueba de ImpulsaCap está activa', html, text, replyTo: FEEDBACK_EMAIL };
+}
+
+export function betaAdminEmail(args: { userEmail: string; companyName?: string; expiresAt: string; used: number; cupos: number }) {
+  const html = layout({
+    preheader: `Nuevo participante del programa de prueba (${args.used} de ${args.cupos})`,
+    heading: 'Nuevo participante del programa de prueba',
+    bodyHtml: detailTable([
+      ['Participante', args.companyName ? `${args.companyName} (${args.userEmail})` : args.userEmail],
+      ['Prueba hasta', formatDateCL(args.expiresAt)],
+      ['Cupos usados', `${args.used} de ${args.cupos}`],
+    ]),
+    cta: { label: 'Ver en el panel', url: `${getAppUrl()}/admin` }
+  });
+  return { subject: `Programa de prueba: ${args.used} de ${args.cupos} cupos`, html, text: `Nuevo participante: ${args.userEmail} (${args.used} de ${args.cupos}).` };
+}
+
+export function betaNewRoundEmail() {
+  const html = layout({
+    preheader: 'Abrimos nuevos cupos para probar ImpulsaCap',
+    heading: 'Se abrieron nuevos cupos',
+    bodyHtml:
+      p('Nos pediste avisarte: abrimos una nueva invitación al programa de prueba de ImpulsaCap. Los cupos son limitados y se asignan por orden de inscripción.') +
+      p('Entra a la app con tu cuenta y presiona <strong>"Quiero participar"</strong>.'),
+    cta: { label: 'Quiero participar', url: getAppUrl() }
+  });
+  return { subject: 'Nuevos cupos para probar ImpulsaCap', html, text: `Abrimos nuevos cupos del programa de prueba de ImpulsaCap. Entra a ${getAppUrl()} y presiona "Quiero participar".` };
+}

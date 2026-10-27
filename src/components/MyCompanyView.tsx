@@ -85,6 +85,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
     price,
     isFirstPurchase,
     provisional,
+    isBeta,
     referralCode,
     referralDiscountPct,
     refresh: refreshPlan 
@@ -317,7 +318,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
               {hasActivePlan ? (
                 <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300">
                   <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Plan Trimestral Activo</span>
+                  <span>{isBeta ? 'Programa de prueba activo' : 'Plan Trimestral Activo'}</span>
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
@@ -949,7 +950,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
             className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all cursor-pointer disabled:opacity-50 shrink-0"
           >
             <Sparkles className="w-4 h-4" />
-            <span>{hasActivePlan ? 'Renovar Plan Trimestral' : 'Activar Plan Trimestral'}</span>
+            <span>{hasActivePlan && !isBeta ? 'Renovar Plan Trimestral' : 'Activar Plan Trimestral'}</span>
           </button>
         </div>
 
@@ -959,10 +960,10 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
           <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
             <span className="text-[10px] uppercase font-bold text-slate-500 block">Plan Actual</span>
             <p className="text-base font-black text-slate-900">
-              {hasActivePlan ? (provisional ? 'Acceso temporal' : 'Plan Trimestral') : 'Sin plan'}
+              {hasActivePlan ? (provisional ? 'Acceso temporal' : isBeta ? 'Programa de prueba' : 'Plan Trimestral') : 'Sin plan'}
             </p>
             <p className="text-[11px] text-slate-500">
-              {hasActivePlan ? (provisional ? 'Activa tu plan para seguir usando las herramientas' : 'Acceso completo a las herramientas') : 'Diagnóstico, monitor y carpeta tributaria'}
+              {hasActivePlan ? (provisional ? 'Activa tu plan para seguir usando las herramientas' : isBeta ? 'Todas las herramientas para 1 postulación' : 'Acceso completo a las herramientas') : 'Diagnóstico, monitor y carpeta tributaria'}
             </p>
           </div>
 

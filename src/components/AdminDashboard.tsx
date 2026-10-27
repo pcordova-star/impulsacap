@@ -198,6 +198,66 @@ interface Intent {
 }
 
 /** Inscritos en acceso anticipado (contrataron mientras el pago en línea no estaba habilitado). */
+/** Programa de prueba: cupos, participantes, lista de espera y nuevas rondas. */
+const BetaPanel: React.FC = () => {
+  type Cfg = { active: boolean; cupos: number; dias: number; used: number; round: number };
+  const [data, setData] = useState<{ config: Cfg; participants: any[]; waitlist: any[] } | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [extra, setExtra] = useState('50');
+  const load = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/admin/beta');
+      const body = await res.json().catch(() => ({}));
+      if (res.ok) setData(body);
+    } catch { /* sin efecto */ }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  if (!data) return null;
+  const { config: c, participants, waitlist } = data;
+  const act = async (accion: string, confirmText?: string) => {
+    if (confirmText && !confirm(confirmText)) return;
+    setBusy(true); setMsg(null);
+    try {
+      const res = await apiFetch('/api/admin/beta', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion, cupos: Number(extra) || 50 }) });
+      const body = await res.json().catch(() => ({}));
+      setMsg(res.ok ? (accion === 'nueva_ronda' ? `Ronda ${body.config?.round} abierta con ${Number(extra) || 50} cupos nuevos. Avisamos a ${body.avisados || 0} ${body.avisados === 1 ? 'persona' : 'personas'} de la lista de espera.` : accion === 'cerrar' ? 'Programa cerrado: ya nadie puede inscribirse.' : 'Programa abierto.') : body.error || 'No se pudo actualizar.');
+      await load();
+    } finally { setBusy(false); }
+  };
+  const now = Date.now();
+  return (
+    <Card
+      title="Programa de prueba"
+      subtitle={`${c.active ? (c.used >= c.cupos ? 'Cupos llenos' : 'Abierto') : 'Cerrado'} · ronda ${c.round} · ${c.used} de ${c.cupos} cupos usados · ${c.dias} días por persona · ${waitlist.length} en lista de espera`}
+      right={(
+        <div className="flex flex-wrap items-center gap-2">
+          <input value={extra} onChange={e => setExtra(e.target.value.replace(/[^\d]/g, ''))} className="w-16 px-2 py-2 rounded-xl border border-slate-300 text-xs" aria-label="Cupos nuevos" />
+          <button type="button" disabled={busy} onClick={() => act('nueva_ronda', `Se abrirán ${Number(extra) || 50} cupos nuevos y se avisará por correo a ${waitlist.length} ${waitlist.length === 1 ? 'persona' : 'personas'} de la lista de espera. ¿Continuar?`)} className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer disabled:opacity-60">Abrir nueva ronda</button>
+          {c.active
+            ? <button type="button" disabled={busy} onClick={() => act('cerrar', '¿Cerrar el programa? Nadie más podrá inscribirse (los que ya participan siguen con su prueba).')} className="px-3 py-2 rounded-xl border border-slate-300 text-slate-700 text-xs font-bold cursor-pointer disabled:opacity-60">Cerrar</button>
+            : <button type="button" disabled={busy} onClick={() => act('abrir')} className="px-3 py-2 rounded-xl border border-slate-300 text-slate-700 text-xs font-bold cursor-pointer disabled:opacity-60">Abrir</button>}
+        </div>
+      )}
+    >
+      {msg && <p className="text-sm text-slate-800 mb-3">{msg}</p>}
+      <Table headers={['Se inscribió', 'Participante', 'Ronda', 'Prueba hasta']} empty={participants.length === 0}>
+        {participants.map(p => (
+          <tr key={p.uid}>
+            <td className="py-2.5 pr-4 whitespace-nowrap text-slate-600">{fmtDate(p.createdAt)}</td>
+            <td className="py-2.5 pr-4"><div className="text-slate-900">{p.companyName || '—'}</div><div className="text-xs text-slate-500">{p.email}</div></td>
+            <td className="py-2.5 pr-4 tabular-nums">{p.round}</td>
+            <td className="py-2.5 pr-4 whitespace-nowrap">{fmtDate(p.expiresAt)}{new Date(p.expiresAt).getTime() < now ? <span className="ml-1 text-xs text-slate-500">(terminó)</span> : null}</td>
+          </tr>
+        ))}
+      </Table>
+      {waitlist.length > 0 && (
+        <p className="text-xs text-slate-500 mt-3">Lista de espera: {waitlist.map(w => w.email).join(', ')}</p>
+      )}
+    </Card>
+  );
+};
+
 const EarlyAccessPanel: React.FC = () => {
   const [data, setData] = useState<{ paymentsEnabled: boolean; intents: Intent[] } | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -1240,6 +1300,7 @@ export const AdminDashboard: React.FC = () => {
 
       <AiUsagePanel />
 
+      <BetaPanel />
       <FreePassPanel />
       <SellersPanel />
 
