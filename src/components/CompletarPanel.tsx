@@ -46,7 +46,7 @@ export const CompletarPanel: React.FC<Props> = ({ text, otherMissing = [], saved
     return text.trim().length > 60 ? (
       <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-500/30 flex items-center gap-2 text-xs text-emerald-300 mt-2">
         <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-        <span>Sección completa: no le falta ningún dato.</span>
+        <span>No quedan datos marcados como faltantes. Léela completa y confirma que todo lo que dice es cierto antes de enviarla.</span>
       </div>
     ) : null;
   }

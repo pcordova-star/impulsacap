@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ChileanFund } from '../types/funds';
 import { ExpedienteData } from '../types/expediente';
 import { validateRut } from '../utils/rutValidator';
-import { getFundRules, blockStatus, coFinancePctFor } from '../data/fundStandards';
+import { getFundRules, blockStatus, coFinancePctFor, cleanMilestone } from '../data/fundStandards';
 import { 
   X, 
   Printer, 
@@ -181,7 +181,7 @@ ${formulation?.teamCapabilities || '[Pendiente — completa esta sección en el 
 
 ### 3.8. Plan de Trabajo e Hitos
 ${formulation?.workPlanMilestones && formulation.workPlanMilestones.length > 0 
-  ? formulation.workPlanMilestones.map((m, i) => `${i + 1}. **${m.title}** (${m.month}): ${m.description} | Entregable: ${m.deliverable} | Riesgo: ${m.criticalRisk}`).join('\n')
+  ? formulation.workPlanMilestones.map(cleanMilestone).map((m, i) => `${i + 1}. **${m.title}**${m.month ? ` (${m.month})` : ''}: ${m.description}${m.deliverable ? ` | Entregable: ${m.deliverable}` : ''}${m.criticalRisk ? ` | Riesgo: ${m.criticalRisk}` : ''}`).join('\n')
   : '[Pendiente — completa esta sección en el Formulador]'}
 
 ---
@@ -721,17 +721,19 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
               </h3>
               {formulation?.workPlanMilestones && formulation.workPlanMilestones.length > 0 ? (
                 <div className="space-y-2">
-                  {formulation.workPlanMilestones.map((m, idx) => (
+                  {formulation.workPlanMilestones.map(cleanMilestone).map((m, idx) => (
                     <div key={idx} className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs space-y-1 print:border-black print:bg-white print:text-black">
                       <div className="flex items-center justify-between">
                         <strong className="text-white font-semibold print:text-black">{m.title}</strong>
                         <span className="text-[10px] text-cyan-400 font-mono print:text-black">{m.month}</span>
                       </div>
                       <p className="text-slate-300 print:text-black">{m.description}</p>
+                      {(m.deliverable || m.criticalRisk) && (
                       <div className="text-[11px] text-slate-400 pt-1 border-t border-slate-800/60 print:border-black print:text-black flex flex-col sm:flex-row justify-between gap-1">
-                        <span><strong>Entregable:</strong> {m.deliverable}</span>
-                        <span><strong>Riesgo crítico:</strong> {m.criticalRisk}</span>
+                        {m.deliverable && <span><strong>Entregable:</strong> {m.deliverable}</span>}
+                        {m.criticalRisk && <span><strong>Riesgo crítico:</strong> {m.criticalRisk}</span>}
                       </div>
+                      )}
                     </div>
                   ))}
                 </div>
