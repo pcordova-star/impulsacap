@@ -9,7 +9,8 @@ import type { PostulationSubTab } from './components/PostulationWorkspace';
 import { NewApplicationModal } from './components/NewApplicationModal';
 import { HelpBot } from './components/HelpBot';
 import { MonitorHero } from './components/MonitorHero';
-import { BetaInviteCard, BetaActiveBanner } from './components/BetaProgram';
+import { BetaInviteCard, BetaActiveBanner, BetaTopStrip } from './components/BetaProgram';
+import { QuickFeedback } from './components/QuickFeedback';
 import { HowItWorks, PlanComparison, LandingFaq } from './components/LandingSections';
 import { FundUseFinder } from './components/FundUseFinder';
 import { SiiUploaderModal } from './components/SiiUploaderModal';
@@ -902,6 +903,9 @@ export default function App() {
         {/* Tab: Inicio (Guest Visitor Home - Requirements 1 & 4: Hero -> Asistente -> Beneficios Plan) */}
         {activeTab === 'diagnostic' && (
           <div className="space-y-10 min-w-0 max-w-full">
+            {/* Programa de prueba: franja visible sin bajar (quien llega desde WhatsApp la ve primero) */}
+            <BetaTopStrip />
+
             {/* 1. HERO "MONITOR EN VIVO" (Protagonista del inicio para visitantes) */}
             <MonitorHero
               convocatorias={convocatorias}
@@ -1259,6 +1263,7 @@ export default function App() {
         }}
       />
       <ToastCenter />
+      <QuickFeedback />
 
       {/* Acceso anticipado (lanzamiento sin pago en línea) */}
       <EarlyAccessModal onStart={() => { if (activeTab !== 'postulation') setActiveTab('my-applications'); }} />
