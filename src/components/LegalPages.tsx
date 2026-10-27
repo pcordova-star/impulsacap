@@ -7,7 +7,7 @@ import { ArrowLeft } from 'lucide-react';
  * Si cambian proveedores, precios o funciones, actualizar este archivo y la fecha.
  */
 
-export const LEGAL_UPDATED_AT = '20 de octubre de 2026';
+export const LEGAL_UPDATED_AT = '27 de octubre de 2026';
 const COMPANY = 'Tresna SpA';
 const COMPANY_RUT = '77.023.697-5';
 const COMPANY_ADDRESS = 'Av. Apoquindo 3990, oficina 605, Las Condes, Santiago, Chile';
@@ -151,6 +151,20 @@ export const TermsPage: React.FC<LegalPageProps> = ({ onBack, onOpenOther }) => 
       Podemos cambiar los precios en el futuro. Un cambio nunca afectará un plan ya pagado y se informará en el sitio antes de aplicarse. Emitiremos la boleta o factura correspondiente a cada pago.
     </P>
 
+    <h3 id="programa-prueba" className="scroll-mt-24 text-base font-bold text-slate-900 pt-2">Programa de prueba</h3>
+    <P>
+      Cada cierto tiempo podemos abrir un <strong>programa de prueba</strong> para conocer la experiencia de nuevos usuarios. Es gratuito y se rige por estas condiciones:
+    </P>
+    <UL>
+      <li><strong>Cupos:</strong> son limitados y se asignan por orden de inscripción hasta completarlos. Cuando se llenan, la inscripción se cierra; podemos abrir nuevas invitaciones cuando lo estimemos conveniente, sin obligación de hacerlo. Si pides que te avisemos, te escribiremos cuando se abran nuevos cupos.</li>
+      <li><strong>Quién puede participar:</strong> una vez por persona y por empresa, con una cuenta que nunca haya contratado el Plan Trimestral. Podemos dar de baja participaciones duplicadas o creadas para obtener más de una prueba.</li>
+      <li><strong>Qué incluye:</strong> las herramientas del Plan Trimestral por el número de días informado al inscribirte (5 días, salvo que se indique otro plazo), contados desde la inscripción, para <strong>una postulación</strong> activa. Aplican los mismos límites de uso de la IA.</li>
+      <li><strong>Tu compromiso:</strong> al inscribirte te comprometes a enviarnos tus comentarios sobre la experiencia a <Mail /> antes de que termine la prueba. Es un compromiso de buena fe: no enviarlos no genera ningún cobro ni sanción, pero podría impedirte participar en futuras invitaciones.</li>
+      <li><strong>Al terminar:</strong> el acceso vence automáticamente y no se renueva ni se cobra. Conservas tu cuenta, tus datos y lo que hayas preparado, en las mismas condiciones que al vencer un plan. Si contratas el Plan Trimestral, sigues trabajando sin perder nada.</li>
+      <li><strong>Tus comentarios:</strong> los usamos para mejorar ImpulsaCap. Podemos citarlos de forma anónima (sin tu nombre ni el de tu empresa); solo los publicaremos con tu nombre si nos autorizas expresamente.</li>
+      <li><strong>Sin pago, sin retracto:</strong> como la prueba es gratuita, no aplica la devolución de dinero. Podemos modificar, suspender o terminar el programa en cualquier momento; si lo terminamos antes de tiempo, te avisaremos por correo y conservarás tus datos.</li>
+    </UL>
+
     <H2 id="retracto">5. Derecho a retracto y devoluciones</H2>
     <P>
       Puedes retractarte de la compra del Plan Trimestral dentro de <strong>10 días corridos</strong> desde el pago, sin expresión de causa, <strong>siempre que no hayas comenzado a usar el servicio</strong>, conforme al artículo 3 bis de la Ley 19.496.
@@ -273,6 +287,7 @@ export const PrivacyPage: React.FC<LegalPageProps> = ({ onBack, onOpenOther }) =
         ['Procesar pagos, activar el plan y emitir boletas o facturas', 'Ejecución del contrato y obligaciones legales tributarias'],
         ['Enviarte correos sobre tu cuenta y tu plan (bienvenida, confirmación de compra, aviso de vencimiento) y sobre cambios a estos documentos', 'Ejecución del contrato'],
         ['Enviarte el boletín semanal de novedades de fondos y avisos cuando se abre una convocatoria que calza con los datos de tu empresa. Puedes darte de baja con el enlace al pie de cada correo', 'Interés legítimo (información relacionada con el servicio que contrataste)'],
+        ['Programa de prueba: asignar cupos, enviarte las instrucciones, avisarte cuando se abran nuevos cupos si lo pediste, y analizar los comentarios que nos envíes para mejorar el servicio', 'Ejecución del contrato (condiciones del programa) y tu solicitud de aviso'],
         ['Seguridad, prevención de abusos y corrección de errores', 'Interés legítimo']
       ]}
     />
