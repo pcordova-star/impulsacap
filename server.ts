@@ -1594,7 +1594,7 @@ app.post('/api/gemini/generate-doc', requireAuth, requireActivePlan, guardAi('ge
     const clp = (n: any) => '$' + Math.round(Number(n) || 0).toLocaleString('es-CL');
     const budgetBlock = budget && Array.isArray(budget.lines) && budget.lines.length > 0
       ? `PRESUPUESTO DEL PROYECTO (ingresado por el usuario en el formulador; usa EXACTAMENTE estos montos, sin redondear ni recalcular):
-${budget.lines.map((l: any) => `- Cuenta "${l.account}": ${l.item || 'sin detalle'} | Subsidio solicitado ${clp(l.subsidioCLP)} | Aporte en dinero de la empresa ${clp(l.aporteDineroCLP)}${l.aporteValoradoCLP ? ` | Aporte valorado ${clp(l.aporteValoradoCLP)}` : ''} | Justificación del usuario: ${l.justification || '[sin justificación]'}`).join('\n')}
+${budget.lines.map((l: any) => `- Cuenta "${l.account}": ${l.item || 'sin detalle'} | Costo total de la cuenta ${clp(l.totalCLP ?? ((Number(l.subsidioCLP) || 0) + (Number(l.aporteDineroCLP) || 0) + (Number(l.aporteValoradoCLP) || 0)))} | Subsidio solicitado ${clp(l.subsidioCLP)} | Aporte en dinero de la empresa ${clp(l.aporteDineroCLP)}${l.aporteValoradoCLP ? ` | Aporte valorado ${clp(l.aporteValoradoCLP)}` : ''} | Justificación del usuario: ${l.justification || '[sin justificación]'}`).join('\n')}
 - TOTALES: subsidio ${clp(budget.totals?.subsidio)} · aporte en dinero ${clp(budget.totals?.pecuniario)} · aporte valorado ${clp(budget.totals?.valorado)} · costo total ${clp(budget.totals?.total)}`
       : 'PRESUPUESTO: el usuario aún no lo completa. No escribas montos: usa [COMPLETAR: monto] donde haga falta.';
     const type = String(documentType || '');
@@ -1626,6 +1626,8 @@ INSTRUCCIONES Y REGLAS ESTRICTAS:
 Usa SOLO la información entregada por el usuario. PROHIBIDO inventar hechos, clientes, socios, tecnologías, integrantes del equipo, logros, cifras, porcentajes o montos. Si falta información para un punto, escribe [COMPLETAR: qué dato falta] en ese lugar. Es preferible un texto más breve y verdadero que uno extenso con información inventada. La extensión debe depender de la información disponible.
 Donde falte un dato específico que deba completar el usuario o la contraparte, escribe explícitamente [COMPLETAR: descripción del dato faltante] (por ejemplo: [COMPLETAR: RUT de la contraparte], [COMPLETAR: Cargo del firmante], [COMPLETAR: Fecha de firma]).
 Diseña el documento conforme a las Bases Administrativas y Técnicas del concurso: ${fundName || 'CORFO / SERCOTEC'}.
+
+FECHA DE EMISIÓN: ${new Date().toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Santiago' })} (usa esta fecha; no pidas completarla)
 
 DATOS CONFIRMADOS DE LA EMPRESA Y PROYECTO:
 - Empresa Postulante: ${companyName || profile?.companyName || '[COMPLETAR: Razón Social de la Empresa]'}

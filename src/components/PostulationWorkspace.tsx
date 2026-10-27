@@ -415,6 +415,7 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
             <BlindAuditor
               initialFund={fund}
               initialFormulation={formulation}
+              profile={profile}
               onSaveAudit={onSaveAudit}
               onNavigateTab={routeTab}
             />

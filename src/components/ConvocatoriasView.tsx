@@ -207,6 +207,10 @@ export const ConvocatoriasView: React.FC<ConvocatoriasViewProps> = ({
       const ra = regionFit(a.alcance, userRegion) === 'otra_region' ? 1 : 0;
       const rb = regionFit(b.alcance, userRegion) === 'otra_region' ? 1 : 0;
       if (ra !== rb) return ra - rb;
+      // Los subsidios a los que se puede postular van antes que créditos, garantías y trámites
+      const na = NOT_A_GRANT.test(`${a.titulo} ${a.resumen || ''}`) ? 1 : 0;
+      const nb = NOT_A_GRANT.test(`${b.titulo} ${b.resumen || ''}`) ? 1 : 0;
+      if (na !== nb) return na - nb;
 
       const diasA = a.diasRestantes !== null && a.diasRestantes !== undefined ? a.diasRestantes : 9999;
       const diasB = b.diasRestantes !== null && b.diasRestantes !== undefined ? b.diasRestantes : 9999;

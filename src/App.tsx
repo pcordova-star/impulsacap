@@ -1015,8 +1015,11 @@ export default function App() {
               application={activeApplication}
               profile={activeExpediente.profile || profile}
               expediente={activeExpediente}
-              formulation={activeExpediente.formulation || activeFormulation}
-              auditResult={activeExpediente.auditResult || auditResult}
+              // Cada postulación usa SOLO su propia formulación y evaluación. La copia global (del último fondo
+              // trabajado) se usa solo si es del mismo fondo (postulaciones antiguas): antes una postulación nueva
+              // mostraba el contenido de otra y la hoja de ruta marcaba secciones como listas sin haberlas escrito.
+              formulation={activeExpediente.formulation || (activeFormulation?.fundId === activeFund.id ? activeFormulation : null)}
+              auditResult={activeExpediente.auditResult || (!activeExpediente.formulation && activeFormulation?.fundId === activeFund.id ? auditResult : null)}
               currentUser={currentUser}
               activeSubTab={postulationSubTab}
               onChangeSubTab={setPostulationSubTab}

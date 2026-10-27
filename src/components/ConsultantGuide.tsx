@@ -67,7 +67,9 @@ export const ConsultantGuide: React.FC<Props> = ({ currentUser, profile, hasActi
   const lastRef = useRef<string | null>(null);
   useEffect(() => {
     if (!currentUser) return;
-    const key = current ? `${current.id}` : 'fin';
+    // La clave incluye el fondo: cambiar de postulación (o entrar a la app) no es "completar un paso"
+    const scope = `${fund?.id || 'sin-fondo'}|${hasActiveApplication ? 'app' : 'sin-app'}`;
+    const key = `${scope}::${current ? current.id : 'fin'}`;
     let prev: string | null = lastRef.current;
     if (prev === null) {
       try { prev = sessionStorage.getItem(STORAGE_LAST); } catch { prev = null; }
@@ -75,13 +77,15 @@ export const ConsultantGuide: React.FC<Props> = ({ currentUser, profile, hasActi
     lastRef.current = key;
     try { sessionStorage.setItem(STORAGE_LAST, key); } catch { /* sin almacenamiento */ }
     if (!prev || prev === key) return;
-    const prevIdx = stages.findIndex(s => s.id === prev);
+    const [prevScope, prevId] = prev.includes('::') ? prev.split('::') : ['', prev];
+    if (prevScope !== scope) return;
+    const prevIdx = stages.findIndex(s => s.id === prevId);
     const prevStage = stages[prevIdx];
     if (prevStage && prevStage.done && (currentIdx === -1 || currentIdx > prevIdx)) {
       setPrompt({ kind: 'done', label: prevStage.title });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current?.id, currentUser]);
+  }, [current?.id, currentUser, fund?.id, hasActiveApplication]);
 
   const modal = prompt && currentUser ? (
     <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-3 bg-slate-950/40 animate-fade-in" role="dialog" aria-modal="true" aria-label="Siguiente paso">

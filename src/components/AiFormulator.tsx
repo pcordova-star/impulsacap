@@ -414,7 +414,8 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
           ? { ...q, label: `Guion del ${fundRules.pitch!.label.toLowerCase()}: ${fundRules.pitch!.content}`, helpText: `Se graba o presenta en máximo ${fundRules.pitch!.seconds >= 120 ? `${Math.round(fundRules.pitch!.seconds / 60)} minutos` : `${fundRules.pitch!.seconds} segundos`}. Escríbelo aquí y úsalo para grabar.` }
           : q)
       : sec.questions;
-    const adapted = questions.map(q => { const o = questionOverride(currentFund, sec.id as FormBlock, q.key); return o ? { ...q, ...o } : q; });
+    // Si el fondo cambia el enunciado, la ayuda genérica (pensada para Corfo) ya no corresponde: se quita salvo que el fondo traiga la suya
+    const adapted = questions.map(q => { const o = questionOverride(currentFund, sec.id as FormBlock, q.key); return o ? { ...q, helpText: '', ...o } : q; });
     return { ...sec, questions: adapted, title: lbl.title, badge: official?.evaluates ? `Evalúa ${official.evaluates}` : (official?.title || sec.badge), hint: lbl.hint } as SectionDefinition;
   }), [currentFund, fundRules]);
   const currentSection = sectionsView[currentSectionIndex];
@@ -1357,7 +1358,7 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
       </div>
 
       {showFinishSummary && (() => {
-        const textSections = SECTIONS.filter(sec => sec.id !== 'budget');
+        const textSections = sectionsView.filter(sec => sec.id !== 'budget');
         const missingSections = textSections.filter(sec => !generatedTexts[sec.id]?.trim());
         const completarCount = Object.values(generatedTexts).reduce((acc, t) => acc + ((t || '').match(/\[COMPLETAR/g) || []).length, 0);
         const allGood = missingSections.length === 0 && completarCount === 0 && isBudgetValid;

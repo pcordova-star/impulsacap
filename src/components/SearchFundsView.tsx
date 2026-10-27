@@ -57,11 +57,11 @@ export const SearchFundsView: React.FC<SearchFundsViewProps> = ({
   return (
     <div className="space-y-6 animate-fade-in max-w-6xl mx-auto">
       {pickMode && (
-        <div className="sticky top-20 z-30 rounded-2xl bg-gradient-to-r from-blue-700 via-indigo-700 to-cyan-700 text-white p-4 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="rounded-2xl bg-gradient-to-r from-blue-700 via-indigo-700 to-cyan-700 text-white p-4 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <p className="text-sm font-black">Elige el concurso para tu nueva postulación</p>
             <p className="text-xs text-blue-100">
-              Busca o filtra las convocatorias abiertas y presiona <strong>"Postular con ImpulsaCap"</strong>. {freeSlots > 0 ? `Te quedan ${freeSlots} ${freeSlots === 1 ? 'cupo' : 'cupos'} de 3.` : 'Usaste tus 3 cupos: archiva una postulación para empezar otra.'}
+              Elige un programa del catálogo o una convocatoria abierta y presiona <strong>"Postular"</strong>. {freeSlots > 0 ? `Te quedan ${freeSlots} ${freeSlots === 1 ? 'cupo' : 'cupos'} de 3.` : 'Usaste tus 3 cupos: archiva una postulación para empezar otra.'}
             </p>
           </div>
           {onCancelPick && (
