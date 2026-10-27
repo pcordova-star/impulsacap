@@ -1581,8 +1581,28 @@ app.post('/api/gemini/generate-doc', requireAuth, requireActivePlan, guardAi('ge
       taxFolderSummary,
       profile,
       projectProfile: directProj,
-      taxFolderData
+      taxFolderData,
+      budget,
+      isLetter
     } = req.body;
+    const clp = (n: any) => '$' + Math.round(Number(n) || 0).toLocaleString('es-CL');
+    const budgetBlock = budget && Array.isArray(budget.lines) && budget.lines.length > 0
+      ? `PRESUPUESTO DEL PROYECTO (ingresado por el usuario en el formulador; usa EXACTAMENTE estos montos, sin redondear ni recalcular):
+${budget.lines.map((l: any) => `- Cuenta "${l.account}": ${l.item || 'sin detalle'} | Subsidio solicitado ${clp(l.subsidioCLP)} | Aporte en dinero de la empresa ${clp(l.aporteDineroCLP)}${l.aporteValoradoCLP ? ` | Aporte valorado ${clp(l.aporteValoradoCLP)}` : ''} | Justificación del usuario: ${l.justification || '[sin justificación]'}`).join('\n')}
+- TOTALES: subsidio ${clp(budget.totals?.subsidio)} · aporte en dinero ${clp(budget.totals?.pecuniario)} · aporte valorado ${clp(budget.totals?.valorado)} · costo total ${clp(budget.totals?.total)}`
+      : 'PRESUPUESTO: el usuario aún no lo completa. No escribas montos: usa [COMPLETAR: monto] donde haga falta.';
+    const type = String(documentType || '');
+    const typeRules = /Aporte Empresarial Pecuniario/i.test(type)
+      ? 'Carta en que la empresa postulante se compromete a aportar en dinero el TOTAL de "aporte en dinero de la empresa" del presupuesto. La firma solo el representante legal de la empresa postulante (no hay contraparte).'
+      : /Aporte Valorado/i.test(type)
+        ? 'Carta en que el socio o persona indicada se compromete a aportar bienes o servicios valorados (horas, equipos, uso de local). Si el monto valorado o el detalle no están en los datos, déjalos como [COMPLETAR: ...]. Firman el aportante y el representante de la empresa.'
+        : /Entidad Asociada|Colaboradora/i.test(type)
+          ? 'Carta en que la entidad asociada o colaboradora declara su participación en el proyecto: qué hará y qué aporta. No inventes actividades ni aportes: lo que no esté en los datos queda como [COMPLETAR: ...]. Firman la entidad y la empresa postulante.'
+          : /Memoria Explicativa/i.test(type)
+            ? 'Documento (no es una carta y no lleva firmas de contraparte) que explica cada cuenta del presupuesto: qué se compra o contrata, cuánto cuesta y por qué lo necesita el proyecto, usando la justificación del usuario. Incluye una tabla por cuenta y los totales. No agregues ítems ni montos que no estén en el presupuesto.'
+            : /Resumen Ejecutivo/i.test(type)
+              ? 'Resumen de una página (no es una carta y no lleva firmas) con: proyecto, problema, solución, mercado, modelo de negocio, equipo, plan y monto solicitado, usando solo lo que está en la formulación y el presupuesto.'
+              : 'Carta de interés comercial: el cliente declara su interés en el producto o servicio. No incluyas montos, cantidades ni compromisos de compra que el usuario no haya entregado. Firma el cliente.';
 
     const project = directProj || profile?.projectProfile || {};
     const tax = taxFolderData || {
@@ -1592,8 +1612,9 @@ app.post('/api/gemini/generate-doc', requireAuth, requireActivePlan, guardAi('ge
       annualSalesCLP: profile?.annualSalesCLP
     };
 
-    const prompt = `Eres un abogado y consultor corporativo experto en tramitación de subsidios públicos en Chile (CORFO, SERCOTEC, ANID, Start-Up Chile).
-Genera un documento formal, listo para firmar o presentar, de tipo: "${documentType || 'Carta de Manifestación de Interés Comercial (LOI)'}".
+    const prompt = `Eres un consultor experto en tramitación de subsidios públicos en Chile (CORFO, SERCOTEC, ANID, FIA, Start-Up Chile).
+Genera un documento formal, listo para ${isLetter === false ? 'presentar' : 'firmar'}, de tipo: "${documentType || 'Carta de Manifestación de Interés Comercial (LOI)'}".
+QUÉ DEBE SER ESTE DOCUMENTO: ${typeRules}
 
 INSTRUCCIONES Y REGLAS ESTRICTAS:
 Usa SOLO la información entregada por el usuario. PROHIBIDO inventar hechos, clientes, socios, tecnologías, integrantes del equipo, logros, cifras, porcentajes o montos. Si falta información para un punto, escribe [COMPLETAR: qué dato falta] en ese lugar. Es preferible un texto más breve y verdadero que uno extenso con información inventada. La extensión debe depender de la información disponible.
@@ -1616,17 +1637,23 @@ DATOS CONFIRMADOS DE LA EMPRESA Y PROYECTO:
 - Avance actual (pilotos, cartas, ventas): ${project.currentProgress || 'No informado'}
 - Equipo clave: ${project.teamDetails || 'No informado'}
 - Modelo de negocio: ${project.businessModel || 'No informado'}
-- Contraparte / Cliente Piloto o Aliado: ${clientOrPartnerName || '[COMPLETAR: Razón Social o Nombre del Cliente / Aliado]'}
-- Nombre y Cargo del Contacto Contraparte: ${details?.clientContact || '[COMPLETAR: Nombre y Cargo del Representante de la Contraparte]'}
+${clientOrPartnerName ? `- Contraparte: ${clientOrPartnerName}
+- Firmante o detalle de la contraparte: ${details?.clientContact || '[COMPLETAR: nombre y cargo de quien firma]'}` : '- Este documento no tiene contraparte.'}
 - Nombre del Proyecto: ${projectName || '[COMPLETAR: Nombre del Proyecto]'}
 - Fondo Concursable al que se postula: ${fundName || '[COMPLETAR: Nombre del Fondo Concursable]'}
 
 ${formulation ? `
-ANTECEDENTES DE LA FORMULACIÓN TÉCNICA:
-- Título Oficial: ${formulation.projectTitle || projectName || ''}
-- Problema que resuelve: ${formulation.problemStatement || ''}
-- Solución e Innovación: ${formulation.solutionOverview || formulation.solutionAndInnovation || ''}
+ANTECEDENTES DE LA FORMULACIÓN (texto del usuario en el formulador):
+- Título: ${formulation.projectTitle || projectName || ''}
+- Pitch: ${formulation.pitch || 'No informado'}
+- Problema: ${formulation.problemStatement || 'No informado'}
+- Solución: ${formulation.solutionOverview || formulation.solutionAndInnovation || 'No informado'}
+- Mercado: ${formulation.market || 'No informado'}
+- Modelo de negocio: ${formulation.businessModel || 'No informado'}
+- Plan de trabajo: ${formulation.workPlan || 'No informado'}
+- Equipo: ${formulation.team || 'No informado'}
 ` : ''}
+${budgetBlock}
 ${taxFolderSummary ? `
 ANTECEDENTES TRIBUTARIOS (SII):
 ${taxFolderSummary}
@@ -1634,7 +1661,8 @@ ${taxFolderSummary}
 
 FORMATO Y ESTRUCTURA:
 - Redacción legal, ejecutiva y precisa en Markdown pulcro.
-- Incluye campos claros para: Fecha, Ciudad, Identificación de las partes, Cláusulas o declaraciones expresas de interés comercial, pilotaje o cofinanciamiento, y bloque final de firmas con Nombre, RUT, Cargo y Timbre.
+${isLetter === false ? '- Incluye fecha, ciudad, identificación de la empresa postulante y del proyecto, y el contenido indicado arriba. Sin bloque de firmas de contraparte.' : '- Incluye fecha, ciudad, identificación de las partes, las declaraciones que corresponden a este tipo de carta y un bloque final de firmas con nombre, RUT, cargo y timbre.'}
+- Toda cifra, monto o porcentaje debe venir de los datos de arriba; si no está, usa [COMPLETAR: ...].
 - Donde falte cualquier dato, escribe [COMPLETAR: ...] sin inventar nada.
 
 Genera el texto completo del documento en formato Markdown:`;
@@ -1647,9 +1675,11 @@ Genera el texto completo del documento en formato Markdown:`;
       },
     });
 
-    const markdownText = response.text || '';
-    if (!markdownText) throw new Error('Respuesta vacía de Gemini');
-    return res.json({ documentText: markdownText });
+    const rawText = response.text || '';
+    if (!rawText) throw new Error('Respuesta vacía de Gemini');
+    // Las cifras sin respaldo en los datos entregados pasan a [COMPLETAR] (fechas y RUT no se tocan: el RUT viene en los datos)
+    const grounded = groundFigures(rawText, JSON.stringify(req.body));
+    return res.json({ documentText: grounded.text, unverifiedFigures: grounded.unverified });
   } catch (error: any) {
     console.error('Error in /api/gemini/generate-doc:', error?.message);
     return res.status(503).json({ error: 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.' });

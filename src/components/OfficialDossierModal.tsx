@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { ChileanFund } from '../types/funds';
+import { ChileanFund, FormBlock } from '../types/funds';
 import { ExpedienteData } from '../types/expediente';
 import { validateRut } from '../utils/rutValidator';
-import { getFundRules, blockStatus, coFinancePctFor, cleanMilestone } from '../data/fundStandards';
+import { getFundRules, blockStatus, coFinancePctFor, cleanMilestone, blockLabel } from '../data/fundStandards';
+import { sectionText } from '../utils/formulationText';
+import { isLetterDoc } from '../data/docTypes';
 import { 
   X, 
   Printer, 
@@ -89,7 +91,7 @@ export const OfficialDossierModal: React.FC<OfficialDossierModalProps> = ({
       missingText: `Completar "${fs.title}" en el formulador`
     })),
     ...rules.applicationDocs.filter(d => d.link === 'taxFolder').map(d => ({ id: 'tax_folder', name: d.label, isComplete: Boolean(taxFolder.taxFolderUploaded), missingText: 'Subir la carpeta tributaria' })),
-    ...rules.applicationDocs.filter(d => d.link === 'letters').map(d => ({ id: 'letters', name: d.label, isComplete: signedDocs.length > 0, missingText: 'Generar y firmar las cartas' }))
+    ...rules.applicationDocs.filter(d => d.link === 'letters').map(d => ({ id: 'letters', name: d.label, isComplete: signedDocs.some(d => isLetterDoc(d.tipo)), missingText: 'Generar y firmar las cartas' }))
   ];
   const officialFormMd = rules.formSections.map((fs, i) => `${i + 1}. ${fs.title}${fs.evaluates ? ` (evalúa ${fs.evaluates})` : ''}`).join('\n');
 
@@ -156,33 +158,10 @@ ${missingSections.length > 0 ? `- **Secciones Pendientes:** ${missingSections.ma
 ### 3.1. Título del Proyecto
 ${formulation?.projectTitle || '[Pendiente — completa esta sección en el Formulador]'}
 
-### 3.2. Elevator Pitch (30 segundos)
+### 3.2. Pitch o resumen del proyecto
 ${formulation?.pitchSummary30s || '[Pendiente — completa esta sección en el Formulador]'}
 
-### 3.3. Problema / Oportunidad Identificada
-${formulation?.problemStatement || '[Pendiente — completa esta sección en el Formulador]'}
-
-### 3.4. Solución Propuesta y Grado de Novedad
-${formulation?.solutionAndInnovation || '[Pendiente — completa esta sección en el Formulador]'}
-
-### 3.5. Análisis de Mercado (TAM - SAM - SOM)
-${formulation?.marketAnalysisTAM?.tam ? `
-- **TAM:** ${formulation.marketAnalysisTAM.tam}
-- **SAM:** ${formulation.marketAnalysisTAM.sam || 'No especificado'}
-- **SOM:** ${formulation.marketAnalysisTAM.som || 'No especificado'}
-- **Arquetipo:** ${formulation.marketAnalysisTAM.clientArchetype || 'No especificado'}
-` : '[Pendiente — completa esta sección en el Formulador]'}
-
-### 3.6. Modelo de Negocio y Monetización
-${formulation?.businessModel || '[Pendiente — completa esta sección en el Formulador]'}
-
-### 3.7. Capacidades del Equipo
-${formulation?.teamCapabilities || '[Pendiente — completa esta sección en el Formulador]'}
-
-### 3.8. Plan de Trabajo e Hitos
-${formulation?.workPlanMilestones && formulation.workPlanMilestones.length > 0 
-  ? formulation.workPlanMilestones.map(cleanMilestone).map((m, i) => `${i + 1}. **${m.title}**${m.month ? ` (${m.month})` : ''}: ${m.description}${m.deliverable ? ` | Entregable: ${m.deliverable}` : ''}${m.criticalRisk ? ` | Riesgo: ${m.criticalRisk}` : ''}`).join('\n')
-  : '[Pendiente — completa esta sección en el Formulador]'}
+${(['problem', 'solution', 'market', 'model', 'team', 'workplan'] as FormBlock[]).map((b, idx) => `### 3.${idx + 3}. ${blockLabel(fund, b)?.title || b}\n${sectionText(formulation, b) || '[Pendiente — completa esta sección en el Formulador]'}`).join('\n\n')}
 
 ---
 
@@ -620,7 +599,7 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
             {/* 3.2 Pitch 30s */}
             <div className="space-y-1">
               <h3 className="text-xs font-bold text-slate-300 uppercase print:text-black">
-                3.2. Elevator Pitch (30 Segundos)
+                3.2. Pitch o resumen del proyecto
               </h3>
               {formulation?.pitchSummary30s?.trim() ? (
                 <p className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-200 leading-relaxed italic print:border-black print:bg-white print:text-black">
@@ -629,116 +608,64 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
               ) : renderPendingSectionBanner('Elevator Pitch', 'title_pitch')}
             </div>
 
-            {/* 3.3 Problema */}
-            <div className="space-y-1">
-              <h3 className="text-xs font-bold text-slate-300 uppercase print:text-black">
-                3.3. Definición del Problema u Oportunidad
-              </h3>
-              {formulation?.problemStatement?.trim() ? (
-                <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-200 leading-relaxed whitespace-pre-line print:border-black print:bg-white print:text-black">
-                  {formulation.problemStatement}
-                </div>
-              ) : renderPendingSectionBanner('Problema y Oportunidad', 'problem')}
-            </div>
-
-            {/* 3.4 Solución e Innovación */}
-            <div className="space-y-1">
-              <h3 className="text-xs font-bold text-slate-300 uppercase print:text-black">
-                3.4. Solución Propuesta y Grado de Novedad
-              </h3>
-              {formulation?.solutionAndInnovation?.trim() ? (
-                <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-200 leading-relaxed whitespace-pre-line print:border-black print:bg-white print:text-black">
-                  {formulation.solutionAndInnovation}
-                </div>
-              ) : renderPendingSectionBanner('Solución e Innovación', 'solution')}
-            </div>
-
-            {/* 3.5 Mercado TAM SAM SOM */}
-            <div className="space-y-1">
-              <h3 className="text-xs font-bold text-slate-300 uppercase print:text-black">
-                3.5. Dimensionamiento de Mercado (Metodología TAM - SAM - SOM)
-              </h3>
-              {formulation?.marketAnalysisTAM?.tam?.trim() || formulation?.marketAnalysisTAM?.clientArchetype?.trim() ? (
-                <div className="space-y-2">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
-                    <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 print:border-black print:bg-white">
-                      <span className="text-[10px] text-cyan-400 font-bold block print:text-black">TAM (Total)</span>
-                      <span className="text-white text-xs print:text-black">
-                        {formulation.marketAnalysisTAM.tam || 'No especificado'}
-                      </span>
+            {/* 3.3 a 3.8: secciones con los títulos del formulario de ESTE fondo y el texto final del formulador */}
+            {(['problem', 'solution', 'market', 'model', 'team', 'workplan'] as FormBlock[]).map((block, idx) => {
+              const title = blockLabel(fund, block)?.title || block;
+              const text = sectionText(formulation, block);
+              const ownText = String(formulation?.sectionTexts?.[block] || '').trim();
+              const milestones = (formulation?.workPlanMilestones || []).map(cleanMilestone);
+              const m = formulation?.marketAnalysisTAM;
+              const showTamGrid = block === 'market' && !ownText && Boolean(m?.tam?.trim());
+              return (
+                <div key={block} className="space-y-1">
+                  <h3 className="text-xs font-bold text-slate-300 uppercase print:text-black">
+                    3.{idx + 3}. {title}
+                  </h3>
+                  {!text ? renderPendingSectionBanner(title, block) : showTamGrid ? (
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                        {([['TAM (Total)', m!.tam], ['SAM (Accesible)', m!.sam], ['SOM (Objetivo)', m!.som]] as const).map(([lbl, val]) => (
+                          <div key={lbl} className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 print:border-black print:bg-white">
+                            <span className="text-[10px] text-cyan-400 font-bold block print:text-black">{lbl}</span>
+                            <span className="text-white text-xs print:text-black">{val || 'No especificado'}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {m!.clientArchetype && (
+                        <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 text-xs text-slate-300 print:border-black print:bg-white print:text-black">
+                          <strong className="text-white print:text-black">Clientes: </strong>{m!.clientArchetype}
+                        </div>
+                      )}
                     </div>
-                    <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 print:border-black print:bg-white">
-                      <span className="text-[10px] text-blue-400 font-bold block print:text-black">SAM (Accesible)</span>
-                      <span className="text-white text-xs print:text-black">
-                        {formulation.marketAnalysisTAM.sam || 'No especificado'}
-                      </span>
+                  ) : block === 'workplan' ? (
+                    <div className="space-y-2">
+                      {ownText && (
+                        <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-200 leading-relaxed whitespace-pre-line print:border-black print:bg-white print:text-black">{ownText}</div>
+                      )}
+                      {milestones.map((ms, k) => (
+                        <div key={k} className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs space-y-1 print:border-black print:bg-white print:text-black">
+                          <div className="flex items-center justify-between">
+                            <strong className="text-white font-semibold print:text-black">{ms.title}</strong>
+                            {ms.month && <span className="text-[10px] text-cyan-400 font-mono print:text-black">{ms.month}</span>}
+                          </div>
+                          <p className="text-slate-300 print:text-black">{ms.description}</p>
+                          {(ms.deliverable || ms.criticalRisk) && (
+                            <div className="text-[11px] text-slate-400 pt-1 border-t border-slate-800/60 print:border-black print:text-black flex flex-col sm:flex-row justify-between gap-1">
+                              {ms.deliverable && <span><strong>Entregable:</strong> {ms.deliverable}</span>}
+                              {ms.criticalRisk && <span><strong>Riesgo crítico:</strong> {ms.criticalRisk}</span>}
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
-                    <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 print:border-black print:bg-white">
-                      <span className="text-[10px] text-emerald-400 font-bold block print:text-black">SOM (Objetivo 24m)</span>
-                      <span className="text-white text-xs print:text-black">
-                        {formulation.marketAnalysisTAM.som || 'No especificado'}
-                      </span>
-                    </div>
-                  </div>
-                  {formulation.marketAnalysisTAM.clientArchetype && (
-                    <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 text-xs text-slate-300 print:border-black print:bg-white print:text-black">
-                      <strong className="text-white print:text-black">Arquetipo de Cliente: </strong>
-                      {formulation.marketAnalysisTAM.clientArchetype}
+                  ) : (
+                    <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-200 leading-relaxed whitespace-pre-line print:border-black print:bg-white print:text-black">
+                      {text}
                     </div>
                   )}
                 </div>
-              ) : renderPendingSectionBanner('Análisis de Mercado', 'market')}
-            </div>
-
-            {/* 3.6 Modelo de Negocio */}
-            <div className="space-y-1">
-              <h3 className="text-xs font-bold text-slate-300 uppercase print:text-black">
-                3.6. Modelo de Negocio y Escalabilidad
-              </h3>
-              {formulation?.businessModel?.trim() ? (
-                <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-200 leading-relaxed whitespace-pre-line print:border-black print:bg-white print:text-black">
-                  {formulation.businessModel}
-                </div>
-              ) : renderPendingSectionBanner('Modelo de Negocio', 'model')}
-            </div>
-
-            {/* 3.7 Capacidades del Equipo */}
-            <div className="space-y-1">
-              <h3 className="text-xs font-bold text-slate-300 uppercase print:text-black">
-                3.7. Equipo y Capacidades
-              </h3>
-              {formulation?.teamCapabilities?.trim() ? (
-                <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-200 leading-relaxed whitespace-pre-line print:border-black print:bg-white print:text-black">
-                  {formulation.teamCapabilities}
-                </div>
-              ) : renderPendingSectionBanner('Equipo y Capacidades', 'team')}
-            </div>
-
-            {/* 3.8 Plan de Trabajo e Hitos */}
-            <div className="space-y-1">
-              <h3 className="text-xs font-bold text-slate-300 uppercase print:text-black">
-                3.8. Plan de Trabajo e Hitos a 12 Meses
-              </h3>
-              {formulation?.workPlanMilestones && formulation.workPlanMilestones.length > 0 ? (
-                <div className="space-y-2">
-                  {formulation.workPlanMilestones.map(cleanMilestone).map((m, idx) => (
-                    <div key={idx} className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs space-y-1 print:border-black print:bg-white print:text-black">
-                      <div className="flex items-center justify-between">
-                        <strong className="text-white font-semibold print:text-black">{m.title}</strong>
-                        <span className="text-[10px] text-cyan-400 font-mono print:text-black">{m.month}</span>
-                      </div>
-                      <p className="text-slate-300 print:text-black">{m.description}</p>
-                      {(m.deliverable || m.criticalRisk) && (
-                      <div className="text-[11px] text-slate-400 pt-1 border-t border-slate-800/60 print:border-black print:text-black flex flex-col sm:flex-row justify-between gap-1">
-                        {m.deliverable && <span><strong>Entregable:</strong> {m.deliverable}</span>}
-                        {m.criticalRisk && <span><strong>Riesgo crítico:</strong> {m.criticalRisk}</span>}
-                      </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : renderPendingSectionBanner('Plan de Trabajo e Hitos', 'workplan')}
-            </div>
+              );
+            })}
           </div>
 
           {/* Section 4: Presupuesto Detallado por Cuentas (Requirement 3: Sin inventar valores) */}

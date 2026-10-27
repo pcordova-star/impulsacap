@@ -44,9 +44,18 @@ export function groundFigures(text: string, corpus: string): { text: string; unv
   const parts = text.split(/(\[[^\]]*\])/g);
   const checked = parts.map(part => {
     if (part.startsWith('[')) return part;
-    return part.replace(FIGURE_RE, (match) => {
+    return part.replace(FIGURE_RE, (match, offset: number, whole: string) => {
       const token = match.trim();
       if (!token || !/\d/.test(token)) return match;
+      // Fechas ("27 de octubre de 2026", "27/10/2026") y RUT ("12.345.678-9") no son cifras del proyecto
+      const after = whole.slice(offset + match.length, offset + match.length + 14).toLowerCase();
+      const before = whole.slice(Math.max(0, offset - 1), offset);
+      if (/^\s*de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)/.test(after)) return match;
+      if (/^[/-]\d/.test(after) || before === '/' || /^-[\dk]/i.test(after)) return match;
+      // Numeración de listas o cláusulas al inicio de línea ("10. Firmas", "11) Plazos")
+      const pos = offset + (match.match(/^\s*/)?.[0].length || 0);
+      const lineStart = pos === 0 || /\n[ \t]*$/.test(whole.slice(Math.max(0, pos - 4), pos));
+      if (lineStart && /^[.)]\s/.test(after)) return match;
       const v = valueOf(token);
       if (!v) return match;
       // Números chicos sin unidad (pasos, "3 hitos", "1 año") y años no se revisan
