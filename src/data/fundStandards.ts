@@ -1206,6 +1206,30 @@ export interface RoadmapInput {
 
 const hasPending = (t?: string) => /\[COMPLETAR/i.test(String(t || ''));
 
+// Entregables y riesgos que versiones anteriores agregaban a cada hito sin que la persona los escribiera
+const LEGACY_MILESTONE_TEXTS = new Set([
+  'Informe técnico de validación y prototipo funcional',
+  'Desviaciones en especificaciones; mitigado con iteraciones ágiles',
+  'Actas de conformidad de pruebas de campo y métricas de desempeño',
+  'Demoras en pruebas con clientes; mitigado con acuerdos previos',
+  'Facturas de venta o acuerdos comerciales de adopción',
+  'Ciclos de cierre de ventas; mitigado con planes piloto'
+]);
+const LEGACY_MILESTONE_TITLES: Record<string, string> = {
+  'Hito 1: Validación Técnica Inicial': 'Hito 1',
+  'Hito 2: Pilotos en Entorno Real': 'Hito 2',
+  'Hito 3: Validación Comercial y Escalamiento': 'Hito 3'
+};
+/** Quita de un hito el texto fijo que la persona no escribió (para mostrar e imprimir). */
+export function cleanMilestone<T extends { title?: string; deliverable?: string; criticalRisk?: string }>(m: T): T {
+  return {
+    ...m,
+    title: LEGACY_MILESTONE_TITLES[String(m.title || '')] || m.title,
+    deliverable: LEGACY_MILESTONE_TEXTS.has(String(m.deliverable || '').trim()) ? '' : m.deliverable,
+    criticalRisk: LEGACY_MILESTONE_TEXTS.has(String(m.criticalRisk || '').trim()) ? '' : m.criticalRisk
+  };
+}
+
 export function blockStatus(block: FormBlock, f: any): { done: boolean; pending: boolean } {
   if (!f) return { done: false, pending: false };
   const txt = (s: any) => String(s || '').trim();
@@ -1215,7 +1239,7 @@ export function blockStatus(block: FormBlock, f: any): { done: boolean; pending:
     case 'solution': return { done: txt(f.solutionAndInnovation).length > 30, pending: hasPending(f.solutionAndInnovation) };
     case 'market': return { done: Boolean(txt(f.marketAnalysisTAM?.tam) || txt(f.marketAnalysisTAM?.clientArchetype)), pending: hasPending(JSON.stringify(f.marketAnalysisTAM || '')) };
     case 'model': return { done: txt(f.businessModel).length > 20, pending: hasPending(f.businessModel) };
-    case 'workplan': return { done: Array.isArray(f.workPlanMilestones) && f.workPlanMilestones.length > 0, pending: false };
+    case 'workplan': return { done: Array.isArray(f.workPlanMilestones) && f.workPlanMilestones.length > 0, pending: hasPending(JSON.stringify(f.workPlanMilestones || '')) };
     case 'team': return { done: txt(f.teamCapabilities).length > 20, pending: hasPending(f.teamCapabilities) };
     case 'budget': return { done: Array.isArray(f.budgetBreakdown) && f.budgetBreakdown.some((b: any) => (b.corfoContributionCLP || 0) > 0), pending: false };
   }

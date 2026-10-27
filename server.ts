@@ -36,6 +36,7 @@ import {
 } from './server/taxFolderExtractor';
 import { buildAdminSummary, chileDayKey, TRACKED_PAGES } from './server/adminStats';
 import { SUPPORT_KNOWLEDGE } from './server/supportKnowledge';
+import { groundFigures } from './server/figureCheck';
 import {
   sendEmail,
   sendEmailDetailed,
@@ -1341,6 +1342,13 @@ Responde ÚNICAMENTE en formato JSON con la siguiente estructura completa:
 // 3. Auditor Ciego y Simulador de Rúbrica CORFO / SERCOTEC
 
 // 2.1 Formulación de Sección Específica (Problema, Solución, Mercado, Equipo, Modelo/Plan)
+// Texto de ventas para la IA: desconocido no es lo mismo que cero
+function salesText(annualSalesCLP: any, salesBracket?: string): string {
+  if (typeof annualSalesCLP === 'number' && annualSalesCLP > 0) return '$' + annualSalesCLP.toLocaleString('es-CL') + ' CLP';
+  if (annualSalesCLP === 0 || salesBracket === 'sin_ventas') return 'Sin ventas (declarado o según carpeta tributaria)';
+  return salesBracket ? `Tramo declarado: ${salesBracket}` : 'No informado';
+}
+
 app.post('/api/gemini/formulate-section', requireAuth, requireActivePlan, guardAi('formulate-section'), async (req, res) => {
   try {
     const user = (req as AuthenticatedRequest).user!;
@@ -1392,9 +1400,10 @@ DATOS CONFIRMADOS DE CARPETA TRIBUTARIA Y EMPRESA:
 - Sector: ${tax.sector || profile.sector || 'No informado'}
 - Región: ${tax.region || profile.region || 'No informada'}
 - Antigüedad: ${tax.monthsActive !== null && tax.monthsActive !== undefined ? `${tax.monthsActive} meses` : 'No informada'}
-- Ventas 12 meses: ${tax.annualSalesCLP ? '$' + Number(tax.annualSalesCLP).toLocaleString('es-CL') + ' CLP' : profile.salesBracket || 'Sin ventas registradas'}
-- Tipo Societario: ${profile.companyType || 'SpA'}
-- Liderazgo Femenino: ${profile.isFemaleLed ? 'Sí (califica a bonificación)' : 'No'}
+- Ventas 12 meses: ${salesText(tax.annualSalesCLP, profile.salesBracket)}
+- Tipo de postulante: ${profile.companyType || 'No informado'}
+- Liderazgo femenino: ${profile.isFemaleLed ? 'Sí, declarado por la postulante (aún no acreditado)' : 'No informado'}
+IMPORTANTE: "No informado" significa que el dato se desconoce, NO que sea cero o que no exista. Nunca escribas que la empresa no tiene ventas, clientes o equipo si el dato dice "No informado".
 
 RESPUESTAS INGRESADAS POR EL USUARIO PARA ESTA SECCIÓN:
 ${qaText}
@@ -1410,11 +1419,11 @@ REGLA CRÍTICA OBLIGATORIA CONTRA ALUCINACIONES:
 Usa SOLO la información entregada por el usuario. PROHIBIDO inventar hechos, clientes, socios, tecnologías, integrantes del equipo, logros, cifras, porcentajes o montos de la empresa. Es preferible un texto más breve y verdadero que uno extenso con información inventada.
 
 CÓMO PEDIR LO QUE FALTA (QUIEN POSTULA ES UN MICROEMPRENDEDOR SIN ASESOR, HAZLO SIMPLE):
-1. Usa [COMPLETAR: …] SOLO para datos que únicamente el emprendedor conoce de su propio negocio: cuántos clientes tiene o quiere tener, metas, plazos, montos propios, nombres de su equipo o de sus clientes. Máximo 3 marcas por sección.
+1. Usa [COMPLETAR: …] para CADA dato concreto de su negocio que la sección necesita y que no está en la información entregada: cuántos clientes tiene o quiere tener, metas, plazos, montos propios, horas de dedicación, nombres de su equipo o de sus clientes. No hay límite de marcas: es mejor marcar todo lo que falta que rellenarlo.
 2. Escribe cada marca como una pregunta corta y en lenguaje simple, que se pueda responder en una línea. Ejemplos buenos: [COMPLETAR: ¿Cuántas pymes quieres que prueben tu plataforma durante el proyecto?] o [COMPLETAR: ¿Cuántos clientes pagando te gustaría tener al final?]. Ejemplos malos (prohibidos): "métrica técnica de precisión", "datos cuantitativos y fuentes oficiales", "TAM/SAM/SOM", "valorización económica de horas hombre".
-3. NUNCA le pidas al emprendedor estudios de mercado, estadísticas oficiales, fuentes, tasas del sector ni cálculos técnicos. Para dar contexto del problema o del mercado, describe la situación de forma cualitativa con lo que contó el usuario; si usas un dato público conocido de Chile, que sea general y prudente ("según datos públicos del SII hay cerca de un millón de mipymes") y nunca cifras precisas inventadas.
+3. NUNCA le pidas al emprendedor estudios de mercado, estadísticas oficiales, fuentes, tasas del sector ni cálculos técnicos. Para dar contexto del problema o del mercado, descríbelo de forma cualitativa con lo que contó el usuario. NO agregues cifras, porcentajes ni montos que no estén en la información entregada o en las bases del fondo (ni siquiera estadísticas públicas): toda cifra sin respaldo se marcará como dato a verificar.
 4. No pidas datos que corresponden a otra sección del formulario: el tamaño del mercado se trabaja en la sección de mercado (con un ayudante de cálculo), el equipo en la de equipo y los montos en el presupuesto.
-5. Si con lo que hay se puede escribir un texto correcto aunque más general, escríbelo sin marcas.
+5. Una respuesta "No especificado por el usuario" es un dato faltante: no lo reemplaces por una suposición ni por un texto genérico que aparente estar completo; deja la marca [COMPLETAR: …] con la pregunta simple.
 
 Responde ÚNICAMENTE en formato JSON con la siguiente estructura:
 {
@@ -1426,7 +1435,7 @@ Responde ÚNICAMENTE en formato JSON con la siguiente estructura:
     "Punto fuerte 2"
   ],
   "missingData": [
-    "Las mismas preguntas simples que dejaste como [COMPLETAR] (máximo 3); vacío si no falta nada"
+    "Las mismas preguntas simples que dejaste como [COMPLETAR]; vacío si no falta nada"
   ]
 }`;
 
@@ -1442,6 +1451,12 @@ Responde ÚNICAMENTE en formato JSON con la siguiente estructura:
     const respText = response.text || '';
     if (!respText) throw new Error('Respuesta vacía de Gemini');
     const parsed = JSON.parse(respText);
+
+    // Toda cifra del texto debe venir de lo que entregó la persona o de las bases del fondo;
+    // las que no, se convierten en una pregunta [COMPLETAR] para que escriba el dato real.
+    const grounded = groundFigures(String(parsed.generatedText || ''), `${JSON.stringify(req.body)}\n${fundRulesForPrompt(fund)}`);
+    parsed.generatedText = grounded.text;
+    parsed.unverifiedFigures = grounded.unverified;
 
     // Extract all [COMPLETAR: ...] tags directly from generatedText to guarantee complete list
     const regexMatches = (parsed.generatedText || '').match(/\[COMPLETAR:[^\]]+\]/g) || [];
@@ -1479,7 +1494,7 @@ DATOS OFICIALES DE LA EMPRESA Y PROYECTO:
 - Sector: ${tax?.sector || profile?.sector || 'No informado'}
 - Región: ${tax?.region || profile?.region || 'No informada'}
 - Antigüedad: ${tax?.monthsActive !== null && tax?.monthsActive !== undefined ? `${tax.monthsActive} meses` : 'No informada'}
-- Ventas 12 meses: ${tax?.annualSalesCLP ? '$' + Number(tax.annualSalesCLP).toLocaleString('es-CL') + ' CLP' : profile?.salesBracket || 'Sin ventas registradas'}
+- Ventas 12 meses: ${salesText(tax?.annualSalesCLP, profile?.salesBracket)}
 - ¿Qué hace la empresa?: ${project?.whatItDoes || profile?.projectSummary || 'No informado'}
 - Problema y cliente objetivo: ${project?.problemAndTarget || 'No informado'}
 - Solución y qué la diferencia: ${project?.currentSolutionAndDiff || 'No informado'}
@@ -1594,7 +1609,7 @@ DATOS CONFIRMADOS DE LA EMPRESA Y PROYECTO:
 - Región: ${details?.region || tax.region || '[COMPLETAR: Región]'}
 - Sector: ${details?.sector || tax.sector || 'No especificado'}
 - Antigüedad: ${tax.monthsActive !== null && tax.monthsActive !== undefined ? `${tax.monthsActive} meses` : 'No informada'}
-- Ventas 12 meses: ${tax.annualSalesCLP ? '$' + Number(tax.annualSalesCLP).toLocaleString('es-CL') + ' CLP' : 'Sin ventas registradas'}
+- Ventas 12 meses: ${salesText(tax.annualSalesCLP, profile?.salesBracket)}
 - ¿Qué hace la empresa?: ${project.whatItDoes || profile?.projectSummary || 'No informado'}
 - Problema y cliente objetivo: ${project.problemAndTarget || 'No informado'}
 - Solución y diferenciación: ${project.currentSolutionAndDiff || 'No informado'}
@@ -1816,8 +1831,8 @@ DATOS CONFIRMADOS DE CARPETA TRIBUTARIA Y EMPRESA:
 - Sector: ${tax.sector || compProfile.sector || 'No informado'}
 - Región: ${tax.region || compProfile.region || 'No informada'}
 - Antigüedad: ${tax.monthsActive !== null && tax.monthsActive !== undefined ? `${tax.monthsActive} meses` : 'No informada'}
-- Ventas 12 meses: ${tax.annualSalesCLP ? '$' + Number(tax.annualSalesCLP).toLocaleString('es-CL') + ' CLP' : compProfile.salesBracket || 'Sin ventas registradas'}
-- Tipo Societario: ${compProfile.companyType || 'SpA'}
+- Ventas 12 meses: ${salesText(tax.annualSalesCLP, compProfile.salesBracket)}
+- Tipo de postulante: ${compProfile.companyType || 'No informado'}
 - Liderazgo Femenino: ${compProfile.isFemaleLed ? 'Sí (califica a bonificación)' : 'No'}
 
 ${currentFund && currentFund.id ? fundRulesForPrompt(currentFund) : 'Fondo en consulta: ninguno seleccionado.'}

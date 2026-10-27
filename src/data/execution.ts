@@ -1,6 +1,6 @@
 import type { ChileanFund, FormulationOutput } from '../types/funds';
 import type { ApplicationItem, ExecutionData, ExecutionExpense, ExecutionMilestone, ExecutionBudgetLine } from '../types/application';
-import { getFundRules } from './fundStandards';
+import { getFundRules, cleanMilestone } from './fundStandards';
 
 /**
  * Etapa 4 — Ejecución de un proyecto ganado.
@@ -78,9 +78,9 @@ export function initExecution(app: ApplicationItem, fund: ChileanFund): Executio
     (accounts.length ? accounts : ['Gastos del proyecto']).forEach((a, i) => budget.push({ id: `l${i}`, account: a, item: a, approvedCLP: 0 }));
   }
   const duration = fundDurationMonths(fund);
-  const milestones: ExecutionMilestone[] = (f?.workPlanMilestones || [])
+  const milestones: ExecutionMilestone[] = (f?.workPlanMilestones || []).map(cleanMilestone)
     .filter(m => m.title)
-    .map((m, i) => ({ id: `h${i}`, title: m.title + (m.deliverable ? ` — entregable: ${m.deliverable}` : ''), done: false, kind: 'plan' as const, offsetMonths: monthOffset(m.month) }));
+    .map((m, i) => ({ id: `h${i}`, title: m.title + (m.description ? `: ${m.description.length > 140 ? m.description.slice(0, 137) + '…' : m.description}` : '') + (m.deliverable ? ` — entregable: ${m.deliverable}` : ''), done: false, kind: 'plan' as const, offsetMonths: monthOffset(m.month) }));
   if (duration) {
     if (duration >= 4) milestones.push({ id: 'inf_avance', title: 'Informe de avance (fecha estimada: confírmala con tu ejecutivo)', done: false, kind: 'informe', offsetMonths: Math.max(1, Math.round(duration / 2)) });
     milestones.push({ id: 'inf_final', title: 'Informe final y cierre del proyecto (fecha estimada)', done: false, kind: 'informe', offsetMonths: duration });

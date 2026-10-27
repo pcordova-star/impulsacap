@@ -8,7 +8,8 @@ import { BudgetWizard } from './BudgetWizard';
 import { notifySaved } from '../utils/guideEvents';
 import { SectionHelper } from './SectionHelpers';
 import { ChileanFund, CompanyProfile, FormulationOutput, ProjectProfile, FormBlock } from '../types/funds';
-import { getFundRules, blockLabel, budgetAccountsFor, coFinancePctFor, maxSubsidyFor, questionOverride } from '../data/fundStandards';
+import { getFundRules, blockLabel, budgetAccountsFor, coFinancePctFor, maxSubsidyFor, questionOverride, evaluateRequirement } from '../data/fundStandards';
+import { validateRut } from '../utils/rutValidator';
 import { ExpedienteData } from '../types/expediente';
 import { apiFetch } from '../utils/apiFetch';
 import { usePlan } from '../hooks/usePlan';
@@ -299,61 +300,48 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
   const { hasActivePlan, loading: planLoading } = usePlan();
   const [showPaywall, setShowPaywall] = useState<boolean>(false);
 
-  // Helper: Preload section answers from Project Profile (Requirement A.3)
-  const getPreloadedAnswers = (prof: CompanyProfile, initForm?: FormulationOutput | null): Record<string, Record<string, string>> => {
-    const proj = prof.projectProfile || ({} as Partial<ProjectProfile>);
-    return {
-      title_pitch: {
-        // El título describe el proyecto, no la empresa: si no hay uno, queda vacío para que lo escriba la persona
-        projectTitle: initForm?.projectTitle || '',
-        pitchSummary30s: initForm?.pitchSummary30s || proj.whatItDoes || prof.projectSummary || ''
-      },
-      problem: {
-        who: proj.problemAndTarget || '',
-        cost: '',
-        alternatives: proj.currentSolutionAndDiff || ''
-      },
-      solution: {
-        how: proj.whatItDoes || '',
-        tech: prof.coreTech || '',
-        noveltyVsCompetitors: initForm?.noveltyVsCompetitors || proj.currentSolutionAndDiff || ''
-      },
-      market: {
-        archetype: initForm?.marketAnalysisTAM?.clientArchetype || proj.problemAndTarget || '',
-        tam: initForm?.marketAnalysisTAM?.tam || '',
-        sam: initForm?.marketAnalysisTAM?.sam || '',
-        som: initForm?.marketAnalysisTAM?.som || ''
-      },
-      model: {
-        revenue: proj.businessModel || '',
-        salesStrategy: proj.currentProgress || ''
-      },
-      workplan: {
-        milestone1: initForm?.workPlanMilestones?.[0]?.description || (proj.currentProgress ? `Validación técnica inicial: ${proj.currentProgress}` : ''),
-        milestone2: initForm?.workPlanMilestones?.[1]?.description || '',
-        milestone3: initForm?.workPlanMilestones?.[2]?.description || ''
-      },
-      team: {
-        members: proj.teamDetails || '',
-        dedication: '40 horas semanales por integrante clave (dedicación completa 100%)',
-        skills: proj.teamDetails ? 'Equipo complementario con roles técnicos y comerciales' : ''
-      },
-      budget: {}
-    };
-  };
+  // Respuestas iniciales: SOLO lo que la persona ya escribió (formulación guardada).
+  // Lo que viene del perfil NO se pone como respuesta: se muestra como sugerencia y la persona la confirma
+  // (antes se prellenaban textos que nadie escribió, como "40 horas semanales", y la IA los tomaba como hechos).
+  const getPreloadedAnswers = (initForm?: FormulationOutput | null): Record<string, Record<string, string>> => ({
+    title_pitch: {
+      projectTitle: initForm?.projectTitle || '',
+      pitchSummary30s: initForm?.pitchSummary30s || ''
+    },
+    solution: { noveltyVsCompetitors: initForm?.noveltyVsCompetitors || '' },
+    market: {
+      archetype: initForm?.marketAnalysisTAM?.clientArchetype || '',
+      tam: initForm?.marketAnalysisTAM?.tam || '',
+      sam: initForm?.marketAnalysisTAM?.sam || '',
+      som: initForm?.marketAnalysisTAM?.som || ''
+    },
+    workplan: {
+      milestone1: initForm?.workPlanMilestones?.[0]?.description || '',
+      milestone2: initForm?.workPlanMilestones?.[1]?.description || '',
+      milestone3: initForm?.workPlanMilestones?.[2]?.description || ''
+    },
+    budget: {}
+  });
 
-  // User input answers for each section - Precargado con perfil del proyecto (Requirement A.3)
+  // Textos que versiones anteriores prellenaban sin que la persona los escribiera: se descartan al cargar
+  const isLegacyInvented = (secKey: string, qKey: string, val: string): boolean => {
+    const v = String(val || '').trim();
+    if (!v) return false;
+    if (secKey === 'team' && qKey === 'dedication' && v === '40 horas semanales por integrante clave (dedicación completa 100%)') return true;
+    if (secKey === 'team' && qKey === 'skills' && v === 'Equipo complementario con roles técnicos y comerciales') return true;
+    if (secKey === 'workplan' && qKey === 'milestone1' && profile.projectProfile?.currentProgress && v === `Validación técnica inicial: ${profile.projectProfile.currentProgress}`) return true;
+    if (secKey === 'model' && qKey === 'salesStrategy' && profile.projectProfile?.currentProgress && v === profile.projectProfile.currentProgress.trim()) return true;
+    return false;
+  };
+  const cleanSection = (secKey: string, ans: Record<string, string>) =>
+    Object.fromEntries(Object.entries(ans || {}).filter(([k, v]) => !isLegacyInvented(secKey, k, v)));
+
+  // Respuestas de cada sección (las guardadas en el expediente mandan sobre las iniciales)
   const [answersBySection, setAnswersBySection] = useState<Record<string, Record<string, string>>>(() => {
-    const preloaded = getPreloadedAnswers(profile, initialFormulation);
-    if (!expediente?.answersBySection || Object.keys(expediente.answersBySection).length === 0) {
-      return preloaded;
-    }
+    const preloaded = getPreloadedAnswers(initialFormulation);
     const merged: Record<string, Record<string, string>> = { ...preloaded };
-    Object.entries(expediente.answersBySection).forEach(([secKey, secAnswers]) => {
-      merged[secKey] = {
-        ...(preloaded[secKey] || {}),
-        ...secAnswers
-      };
+    Object.entries(expediente?.answersBySection || {}).forEach(([secKey, secAnswers]) => {
+      merged[secKey] = { ...(preloaded[secKey] || {}), ...cleanSection(secKey, secAnswers as Record<string, string>) };
     });
     return merged;
   });
@@ -429,6 +417,38 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
     return { ...sec, questions: adapted, title: lbl.title, badge: official?.evaluates ? `Evalúa ${official.evaluates}` : (official?.title || sec.badge), hint: lbl.hint } as SectionDefinition;
   }), [currentFund, fundRules]);
   const currentSection = sectionsView[currentSectionIndex];
+  const isSercotec = fundRules.family === 'sercotec';
+
+  // Sugerencias desde el perfil: solo donde el dato del perfil responde de verdad la pregunta de ESTE fondo.
+  // Se muestran bajo la pregunta con "Usar" y nunca se envían a la IA sin que la persona las acepte.
+  const proj = profile.projectProfile || ({} as Partial<ProjectProfile>);
+  const suggestionFor = (secId: string, qKey: string): string => {
+    const s = (v?: string) => String(v || '').trim();
+    const map: Record<string, Record<string, string>> = {
+      title_pitch: { pitchSummary30s: s(proj.whatItDoes || profile.projectSummary) },
+      problem: { who: s(proj.problemAndTarget), alternatives: s(proj.currentSolutionAndDiff) },
+      solution: isSercotec
+        ? { how: s(proj.whatItDoes), tech: s(proj.currentSolutionAndDiff) }
+        : { how: s(proj.whatItDoes), tech: s(profile.coreTech), noveltyVsCompetitors: s(proj.currentSolutionAndDiff) },
+      market: isSercotec ? {} : { archetype: s(proj.problemAndTarget) },
+      model: { revenue: s(proj.businessModel) },
+      team: { members: s(proj.teamDetails) }
+    };
+    return map[secId]?.[qKey] || '';
+  };
+
+  // Datos indispensables de cada sección (según el tipo de fondo). Sin ellos la IA no redacta:
+  // primero se le pregunta a la persona. Lo demás es opcional y, si falta, la IA deja [COMPLETAR].
+  const REQUIRED_KEYS: Record<string, string[]> = {
+    title_pitch: ['projectTitle', 'pitchSummary30s'],
+    problem: ['who', 'alternatives'],
+    solution: isSercotec ? ['how', 'tech'] : ['how', 'noveltyVsCompetitors'],
+    market: isSercotec ? ['archetype', 'sam'] : ['archetype', 'som'],
+    model: ['revenue'],
+    workplan: isSercotec ? ['milestone1', 'milestone3'] : ['milestone1', 'milestone2', 'milestone3'],
+    team: ['members', 'dedication']
+  };
+  const isAnswered = (v?: string) => String(v || '').trim().length >= 3;
   // Concurso del monitor (fuera del catálogo): se agrega a la lista para mostrarlo bien
   const fundOptions = CHILEAN_FUNDS.some(x => x.id === currentFund.id) ? CHILEAN_FUNDS : [currentFund, ...CHILEAN_FUNDS];
 
@@ -451,14 +471,27 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
     ...(!profile.companyName?.trim() ? ['Razón social de la empresa'] : []),
     ...PROFILE_FIELDS.filter(f => String(profile.projectProfile?.[f.key] || '').trim().length < 10).map(f => f.label)
   ];
-  const profileReadyForAi = missingProfileFields.length <= 2 && Boolean(profile.companyName?.trim());
+  // Lo esencial (razón social, qué hace y para quién) es obligatorio; del resto pueden faltar hasta 2
+  const essentialMissing = !profile.companyName?.trim()
+    || String(proj.whatItDoes || '').trim().length < 10
+    || String(proj.problemAndTarget || '').trim().length < 10;
+  const profileReadyForAi = !essentialMissing && missingProfileFields.length <= 2;
 
-  // Answered questions count & validation (Requirement B.4: mínimo 2 de 3)
+  // Antes de redactar: que estén respondidas las preguntas indispensables de la sección
   const currentSectionAns = answersBySection[currentSection.id] || {};
-  const answeredCount = currentSection.questions.filter(q => Boolean(currentSectionAns[q.key]?.trim())).length;
+  const requiredQuestions = currentSection.questions.filter(q => (REQUIRED_KEYS[currentSection.id] || []).includes(q.key));
+  const missingRequired = requiredQuestions.filter(q => !isAnswered(currentSectionAns[q.key]));
   const totalQuestions = currentSection.questions.length;
-  const minRequiredAnswers = Math.min(2, totalQuestions);
-  const hasMinimumAnswers = totalQuestions === 0 || answeredCount >= minRequiredAnswers;
+  const hasMinimumAnswers = totalQuestions === 0 || missingRequired.length === 0;
+
+  // Requisitos de las bases que según los datos NO se cumplen: se avisa antes de invertir tiempo en redactar
+  const failedRequirements = useMemo(() => {
+    const rutOk = validateRut(profile.rut || '');
+    return fundRules.requirements
+      .map(q => ({ q, ev: evaluateRequirement(q, profile, rutOk) }))
+      .filter(x => x.ev.status === 'fail')
+      .map(x => `${x.q.label}${x.ev.note ? `: ${x.ev.note}` : ''}`);
+  }, [fundRules, profile]);
 
   // Extracted and API missingData tasks (Requirement B.7)
   const currentGenerated = generatedTexts[currentSection.id] || '';
@@ -500,7 +533,7 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
     if (expediente?.answersBySection && Object.keys(expediente.answersBySection).length > 0) {
       setAnswersBySection(prev => ({
         ...prev,
-        ...expediente.answersBySection
+        ...Object.fromEntries(Object.entries(expediente.answersBySection).map(([k, v]) => [k, cleanSection(k, v as Record<string, string>)]))
       }));
     }
     if (expediente?.generatedTextsBySection && Object.keys(expediente.generatedTextsBySection).length > 0) {
@@ -609,6 +642,10 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
 
   // Generate specific section with AI
   const handleGenerateSection = async () => {
+    if (!hasMinimumAnswers || !profileReadyForAi) return;
+    if (failedRequirements.length > 0 && !window.confirm(`Según tus datos no cumples ${failedRequirements.length === 1 ? 'un requisito' : 'algunos requisitos'} de este fondo:\n\n- ${failedRequirements.join('\n- ')}\n\nSi es así, la postulación no será admisible. ¿Quieres redactar igual?`)) return;
+    // Volver a generar reemplaza el texto: se pide confirmación para no perder correcciones hechas a mano
+    if ((generatedTexts[currentSection.id] || '').trim() && !window.confirm('Esto reemplaza el texto actual de la sección, incluidas las correcciones que hayas hecho a mano. ¿Continuar?')) return;
     setLoading(true);
     setError(null);
 
@@ -737,35 +774,24 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
       criticalRisk: string;
     }[] = [];
 
-    if (workplanAns.milestone1?.trim()) {
+    // Cada hito lleva SOLO lo que escribió la persona: el título y los meses salen de la pregunta del
+    // formulario de este fondo (antes se agregaban entregables y riesgos fijos que nadie escribió).
+    const workplanQs = sectionsView.find(sec => sec.id === 'workplan')?.questions || [];
+    (['milestone1', 'milestone2', 'milestone3'] as const).forEach((key, i) => {
+      const desc = workplanAns[key]?.trim();
+      if (!desc) return;
+      const label = workplanQs.find(q => q.key === key)?.label || '';
+      const months = label.match(/mes(?:es)?\s*\d+\s*(?:-|a)\s*\d+/i)?.[0] || '';
+      const sercotecTitles = ['Actividades clave', 'Alianzas', 'Uso del subsidio en los primeros meses'];
+      const fromLabel = label.includes(':') ? label.split(':')[0].replace(/\([^)]*\)/g, '').trim() : '';
       realMilestones.push({
-        month: 'Mes 1 a 3',
-        title: 'Hito 1: Validación Técnica Inicial',
-        description: workplanAns.milestone1.trim(),
-        deliverable: 'Informe técnico de validación y prototipo funcional',
-        criticalRisk: 'Desviaciones en especificaciones; mitigado con iteraciones ágiles'
+        month: months ? months.charAt(0).toUpperCase() + months.slice(1) : '',
+        title: isSercotec ? sercotecTitles[i] : (fromLabel || `Hito ${i + 1}`),
+        description: desc,
+        deliverable: '',
+        criticalRisk: ''
       });
-    }
-
-    if (workplanAns.milestone2?.trim()) {
-      realMilestones.push({
-        month: 'Mes 4 a 8',
-        title: 'Hito 2: Pilotos en Entorno Real',
-        description: workplanAns.milestone2.trim(),
-        deliverable: 'Actas de conformidad de pruebas de campo y métricas de desempeño',
-        criticalRisk: 'Demoras en pruebas con clientes; mitigado con acuerdos previos'
-      });
-    }
-
-    if (workplanAns.milestone3?.trim()) {
-      realMilestones.push({
-        month: 'Mes 9 a 12',
-        title: 'Hito 3: Validación Comercial y Escalamiento',
-        description: workplanAns.milestone3.trim(),
-        deliverable: 'Facturas de venta o acuerdos comerciales de adopción',
-        criticalRisk: 'Ciclos de cierre de ventas; mitigado con planes piloto'
-      });
-    }
+    });
 
     // Presupuesto (Real from entered budget accounts, or empty array)
     const realBudgetItems = budgetAccountsFor(currentFund).map(acc => {
@@ -794,7 +820,7 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
       budgetBreakdown: realBudgetItems.length > 0 ? realBudgetItems : (fullFormulation?.budgetBreakdown || []),
       teamCapabilities: team,
       bonusFemaleJustification: profile.isFemaleLed
-        ? 'Empresa liderada por mujeres con participación societaria acreditada.'
+        ? 'Empresa liderada por mujeres (declarado por la postulante; se acredita con los documentos que piden las bases).'
         : undefined
     };
 
@@ -868,7 +894,7 @@ ${generatedTexts.model || fullFormulation.businessModel || '[Sin completar]'}
 ---
 
 ### 7. PLAN DE TRABAJO E HITOS A 12 MESES
-${fullFormulation.workPlanMilestones?.map((m, i) => `${i + 1}. ${m.title} (${m.month}): ${m.description} | Entregable: ${m.deliverable} | Riesgo: ${m.criticalRisk}`).join('\n') || '[Sin completar]'}
+${fullFormulation.workPlanMilestones?.map((m, i) => `${i + 1}. ${m.title}${m.month ? ` (${m.month})` : ''}: ${m.description}${m.deliverable ? ` | Entregable: ${m.deliverable}` : ''}${m.criticalRisk ? ` | Riesgo: ${m.criticalRisk}` : ''}`).join('\n') || '[Sin completar]'}
 
 ---
 
@@ -1031,7 +1057,7 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
                   onClick={handleGenerateSection}
                   disabled={loading || planLoading || !hasMinimumAnswers || !profileReadyForAi}
                   className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs shadow-lg shadow-cyan-600/20 transition-all cursor-pointer"
-                  title={!hasMinimumAnswers ? `Debes responder al menos ${minRequiredAnswers} preguntas para generar esta sección` : undefined}
+                  title={!hasMinimumAnswers ? `Antes de redactar, responde: ${missingRequired.map(q => q.label).join(' · ')}` : undefined}
                 >
                   {loading ? (
                     <>
@@ -1046,7 +1072,7 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
                   ) : !hasMinimumAnswers ? (
                     <>
                       <AlertCircle className="w-4 h-4 text-amber-300" />
-                      <span>Responde las preguntas para generar esta sección</span>
+                      <span>Responde las preguntas marcadas para redactar</span>
                     </>
                   ) : (
                     <>
@@ -1057,13 +1083,24 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
                 </button>
                 {!hasMinimumAnswers && totalQuestions > 0 && (
                   <span className="text-[10px] text-amber-400 font-medium">
-                    Faltan respuestas obligatorias ({answeredCount} de {minRequiredAnswers} mínimo)
+                    {missingRequired.length === 1 ? 'Falta 1 respuesta indispensable' : `Faltan ${missingRequired.length} respuestas indispensables`}
                   </span>
                 )}
               </div>
             )}
           </div>
         </div>
+
+        {failedRequirements.length > 0 && (
+          <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/40 space-y-2">
+            <p className="text-sm font-bold text-red-200 flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-red-400 shrink-0" /> Según tus datos, no cumples {failedRequirements.length === 1 ? 'un requisito' : 'algunos requisitos'} de este fondo</p>
+            <ul className="text-xs text-red-100/90 list-disc pl-8 space-y-0.5">{failedRequirements.map(f => <li key={f}>{f}</li>)}</ul>
+            <p className="text-xs text-red-100/80 pl-6">Si es así, la postulación no será admisible aunque el formulario esté perfecto. Revisa el paso 1 de tu Hoja de Ruta o busca otro fondo antes de seguir redactando.</p>
+            <div className="pl-6">
+              <button type="button" onClick={() => onNavigateTab?.('my-application')} className="text-xs font-bold text-red-200 underline underline-offset-2 cursor-pointer">Ver requisitos en la Hoja de Ruta</button>
+            </div>
+          </div>
+        )}
 
         {currentSection.id !== 'budget' && !profileReadyForAi && (
           <div className="p-4 sm:p-5 rounded-2xl bg-amber-500/10 border border-amber-500/40 space-y-3">
@@ -1113,12 +1150,16 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
               <SimilarWinners profile={profile} compact />
             )}
 
-            <SectionHelper
-              key={`${currentSection.id}-${currentFund.id}`}
-              sectionId={currentSection.id}
-              answers={answersBySection[currentSection.id] || {}}
-              onApply={handleAnswersBatch}
-            />
+            {/* Los ayudantes (TAM/SAM/SOM, innovación, equipo) siguen el formulario de Corfo y similares.
+                En Sercotec esas preguntas significan otra cosa y el ayudante pisaría la respuesta. */}
+            {!isSercotec && (
+              <SectionHelper
+                key={`${currentSection.id}-${currentFund.id}`}
+                sectionId={currentSection.id}
+                answers={answersBySection[currentSection.id] || {}}
+                onApply={handleAnswersBatch}
+              />
+            )}
 
             {/* Input Questions Grid */}
             <div id="formulator-questions" className="scroll-mt-40 space-y-4">
@@ -1130,12 +1171,27 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
                 {currentSection.questions.map((q) => {
                   const val = answersBySection[currentSection.id]?.[q.key] || '';
                   const isLong = q.key === 'pitchSummary30s' || q.key === 'alternatives' || q.key === 'how' || q.key.startsWith('milestone') || q.key === 'members';
+                  const required = (REQUIRED_KEYS[currentSection.id] || []).includes(q.key);
+                  const suggestion = suggestionFor(currentSection.id, q.key);
+                  const showSuggestion = Boolean(suggestion) && !val.trim();
 
                   return (
                     <div key={q.key} className="space-y-1.5">
                       <label className="text-xs font-bold text-slate-200 block">
                         {q.label}
+                        {required
+                          ? <span className="ml-1.5 text-[10px] font-semibold text-amber-300">(indispensable)</span>
+                          : <span className="ml-1.5 text-[10px] font-normal text-slate-500">(opcional)</span>}
                       </label>
+                      {showSuggestion && (
+                        <div className="p-2.5 rounded-xl bg-cyan-950/40 border border-cyan-800/60 text-[11px] text-slate-300 space-y-1">
+                          <p><strong className="text-cyan-300">Sugerido desde tu perfil</strong> (revísalo: no se usa hasta que lo aceptes):</p>
+                          <p className="whitespace-pre-line text-slate-200">{suggestion}</p>
+                          <div className="flex gap-3">
+                            <button type="button" onClick={() => handleAnswerChange(q.key, suggestion)} className="font-bold text-cyan-300 hover:underline cursor-pointer">Usar esta respuesta</button>
+                          </div>
+                        </div>
+                      )}
                       
                       {isLong ? (
                         <textarea
