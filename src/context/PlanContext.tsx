@@ -13,6 +13,8 @@ export interface PlanState {
   lastPaymentId: string | null;
   /** Acceso anticipado sin cobro (lanzamiento) */
   provisional: boolean;
+  /** Acceso gratis del programa de prueba (1 postulación, a cambio de comentarios) */
+  isBeta: boolean;
   daysLeft: number;
   isFirstPurchase: boolean;
   price: number;
@@ -33,6 +35,7 @@ const defaultPlanState: PlanState = {
   expiresAt: null,
   lastPaymentId: null,
   provisional: false,
+  isBeta: false,
   daysLeft: 0,
   isFirstPurchase: true,
   price: PLAN_PRICE,
@@ -58,6 +61,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode }> = ({ children
     expiresAt?: string;
     lastPaymentId?: string;
     provisional?: boolean;
+    beta?: boolean;
     activeFundIds?: string[];
   } | null>(null);
 
@@ -144,6 +148,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode }> = ({ children
             expiresAt: data.expiresAt,
             lastPaymentId: data.lastPaymentId ? String(data.lastPaymentId) : undefined,
             provisional: data.provisional === true,
+            beta: data.beta === true,
             activeFundIds: Array.isArray(data.activeFundIds) ? data.activeFundIds : []
           });
         } else {
@@ -191,6 +196,7 @@ export const PlanProvider: React.FC<{ children: React.ReactNode }> = ({ children
     expiresAt,
     lastPaymentId: entitlementData?.lastPaymentId || null,
     provisional: Boolean(entitlementData?.provisional),
+    isBeta: Boolean(entitlementData?.beta),
     daysLeft,
     isFirstPurchase: pricingState.isFirstPurchase,
     price: pricingState.price,

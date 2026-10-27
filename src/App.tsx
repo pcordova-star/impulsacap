@@ -9,6 +9,7 @@ import type { PostulationSubTab } from './components/PostulationWorkspace';
 import { NewApplicationModal } from './components/NewApplicationModal';
 import { HelpBot } from './components/HelpBot';
 import { MonitorHero } from './components/MonitorHero';
+import { BetaInviteCard, BetaActiveBanner } from './components/BetaProgram';
 import { HowItWorks, PlanComparison, LandingFaq } from './components/LandingSections';
 import { FundUseFinder } from './components/FundUseFinder';
 import { SiiUploaderModal } from './components/SiiUploaderModal';
@@ -866,6 +867,7 @@ export default function App() {
 
       {/* Main Container */}
       <main className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 pt-4 pb-28 sm:py-8 min-w-0 max-w-full overflow-x-hidden">
+        <BetaActiveBanner />
         <Suspense fallback={<div className="py-24 flex flex-col items-center gap-3 text-slate-500" role="status"><Sparkles className="w-6 h-6 text-blue-600 animate-spin" /><span className="text-sm font-semibold">Cargando…</span></div>}>
         {/* Tab: Pago Resultado (Mercado Pago) */}
         {activeTab === 'pago-resultado' && (
@@ -913,6 +915,9 @@ export default function App() {
                 }
               }}
             />
+
+            {/* Programa de prueba: invitación con cupos (o aviso de cupos llenos) */}
+            <BetaInviteCard />
 
             {/* 2. CÓMO FUNCIONA: las 3 etapas del recorrido */}
             <HowItWorks />

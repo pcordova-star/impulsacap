@@ -53,6 +53,9 @@ import {
   supportTicketUserEmail,
   earlyAccessUserEmail,
   earlyAccessAdminEmail,
+  betaWelcomeEmail,
+  betaAdminEmail,
+  betaNewRoundEmail,
   paymentAvailableEmail,
   sellerSaleEmail,
   getAppUrl,
@@ -563,17 +566,20 @@ const checkAndRegisterPostulationSlot = async (uid: string, fundId: string): Pro
       return { ok: true };
     }
 
-    // Validar el límite de 3 postulaciones simultáneas del Plan Trimestral
-    if (activeFundIds.size >= 3) {
-      return { 
-        ok: false, 
-        error: 'Puedes tener hasta 3 postulaciones activas a la vez. Archiva una para comenzar otra.' 
-      };
-    }
-
     // Mantener sincronizado entitlements para compatibilidad
     const entRef = adminDb.collection('entitlements').doc(uid);
     const entDoc = await entRef.get();
+
+    // Límite de postulaciones simultáneas: 3 en el Plan Trimestral; el programa de prueba incluye 1
+    const maxPost = Number(entDoc.data()?.maxPostulations) > 0 ? Number(entDoc.data()?.maxPostulations) : 3;
+    if (activeFundIds.size >= maxPost) {
+      return {
+        ok: false,
+        error: maxPost === 1
+          ? 'El programa de prueba incluye 1 postulación. Para trabajar en otra, archiva la actual o activa el Plan Trimestral.'
+          : `Puedes tener hasta ${maxPost} postulaciones activas a la vez. Archiva una para comenzar otra.`
+      };
+    }
     if (entDoc.exists) {
       const entData = entDoc.data() || {};
       let entFunds: string[] = Array.isArray(entData.activeFundIds) ? entData.activeFundIds : [];
@@ -2165,6 +2171,7 @@ async function grantEarlyAccess(uid: string, email: string | undefined) {
   return { earlyAccess: true, expiresAt, price };
 }
 
+
 // Consulta de estado de precios (primera compra, código de vendedor y precio a cobrar)
 app.get('/api/pagos/estado', requireAuth, async (req, res) => {
   try {
@@ -2442,6 +2449,8 @@ async function processApprovedPayment(info: ApprovedPayment): Promise<'activado'
       expiresAt: expiresAt.toISOString(),
       lastPaymentId: String(paymentId),
       provisional: false,
+      beta: false,
+      maxPostulations: null,
       updatedAt: new Date().toISOString()
     }, { merge: true });
     try {
@@ -3334,6 +3343,8 @@ app.post('/api/cuenta/pase-libre', requireAuth, async (req, res) => {
       status: 'active',
       expiresAt,
       provisional: false,
+      beta: false,
+      maxPostulations: null,
       freePass: true,
       freePassSince: ent?.freePassSince || new Date().toISOString(),
       emailRemindersOptOut: true,
@@ -3394,6 +3405,134 @@ const perUserLimiter = (max: number, message: string) => rateLimit({
   message: { error: message }
 });
 const cleanField = (v: any, max = 1500) => (typeof v === 'string' ? v.replace(/\[COMPLETAR[^\]]*\]/gi, '').trim().slice(0, max) : '');
+
+// ---------------------------------------------------------------------------
+// Programa de prueba: los primeros N inscritos reciben X días gratis para 1 postulación,
+// a cambio de enviar sus comentarios. Al llenarse los cupos se cierra y se ofrece "Avísame".
+// Configuración en Firestore (meta/betaProgram); el admin abre nuevas rondas desde el panel.
+// Sin el documento: abierto con 50 cupos y 5 días (PROGRAMA_PRUEBA=off lo apaga).
+// ---------------------------------------------------------------------------
+type BetaConfig = { active: boolean; cupos: number; dias: number; used: number; round: number };
+const betaRef = () => adminDb.collection('meta').doc('betaProgram');
+function betaDefaults(): BetaConfig {
+  return {
+    active: process.env.PROGRAMA_PRUEBA !== 'off',
+    cupos: Math.max(1, Number(process.env.PROGRAMA_PRUEBA_CUPOS) || 50),
+    dias: Math.min(30, Math.max(1, Number(process.env.PROGRAMA_PRUEBA_DIAS) || 5)),
+    used: 0,
+    round: 1
+  };
+}
+async function readBetaConfig(): Promise<BetaConfig> {
+  const snap = await betaRef().get();
+  return { ...betaDefaults(), ...(snap.exists ? (snap.data() as Partial<BetaConfig>) : {}) };
+}
+// Solo usuarios que nunca pagaron ni participaron antes
+async function betaEligibility(uid: string): Promise<{ ok: boolean; reason?: 'participando' | 'participo' | 'tiene_plan' }> {
+  const [partSnap, entSnap] = await Promise.all([
+    adminDb.collection('betaParticipants').doc(uid).get(),
+    adminDb.collection('entitlements').doc(uid).get()
+  ]);
+  const ent = entSnap.exists ? entSnap.data() : null;
+  const entActive = Boolean(ent?.status === 'active' && ent?.expiresAt && new Date(ent.expiresAt).getTime() > Date.now());
+  if (partSnap.exists) return { ok: false, reason: entActive && ent?.beta ? 'participando' : 'participo' };
+  if (ent?.lastPaymentId || ent?.freePass || (entActive && !ent?.provisional)) return { ok: false, reason: 'tiene_plan' };
+  return { ok: true };
+}
+
+app.get('/api/beta/estado', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    if (!(await ensureFirestoreAdmin())) return res.json({ abierto: false });
+    const cfg = await readBetaConfig();
+    const disponibles = Math.max(0, cfg.cupos - cfg.used);
+    const user = await optionalUser(req);
+    let participando = false, participoAntes = false, tienePlan = false, enEspera = false, expiresAt: string | null = null;
+    if (user) {
+      const el = await betaEligibility(user.uid);
+      participando = el.reason === 'participando';
+      participoAntes = el.reason === 'participo';
+      tienePlan = el.reason === 'tiene_plan';
+      if (participando) expiresAt = String((await adminDb.collection('entitlements').doc(user.uid).get()).data()?.expiresAt || '') || null;
+      enEspera = (await adminDb.collection('betaWaitlist').doc(user.uid).get()).exists;
+    }
+    return res.json({
+      abierto: cfg.active && disponibles > 0,
+      lleno: cfg.active && disponibles === 0,
+      activo: cfg.active,
+      cupos: cfg.cupos, disponibles, dias: cfg.dias,
+      participando, participoAntes, tienePlan, enEspera, expiresAt,
+      correoComentarios: 'contacto@impulsacap.cl'
+    });
+  } catch (err: any) {
+    console.error('Error in /api/beta/estado:', err?.message);
+    return res.json({ abierto: false });
+  }
+});
+
+app.post('/api/beta/inscribir', requireAuth, perUserLimiter(10, 'Demasiados intentos. Intenta más tarde.'), async (req, res) => {
+  try {
+    const user = (req as AuthenticatedRequest).user!;
+    if (req.body?.aceptaCompromiso !== true) return res.status(400).json({ error: 'Para participar debes aceptar el compromiso de enviar tus comentarios.' });
+    if (!(await ensureFirestoreAdmin())) return res.status(503).json({ error: 'No pudimos inscribirte ahora. Intenta en unos minutos.' });
+    const el = await betaEligibility(user.uid);
+    if (!el.ok) {
+      const msg = el.reason === 'participando' ? 'Ya estás participando en el programa de prueba.'
+        : el.reason === 'participo' ? 'Ya participaste en el programa de prueba.'
+        : 'Tu cuenta ya tiene o tuvo el Plan Trimestral, así que no necesita la prueba.';
+      return res.status(409).json({ error: msg, reason: el.reason });
+    }
+    // Cupo asignado en una transacción: nunca se pasa del máximo aunque se inscriban varios a la vez
+    const now = new Date();
+    let result: { ok: boolean; full?: boolean; cfg?: BetaConfig; expiresAt?: string } = { ok: false };
+    await adminDb.runTransaction(async (tx) => {
+      const snap = await tx.get(betaRef());
+      const cfg: BetaConfig = { ...betaDefaults(), ...(snap.exists ? (snap.data() as Partial<BetaConfig>) : {}) };
+      if (!cfg.active || cfg.used >= cfg.cupos) { result = { ok: false, full: true, cfg }; return; }
+      const partRef = adminDb.collection('betaParticipants').doc(user.uid);
+      if ((await tx.get(partRef)).exists) { result = { ok: false }; return; }
+      const expiresAt = new Date(now.getTime() + cfg.dias * 864e5).toISOString();
+      const used = cfg.used + 1;
+      tx.set(betaRef(), { ...cfg, used, updatedAt: now.toISOString() }, { merge: true });
+      tx.set(partRef, { uid: user.uid, email: user.email || '', round: cfg.round, createdAt: now.toISOString(), expiresAt, acceptedCommitment: true });
+      tx.set(adminDb.collection('entitlements').doc(user.uid), {
+        plan: 'prueba', status: 'active', expiresAt, provisional: false, beta: true, maxPostulations: 1,
+        betaSince: now.toISOString(), emailRemindersOptOut: true, updatedAt: now.toISOString()
+      }, { merge: true });
+      result = { ok: true, cfg: { ...cfg, used }, expiresAt };
+    });
+    const r = result as { ok: boolean; full?: boolean; cfg?: BetaConfig; expiresAt?: string };
+    if (r.full) return res.status(409).json({ error: 'Los cupos del programa de prueba están llenos. Pronto abriremos una nueva invitación.', full: true });
+    if (!r.ok || !r.expiresAt || !r.cfg) return res.status(409).json({ error: 'Ya estás inscrito en el programa de prueba.' });
+    // Saca de la lista de espera si estaba
+    adminDb.collection('betaWaitlist').doc(user.uid).delete().catch(() => {});
+    let companyName = '';
+    try { companyName = String((await adminDb.collection('users').doc(user.uid).get()).data()?.companyName || ''); } catch {}
+    if (companyName) adminDb.collection('betaParticipants').doc(user.uid).set({ companyName }, { merge: true }).catch(() => {});
+    if (user.email) sendEmail({ to: user.email, ...betaWelcomeEmail({ expiresAt: r.expiresAt, days: r.cfg.dias }), idempotencyKey: `beta-user-${user.uid}` }).catch(() => {});
+    const adminEmail = getAdminEmail();
+    if (adminEmail) sendEmail({ to: adminEmail, ...betaAdminEmail({ userEmail: user.email || user.uid, companyName, expiresAt: r.expiresAt, used: r.cfg.used, cupos: r.cfg.cupos }), idempotencyKey: `beta-admin-${user.uid}` }).catch(() => {});
+    console.log(`[programa-prueba] ${user.uid} inscrito (${r.cfg.used}/${r.cfg.cupos}) hasta ${r.expiresAt}`);
+    return res.json({ ok: true, expiresAt: r.expiresAt, dias: r.cfg.dias });
+  } catch (err: any) {
+    console.error('Error in /api/beta/inscribir:', err?.message);
+    return res.status(500).json({ error: 'No pudimos inscribirte ahora. Intenta en unos minutos.' });
+  }
+});
+
+app.post('/api/beta/avisarme', requireAuth, perUserLimiter(10, 'Demasiados intentos. Intenta más tarde.'), async (req, res) => {
+  try {
+    const user = (req as AuthenticatedRequest).user!;
+    if (!user.email) return res.status(400).json({ error: 'Tu cuenta no tiene un correo asociado.' });
+    if (!(await ensureFirestoreAdmin())) return res.status(503).json({ error: 'No pudimos guardar tu solicitud. Intenta en unos minutos.' });
+    await adminDb.collection('betaWaitlist').doc(user.uid).set({ uid: user.uid, email: user.email, createdAt: new Date().toISOString(), notifiedRound: null }, { merge: true });
+    return res.json({ ok: true });
+  } catch (err: any) {
+    console.error('Error in /api/beta/avisarme:', err?.message);
+    return res.status(500).json({ error: 'No pudimos guardar tu solicitud.' });
+  }
+});
+
 
 app.post('/api/perfil/desde-web', requireAuth, perUserLimiter(10, 'Leíste muchos sitios en la última hora. Intenta más tarde.'), guardAi('perfil-web'), async (req, res) => {
   try {
@@ -3560,7 +3699,7 @@ async function runReminders(): Promise<{ status: number; body: any }> {
       const data = docSnap.data() || {};
       const expiresAt: string | undefined = data.expiresAt;
       if (!expiresAt || isNaN(new Date(expiresAt).getTime())) { summary.omitidos++; continue; }
-      if (data.emailRemindersOptOut === true || data.provisional === true) { summary.omitidos++; continue; }
+      if (data.emailRemindersOptOut === true || data.provisional === true || data.beta === true) { summary.omitidos++; continue; }
 
       const daysLeft = calendarDaysBetween(todayKey, chileDateKey(new Date(expiresAt)));
 
@@ -3817,6 +3956,60 @@ function requireAdminUser(req: express.Request, res: express.Response, next: exp
   }
   return next();
 }
+
+
+// Programa de prueba: participantes, lista de espera y control de rondas
+app.get('/api/admin/beta', requireAuth, requireAdminUser, async (req, res) => {
+  try {
+    if (!(await ensureFirestoreAdmin())) return res.status(503).json({ error: 'Firestore Admin no está autorizado.' });
+    const [cfg, parts, wait] = await Promise.all([
+      readBetaConfig(),
+      adminDb.collection('betaParticipants').orderBy('createdAt', 'desc').limit(300).get(),
+      adminDb.collection('betaWaitlist').limit(500).get()
+    ]);
+    res.set('Cache-Control', 'no-store');
+    return res.json({
+      config: cfg,
+      participants: parts.docs.map(d => d.data()),
+      waitlist: wait.docs.map(d => d.data()).sort((a: any, b: any) => String(a.createdAt).localeCompare(String(b.createdAt)))
+    });
+  } catch (err: any) {
+    console.error('Error in /api/admin/beta:', err?.message);
+    return res.status(500).json({ error: 'No se pudo cargar el programa de prueba.' });
+  }
+});
+
+app.post('/api/admin/beta', requireAuth, requireAdminUser, async (req, res) => {
+  try {
+    if (!(await ensureFirestoreAdmin())) return res.status(503).json({ error: 'Firestore Admin no está autorizado.' });
+    const accion = String(req.body?.accion || '');
+    const cfg = await readBetaConfig();
+    const now = new Date().toISOString();
+    if (accion === 'cerrar' || accion === 'abrir') {
+      await betaRef().set({ ...cfg, active: accion === 'abrir', updatedAt: now }, { merge: true });
+      return res.json({ ok: true, config: { ...cfg, active: accion === 'abrir' } });
+    }
+    if (accion === 'nueva_ronda') {
+      const extra = Math.min(500, Math.max(1, Number(req.body?.cupos) || 50));
+      const next: BetaConfig = { ...cfg, active: true, cupos: cfg.used + extra, round: cfg.round + 1 };
+      await betaRef().set({ ...next, updatedAt: now }, { merge: true });
+      // Aviso a la lista de espera (por orden de inscripción)
+      const wait = await adminDb.collection('betaWaitlist').limit(500).get();
+      let avisados = 0;
+      for (const d of wait.docs) {
+        const w = d.data();
+        if (!w.email || w.notifiedRound === next.round) continue;
+        const ok = await sendEmail({ to: w.email, ...betaNewRoundEmail(), idempotencyKey: `beta-round-${next.round}-${d.id}` });
+        if (ok) { avisados++; await d.ref.set({ notifiedRound: next.round, notifiedAt: now }, { merge: true }); }
+      }
+      return res.json({ ok: true, config: next, avisados });
+    }
+    return res.status(400).json({ error: 'Acción no válida.' });
+  } catch (err: any) {
+    console.error('Error in POST /api/admin/beta:', err?.message);
+    return res.status(500).json({ error: 'No se pudo actualizar el programa de prueba.' });
+  }
+});
 
 app.get('/api/admin/soporte', requireAuth, requireAdminUser, async (req, res) => {
   try {

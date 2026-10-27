@@ -18,6 +18,7 @@ import { apiFetch } from '../utils/apiFetch';
 import { announceEarlyAccess, getPaymentsMode } from '../utils/earlyAccess';
 import { usePlan } from '../hooks/usePlan';
 import { ReferralCodeField } from './ReferralCodeField';
+import { BetaInviteCard } from './BetaProgram';
 
 interface PlanPaywallCardProps {
   onPlanActivated?: () => void;
@@ -91,6 +92,9 @@ export const PlanPaywallCard: React.FC<PlanPaywallCardProps> = ({
   const formattedPrice = (price || PLAN_PRICE).toLocaleString('es-CL');
 
   return (
+    <div className="space-y-4">
+    {/* Programa de prueba: si hay cupos, se ofrece antes del pago */}
+    {!hasActivePlan && <BetaInviteCard compact />}
     <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-900 via-indigo-950 to-slate-900 text-white border-2 border-emerald-500/80 shadow-2xl p-6 sm:p-8 animate-fade-in">
       {/* Background glow effects */}
       <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -253,6 +257,7 @@ export const PlanPaywallCard: React.FC<PlanPaywallCardProps> = ({
           <span className="hidden sm:inline">Tarjetas de Crédito, Débito / Redcompra</span>
         </div>
       </div>
+    </div>
     </div>
   );
 };
