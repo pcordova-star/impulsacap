@@ -198,6 +198,52 @@ interface Intent {
 }
 
 /** Inscritos en acceso anticipado (contrataron mientras el pago en línea no estaba habilitado). */
+/** Encuesta rápida: cómo les va a los usuarios en cada momento clave. */
+const QuickFeedbackPanel: React.FC = () => {
+  const [data, setData] = useState<{ summary: Record<string, { mal: number; regular: number; bien: number }>; items: any[] } | null>(null);
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await apiFetch('/api/admin/feedback-rapida');
+        const body = await res.json().catch(() => ({}));
+        if (res.ok) setData(body);
+      } catch { /* sin efecto */ }
+    })();
+  }, []);
+  if (!data) return null;
+  const labels: Record<string, string> = { seccion_ia: 'Redactar una sección con IA', documento_ia: 'Generar un documento con IA', expediente: 'Revisar el expediente' };
+  const ratingLabel: Record<string, string> = { mal: '😞 Mal', regular: '😐 Regular', bien: '🙂 Bien' };
+  const withComment = data.items.filter(i => i.comment);
+  return (
+    <Card title="Encuesta rápida" subtitle="“¿Cómo te está funcionando ImpulsaCap?” después de cada momento clave.">
+      <div className="grid gap-3 sm:grid-cols-3 mb-4">
+        {Object.keys(labels).map(k => {
+          const s = data.summary[k] || { mal: 0, regular: 0, bien: 0 };
+          const total = s.mal + s.regular + s.bien;
+          return (
+            <div key={k} className="rounded-xl border border-slate-200 p-3">
+              <p className="text-xs font-bold text-slate-700">{labels[k]}</p>
+              <p className="text-sm text-slate-900 mt-1 tabular-nums">🙂 {s.bien} · 😐 {s.regular} · 😞 {s.mal}</p>
+              <p className="text-xs text-slate-500">{total} {total === 1 ? 'respuesta' : 'respuestas'}{total > 0 ? ` · ${pct(s.bien, total)} bien` : ''}</p>
+            </div>
+          );
+        })}
+      </div>
+      <Table headers={['Fecha', 'Persona', 'Momento', 'Respuesta', 'Comentario']} empty={withComment.length === 0}>
+        {withComment.map(i => (
+          <tr key={`${i.uid}_${i.moment}`}>
+            <td className="py-2.5 pr-4 whitespace-nowrap text-slate-600">{fmtDate(i.updatedAt)}</td>
+            <td className="py-2.5 pr-4"><div className="text-slate-900 text-xs">{i.email}</div>{i.beta && <div className="text-[11px] text-violet-700 font-semibold">Programa de prueba</div>}</td>
+            <td className="py-2.5 pr-4 text-xs">{labels[i.moment] || i.moment}{i.fundName ? <div className="text-slate-500">{i.fundName}</div> : null}</td>
+            <td className="py-2.5 pr-4 whitespace-nowrap">{ratingLabel[i.rating] || i.rating}</td>
+            <td className="py-2.5 pr-4 text-slate-800">{i.comment}</td>
+          </tr>
+        ))}
+      </Table>
+    </Card>
+  );
+};
+
 /** Programa de prueba: cupos, participantes, lista de espera y nuevas rondas. */
 const BetaPanel: React.FC = () => {
   type Cfg = { active: boolean; cupos: number; dias: number; used: number; round: number };
@@ -1301,6 +1347,7 @@ export const AdminDashboard: React.FC = () => {
       <AiUsagePanel />
 
       <BetaPanel />
+      <QuickFeedbackPanel />
       <FreePassPanel />
       <SellersPanel />
 

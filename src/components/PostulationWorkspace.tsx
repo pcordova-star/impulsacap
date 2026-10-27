@@ -1,6 +1,7 @@
 import { splitTarget, goToTarget, setReturnContext, request as requestNav } from '../utils/navFocus';
 import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { showToast } from '../utils/toast';
+import { askFeedback } from '../utils/feedbackEvents';
 import { ChileanFund, CompanyProfile, FormulationOutput, BlindAuditResult, CompanyUser, calculateProjectProfileCompletion } from '../types/funds';
 import { ExpedienteData } from '../types/expediente';
 import { ApplicationItem, ApplicationResult } from '../types/application';
@@ -517,7 +518,7 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
         <Suspense fallback={null}>
           <OfficialDossierModal
             isOpen={showDossierModal}
-            onClose={() => setShowDossierModal(false)}
+            onClose={() => { setShowDossierModal(false); askFeedback({ moment: 'expediente', fundId: fund.id, fundName: fund.name }); }}
             expediente={expediente}
             fund={fund}
             onNavigateTab={routeTab}

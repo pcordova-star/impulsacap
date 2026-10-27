@@ -91,7 +91,7 @@ export const BetaInviteCard: React.FC<{ compact?: boolean }> = ({ compact }) => 
 
   if (st.lleno) {
     return (
-      <div className={box}>
+      <div id={compact ? undefined : 'programa-prueba-invitacion'} className={`${box} scroll-mt-24`}>
         <p className="text-sm font-bold text-slate-900 flex items-center gap-2"><Users className="w-4 h-4 text-slate-500" /> Los cupos del programa de prueba están llenos</p>
         <p className="text-xs text-slate-600">Gracias por tu interés. Pronto abriremos una nueva invitación{st.enEspera ? ' y te avisaremos por correo.' : '. Si quieres, te avisamos por correo.'}</p>
         {st.enEspera ? (
@@ -109,7 +109,7 @@ export const BetaInviteCard: React.FC<{ compact?: boolean }> = ({ compact }) => 
   if (!st.abierto) return null;
 
   return (
-    <div className={box}>
+    <div id={compact ? undefined : 'programa-prueba-invitacion'} className={`${box} scroll-mt-24`}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <p className="text-sm sm:text-base font-black text-slate-900 flex items-center gap-2"><FlaskConical className="w-5 h-5 text-violet-600" /> Pruébala gratis {st.dias} días y ayúdanos a mejorarla</p>
         <span className="px-2.5 py-1 rounded-full bg-violet-600 text-white text-[11px] font-bold">Quedan {st.disponibles} de {st.cupos} cupos</span>
@@ -164,6 +164,27 @@ export const BetaActiveBanner: React.FC = () => {
       <a href={feedbackMailto()} className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold shrink-0">
         <Mail className="w-3.5 h-3.5" /> Enviar mis comentarios
       </a>
+    </div>
+  );
+};
+
+/** Franja arriba del inicio (visible sin bajar): cupos que quedan y botón que lleva a la invitación. */
+export const BetaTopStrip: React.FC = () => {
+  const { st } = useBetaStatus();
+  if (!st || !st.activo || st.participando || st.participoAntes || st.tienePlan) return null;
+  if (!st.abierto && !st.lleno) return null;
+  const go = () => document.getElementById('programa-prueba-invitacion')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  return (
+    <div className={`rounded-2xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${st.abierto ? 'bg-violet-600 text-white' : 'bg-slate-800 text-slate-100'}`}>
+      <p className="text-xs sm:text-sm font-semibold flex items-start gap-2">
+        <FlaskConical className="w-4 h-4 shrink-0 mt-0.5" />
+        {st.abierto
+          ? <span><strong>Programa de prueba:</strong> úsala gratis {st.dias} días con una postulación real. <strong>Quedan {st.disponibles} de {st.cupos} cupos.</strong></span>
+          : <span><strong>Los cupos del programa de prueba están llenos.</strong> Pronto abriremos una nueva invitación.</span>}
+      </p>
+      <button type="button" onClick={go} className={`px-4 py-2 rounded-xl text-xs font-black cursor-pointer shrink-0 ${st.abierto ? 'bg-white text-violet-700 hover:bg-violet-50' : 'bg-white/10 hover:bg-white/20 text-white'}`}>
+        {st.abierto ? 'Quiero participar' : 'Avísame'}
+      </button>
     </div>
   );
 };

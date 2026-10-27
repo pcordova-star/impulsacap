@@ -7,6 +7,7 @@ import { sectionText } from '../utils/formulationText';
 import { CompanyProfile, ChileanFund, FormulationOutput, CompanyUser, GeneratedDocument } from '../types/funds';
 import { ExpedienteData, DocChecklistStatuses } from '../types/expediente';
 import { apiFetch } from '../utils/apiFetch';
+import { askFeedback } from '../utils/feedbackEvents';
 import { usePlan } from '../hooks/usePlan';
 import { PlanPaywallCard } from './PlanPaywallCard';
 import { exportMarkdownToDocx } from '../utils/docxExport';
@@ -337,6 +338,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
         });
       }
       setTimeout(() => document.getElementById('doc-next-steps')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+      askFeedback({ moment: 'documento_ia', fundId: activeFund?.id, fundName: activeFund?.name || fundTarget, detail: genDocType.slice(0, 120) });
     } catch (err: any) {
       console.error('Doc generation error:', err);
       setGeneratedDocText(null);

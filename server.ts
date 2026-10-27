@@ -3534,6 +3534,41 @@ app.post('/api/beta/avisarme', requireAuth, perUserLimiter(10, 'Demasiados inten
 });
 
 
+// Encuesta rápida (3 opciones + comentario opcional) en los momentos clave de la postulación.
+// Un documento por persona y momento: si después agrega un comentario, se actualiza el mismo.
+const FEEDBACK_MOMENTS = new Set(['seccion_ia', 'documento_ia', 'expediente']);
+const FEEDBACK_RATINGS = new Set(['mal', 'regular', 'bien']);
+app.post('/api/feedback/rapida', requireAuth, perUserLimiter(30, 'Demasiadas respuestas seguidas.'), async (req, res) => {
+  try {
+    const user = (req as AuthenticatedRequest).user!;
+    const moment = String(req.body?.moment || '');
+    const rating = String(req.body?.rating || '');
+    if (!FEEDBACK_MOMENTS.has(moment) || !FEEDBACK_RATINGS.has(rating)) return res.status(400).json({ error: 'Respuesta no válida.' });
+    if (!(await ensureFirestoreAdmin())) return res.status(503).json({ error: 'No pudimos guardar tu respuesta.' });
+    const clip = (v: any, n: number) => String(v || '').trim().slice(0, n);
+    const ent = (await adminDb.collection('entitlements').doc(user.uid).get()).data() || {};
+    const now = new Date().toISOString();
+    const comment = clip(req.body?.comment, 1000);
+    await adminDb.collection('quickFeedback').doc(`${user.uid}_${moment}`).set({
+      uid: user.uid,
+      email: user.email || '',
+      moment,
+      rating,
+      ...(comment ? { comment } : {}),
+      fundId: clip(req.body?.fundId, 120) || null,
+      fundName: clip(req.body?.fundName, 200) || null,
+      detail: clip(req.body?.detail, 120) || null,
+      beta: ent.beta === true,
+      updatedAt: now,
+      createdAt: now
+    }, { merge: true });
+    return res.json({ ok: true });
+  } catch (err: any) {
+    console.error('Error in /api/feedback/rapida:', err?.message);
+    return res.status(500).json({ error: 'No pudimos guardar tu respuesta.' });
+  }
+});
+
 app.post('/api/perfil/desde-web', requireAuth, perUserLimiter(10, 'Leíste muchos sitios en la última hora. Intenta más tarde.'), guardAi('perfil-web'), async (req, res) => {
   try {
     const { pages, content } = await readCompanySite(String(req.body?.url || ''));
@@ -4008,6 +4043,26 @@ app.post('/api/admin/beta', requireAuth, requireAdminUser, async (req, res) => {
   } catch (err: any) {
     console.error('Error in POST /api/admin/beta:', err?.message);
     return res.status(500).json({ error: 'No se pudo actualizar el programa de prueba.' });
+  }
+});
+
+
+// Encuesta rápida: resumen por momento y últimas respuestas
+app.get('/api/admin/feedback-rapida', requireAuth, requireAdminUser, async (req, res) => {
+  try {
+    if (!(await ensureFirestoreAdmin())) return res.status(503).json({ error: 'Firestore Admin no está autorizado.' });
+    const snap = await adminDb.collection('quickFeedback').orderBy('updatedAt', 'desc').limit(1000).get();
+    const items = snap.docs.map(d => d.data());
+    const summary: Record<string, { mal: number; regular: number; bien: number }> = {};
+    items.forEach((i: any) => {
+      summary[i.moment] = summary[i.moment] || { mal: 0, regular: 0, bien: 0 };
+      if (i.rating in summary[i.moment]) (summary[i.moment] as any)[i.rating]++;
+    });
+    res.set('Cache-Control', 'no-store');
+    return res.json({ summary, items: items.slice(0, 200) });
+  } catch (err: any) {
+    console.error('Error in /api/admin/feedback-rapida:', err?.message);
+    return res.status(500).json({ error: 'No se pudo cargar la encuesta.' });
   }
 });
 

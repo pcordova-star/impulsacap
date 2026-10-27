@@ -6,6 +6,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { consume, onRequest } from '../utils/navFocus';
 import { BudgetWizard } from './BudgetWizard';
 import { notifySaved } from '../utils/guideEvents';
+import { askFeedback } from '../utils/feedbackEvents';
 import { SectionHelper } from './SectionHelpers';
 import { ChileanFund, CompanyProfile, FormulationOutput, ProjectProfile, FormBlock } from '../types/funds';
 import { getFundRules, blockLabel, budgetAccountsFor, coFinancePctFor, maxSubsidyFor, questionOverride, evaluateRequirement } from '../data/fundStandards';
@@ -727,6 +728,7 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
       }
 
       setSavedNotice(`¡Sección "${currentSection.title}" generada con éxito!`);
+      askFeedback({ moment: 'seccion_ia', fundId: currentFund.id, fundName: currentFund.name, detail: currentSection.id });
       setTimeout(() => setSavedNotice(null), 4000);
     } catch (err: any) {
       console.error('Section formulation error:', err);
