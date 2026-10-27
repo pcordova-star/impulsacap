@@ -499,7 +499,7 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
                       </div>
                       <h3 className="text-lg sm:text-xl font-black text-slate-900 leading-tight">{fund.name}</h3>
                       <p className="text-xs text-slate-500">
-                        Hasta <strong className="text-emerald-700">{fund.subsidyFormatted}</strong> · Cierre: {fund.closeDate || 'por definir'}
+                        {/^hasta\b/i.test(String(fund.subsidyFormatted || '').trim()) ? '' : 'Hasta '}<strong className="text-emerald-700">{fund.subsidyFormatted}</strong> · Cierre: {fund.closeDate || 'por definir'}
                       </p>
                     </div>
                     <button

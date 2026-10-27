@@ -93,6 +93,10 @@ export const OfficialDossierModal: React.FC<OfficialDossierModalProps> = ({
     ...rules.applicationDocs.filter(d => d.link === 'taxFolder').map(d => ({ id: 'tax_folder', name: d.label, isComplete: Boolean(taxFolder.taxFolderUploaded), missingText: 'Subir la carpeta tributaria' })),
     ...rules.applicationDocs.filter(d => d.link === 'letters').map(d => ({ id: 'letters', name: d.label, isComplete: signedDocs.some(d => isLetterDoc(d.tipo)), missingText: 'Generar y firmar las cartas' }))
   ];
+  // Secciones 3.3 en adelante en el orden del formulario oficial de este fondo
+  const DEFAULT_BLOCKS: FormBlock[] = ['problem', 'solution', 'market', 'model', 'team', 'workplan'];
+  const ordered = rules.formSections.flatMap(fs => fs.blocks).filter((b, i, arr) => DEFAULT_BLOCKS.includes(b as FormBlock) && arr.indexOf(b) === i) as FormBlock[];
+  const dossierBlocks: FormBlock[] = [...ordered, ...DEFAULT_BLOCKS.filter(b => !ordered.includes(b))];
   const officialFormMd = rules.formSections.map((fs, i) => `${i + 1}. ${fs.title}${fs.evaluates ? ` (evalúa ${fs.evaluates})` : ''}`).join('\n');
 
   const completedCount = sectionsStatus.filter(s => s.isComplete).length;
@@ -161,7 +165,7 @@ ${formulation?.projectTitle || '[Pendiente — completa esta sección en el Form
 ### 3.2. Pitch o resumen del proyecto
 ${formulation?.pitchSummary30s || '[Pendiente — completa esta sección en el Formulador]'}
 
-${(['problem', 'solution', 'market', 'model', 'team', 'workplan'] as FormBlock[]).map((b, idx) => `### 3.${idx + 3}. ${blockLabel(fund, b)?.title || b}\n${sectionText(formulation, b) || '[Pendiente — completa esta sección en el Formulador]'}`).join('\n\n')}
+${dossierBlocks.map((b, idx) => `### 3.${idx + 3}. ${blockLabel(fund, b)?.title || b}\n${sectionText(formulation, b) || '[Pendiente — completa esta sección en el Formulador]'}`).join('\n\n')}
 
 ---
 
@@ -609,7 +613,7 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
             </div>
 
             {/* 3.3 a 3.8: secciones con los títulos del formulario de ESTE fondo y el texto final del formulador */}
-            {(['problem', 'solution', 'market', 'model', 'team', 'workplan'] as FormBlock[]).map((block, idx) => {
+            {dossierBlocks.map((block, idx) => {
               const title = blockLabel(fund, block)?.title || block;
               const text = sectionText(formulation, block);
               const ownText = String(formulation?.sectionTexts?.[block] || '').trim();

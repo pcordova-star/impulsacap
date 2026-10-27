@@ -298,10 +298,12 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
   const formattedStart = useMemo(() => {
     if (!expiresAt) return null;
     const expDate = new Date(expiresAt);
+    // Solo se calcula para el plan de 3 meses: en accesos de otra duración (prueba, pase gratis) no se sabe el inicio
+    if (isBeta || expDate.getTime() - Date.now() > 93 * 864e5) return null;
     const startDate = new Date(expDate);
     startDate.setMonth(startDate.getMonth() - 3);
     return startDate.toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' });
-  }, [expiresAt]);
+  }, [expiresAt, isBeta]);
 
   return (
     <div className="space-y-6 animate-fade-in max-w-4xl mx-auto pb-12 min-w-0 max-w-full">
@@ -974,7 +976,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
               {hasActivePlan ? formattedExpiry : 'Sin plan activo'}
             </p>
             <p className="text-[11px] text-slate-500">
-              {hasActivePlan && formattedStart ? `Inicio: ${formattedStart}` : 'Vencimiento no aplicable'}
+              {hasActivePlan ? (formattedStart ? `Inicio: ${formattedStart}` : 'Plan vigente') : 'Vencimiento no aplicable'}
             </p>
           </div>
 

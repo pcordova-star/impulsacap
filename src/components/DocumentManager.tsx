@@ -117,8 +117,8 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
   const [projectName, setProjectName] = useState<string>(
     formulation?.projectTitle || (profile.projectSummary ? profile.projectSummary.slice(0, 60) : '')
   );
-  const [legalRepName, setLegalRepName] = useState<string>(currentUser?.representativeName || '');
-  const [legalRepRut, setLegalRepRut] = useState<string>(currentUser?.representativeRut || '');
+  const [legalRepName, setLegalRepName] = useState<string>(profile.representativeName || currentUser?.representativeName || '');
+  const [legalRepRut, setLegalRepRut] = useState<string>(profile.representativeRut || currentUser?.representativeRut || '');
   const [city, setCity] = useState<string>(profile.city || '');
 
   // Generation state
@@ -241,7 +241,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
           clientOrPartnerName: docDef.counterparty ? clientName.trim() : '',
           isLetter: docDef.letter,
           budget: budgetLines.length > 0 ? {
-            lines: budgetLines.map(b => ({ account: b.account, item: b.item, subsidioCLP: b.corfoContributionCLP || 0, aporteDineroCLP: b.companyPecuniaryCLP || 0, aporteValoradoCLP: b.companyValuedCLP || 0, justification: b.justification })),
+            lines: budgetLines.map(b => ({ account: b.account, item: b.item, subsidioCLP: b.corfoContributionCLP || 0, aporteDineroCLP: b.companyPecuniaryCLP || 0, aporteValoradoCLP: b.companyValuedCLP || 0, totalCLP: (b.corfoContributionCLP || 0) + (b.companyPecuniaryCLP || 0) + (b.companyValuedCLP || 0), justification: b.justification })),
             totals: { ...budgetTotals, total: budgetTotals.subsidio + budgetTotals.pecuniario + budgetTotals.valorado }
           } : null,
           projectName: projectName.trim(),
