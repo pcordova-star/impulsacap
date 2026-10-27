@@ -121,7 +121,7 @@ export const BetaInviteCard: React.FC<{ compact?: boolean }> = ({ compact }) => 
         <>
           <label className="flex items-start gap-2 text-xs text-slate-700 cursor-pointer">
             <input type="checkbox" checked={accepted} onChange={e => setAccepted(e.target.checked)} className="mt-0.5 accent-violet-600" />
-            <span>Me comprometo a enviar mis comentarios a <strong>{FEEDBACK_EMAIL}</strong> antes de que terminen los {st.dias} días.</span>
+            <span>Me comprometo a enviar mis comentarios a <strong>{FEEDBACK_EMAIL}</strong> antes de que terminen los {st.dias} días, y acepto las <a href="/terminos#programa-prueba" target="_blank" rel="noopener noreferrer" className="text-violet-700 underline underline-offset-2">condiciones del programa de prueba</a>.</span>
           </label>
           <button type="button" disabled={!accepted || busy} onClick={enroll} className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-black cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
             {busy ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Inscribiendo…</> : 'Quiero participar'}
