@@ -25,7 +25,8 @@ function useBetaStatus() {
   useEffect(() => onAuthStateChanged(auth, u => setUid(u?.uid || null)), []);
   const load = useCallback(async () => {
     try {
-      const res = await apiFetch('/api/beta/estado');
+      // Consulta pública: el visitante sin cuenta también tiene que ver los cupos
+      const res = await apiFetch('/api/beta/estado', { requireAuth: false });
       if (res.ok) setSt(await res.json());
     } catch { /* sin efecto: la invitación simplemente no aparece */ }
   }, []);
