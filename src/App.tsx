@@ -966,6 +966,9 @@ export default function App() {
         {/* Tab 1: Mis Postulaciones Dashboard (Requirement 1) */}
         {activeTab === 'my-applications' && (
           currentUser ? (
+            <>
+            {/* Programa de prueba: quien crea su cuenta desde la invitación llega aquí, así que la invitación también va aquí */}
+            <div className="mb-5"><BetaInviteCard /></div>
             <MyApplicationsDashboard
               onPostularCall={handlePostularConvocatoria}
               profile={profile}
@@ -993,6 +996,7 @@ export default function App() {
               onSelectFundToFormulate={(f: ChileanFund) => handleSelectFundToFormulate(f)}
               onNavigateTab={handleNavigateTab}
             />
+            </>
           ) : (
             <AuthGateView
               onOpenAuthModal={(mode) => { setAuthModalMode(mode); setShowAuthModal(true); }}
