@@ -10,6 +10,7 @@
 import type { ChileanFund, CompanyProfile } from '../types/funds';
 import { calculateProjectProfileCompletion } from '../types/funds';
 import { validateRut } from '../utils/rutValidator';
+import { isLetterDoc } from './docTypes';
 import { computeRoadmap, getFundRules, evaluateRequirement, type RoadmapStep } from './fundStandards';
 
 export type Phase = 'empresa' | 'fondo' | 'postulacion';
@@ -121,7 +122,7 @@ export function computeJourney(input: {
       auditResult: application.auditResult,
       checks: application.roadmapConfirmations?.checks || {},
       confirmedGarantia: Boolean(application.roadmapConfirmations?.confirmedGarantia),
-      signedLetters: (application.generatedDocs || []).filter((d: any) => d.status === 'firmada').length,
+      signedLetters: (application.generatedDocs || []).filter((d: any) => d.status === 'firmada' && isLetterDoc(d.tipo)).length,
       submitted: application.status === 'enviada'
     });
     roadmap.steps.forEach((st: RoadmapStep) => {

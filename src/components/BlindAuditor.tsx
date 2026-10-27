@@ -5,6 +5,7 @@ import { usePlan } from '../hooks/usePlan';
 import { PlanPaywallCard } from './PlanPaywallCard';
 import { CHILEAN_FUNDS } from '../data/chileanFunds';
 import { getFundRules, auditThreshold, auditPasses } from '../data/fundStandards';
+import { formulationToText } from '../utils/formulationText';
 import { 
   ShieldAlert, 
   Sparkles, 
@@ -59,7 +60,8 @@ export const BlindAuditor: React.FC<BlindAuditorProps> = ({
   );
   const [inputText, setInputText] = useState<string>(
     initialFormulation
-      ? `PROYECTO: ${initialFormulation.projectTitle}\n\nPROBLEMA:\n${initialFormulation.problemStatement}\n\nSOLUCIÓN E INNOVACIÓN:\n${initialFormulation.solutionAndInnovation}\n\nMERCADO:\n${initialFormulation.marketAnalysisTAM.tam}\n\nMODELO:\n${initialFormulation.businessModel}`
+      // Toda la formulación (equipo, plan de trabajo y presupuesto incluidos), con los títulos del formulario del fondo
+      ? formulationToText(initialFormulation, initialFund || CHILEAN_FUNDS[0])
       : ''
   );
   const [loading, setLoading] = useState(false);

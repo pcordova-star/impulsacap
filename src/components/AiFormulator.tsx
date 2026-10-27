@@ -806,7 +806,21 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
       };
     }).filter(b => b.corfoContributionCLP > 0 || b.companyPecuniaryCLP > 0);
 
+    // Texto final de cada sección (lo que la persona ve en "Redacción técnica"). Si una sección no se redactó,
+    // en Sercotec el mercado se guarda como pregunta y respuesta: sus preguntas no son TAM/SAM/SOM.
+    const sectionTexts: Partial<Record<FormBlock, string>> = {};
+    (['problem', 'solution', 'market', 'model', 'workplan', 'team'] as FormBlock[]).forEach(b => {
+      const t = String(updatedTexts[b] || '').trim();
+      if (t) sectionTexts[b] = t;
+    });
+    if (!sectionTexts.market && isSercotec) {
+      const qs = sectionsView.find(sec => sec.id === 'market')?.questions || [];
+      const qa = qs.filter(q => String(marketAns[q.key] || '').trim()).map(q => `${q.label}\n${String(marketAns[q.key]).trim()}`).join('\n\n');
+      if (qa) sectionTexts.market = qa;
+    }
+
     const draft: FormulationOutput = {
+      sectionTexts,
       fundId: currentFund.id,
       fundName: currentFund.name,
       projectTitle: finalProjectTitle,

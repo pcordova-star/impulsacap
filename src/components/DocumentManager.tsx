@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { consume, onRequest } from '../utils/navFocus';
 import { REQUIRED_DOCUMENTS_GUIDE, CHILEAN_FUNDS } from '../data/chileanFunds';
+import { DOC_TYPES, docTypeDef, isLetterDoc } from '../data/docTypes';
+import { getFundRules } from '../data/fundStandards';
+import { sectionText } from '../utils/formulationText';
 import { CompanyProfile, ChileanFund, FormulationOutput, CompanyUser, GeneratedDocument } from '../types/funds';
 import { ExpedienteData, DocChecklistStatuses } from '../types/expediente';
 import { apiFetch } from '../utils/apiFetch';
@@ -81,9 +84,32 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
   const [showPaywall, setShowPaywall] = useState<boolean>(false);
 
   // Form fields for AI Document Generator - initialized cleanly without sample data
-  const [genDocType, setGenDocType] = useState<string>(() => consume('docType') || 'Carta de Manifestación de Interés Comercial (LOI)');
+  // Tipos de documento que aplican a este fondo (la carta de entidad asociada solo si las bases la piden)
+  const fundAsksLetters = activeFund ? getFundRules(activeFund).applicationDocs.some(d => d.link === 'letters') : true;
+  const availableDocTypes = DOC_TYPES.filter(t => !t.onlyIfFundAsksLetters || fundAsksLetters);
+  const validDocType = (t?: string | null) => (t && availableDocTypes.some(d => d.value === t) ? t : availableDocTypes[0].value);
+  const [genDocType, setGenDocType] = useState<string>(() => validDocType(consume('docType')));
   // "Generar carta" desde la Hoja de Ruta: abre el formulario con el tipo de documento elegido
-  useEffect(() => onRequest('docType', (t) => { setGenDocType(t); setGeneratedDocText(null); setDocError(null); }), []);
+  useEffect(() => onRequest('docType', (t) => { setGenDocType(validDocType(t)); setGeneratedDocText(null); setDocError(null); }), []);
+  const docDef = docTypeDef(genDocType);
+
+  // Presupuesto del formulador (paso de presupuesto): de ahí salen los montos de cartas de aporte y memoria de gastos
+  const budgetLines = (formulation?.budgetBreakdown || []).filter(b => (b.corfoContributionCLP || 0) > 0 || (b.companyPecuniaryCLP || 0) > 0);
+  const budgetTotals = budgetLines.reduce((acc, b) => ({
+    subsidio: acc.subsidio + (b.corfoContributionCLP || 0),
+    pecuniario: acc.pecuniario + (b.companyPecuniaryCLP || 0),
+    valorado: acc.valorado + (b.companyValuedCLP || 0)
+  }), { subsidio: 0, pecuniario: 0, valorado: 0 });
+  const formulationHasText = Boolean(formulation && ['problem', 'solution', 'model'].some(b => sectionText(formulation, b as any).length > 30));
+  // Lo que falta antes de poder redactar este tipo de documento (se explica en vez de redactar con datos inventados)
+  const docBlocker: { text: string; go?: { label: string; target: string } } | null =
+    docDef.needsBudget === 'any' && budgetLines.length === 0
+      ? { text: 'Primero completa el presupuesto: la memoria explica cada gasto con los montos y justificaciones que escribas ahí.', go: { label: 'Ir al presupuesto', target: 'formulator#section:budget' } }
+      : docDef.needsBudget === 'pecuniario' && budgetTotals.pecuniario <= 0
+        ? { text: budgetLines.length === 0 ? 'Primero completa el presupuesto: la carta usa el aporte en dinero de tu empresa que pongas ahí.' : 'En tu presupuesto el aporte en dinero de tu empresa es $0. Agrégalo en el presupuesto (o elige otro documento si tu aporte es valorado).', go: { label: 'Ir al presupuesto', target: 'formulator#section:budget' } }
+        : docDef.needsFormulation && !formulationHasText
+          ? { text: 'Primero redacta las secciones del formulario: este documento se arma con lo que escribas ahí.', go: { label: 'Ir al formulario', target: 'formulator#section:next' } }
+          : null;
   const [clientName, setClientName] = useState<string>('');
   const [clientContactName, setClientContactName] = useState<string>('');
   const [fundTarget, setFundTarget] = useState<string>(activeFund?.name || CHILEAN_FUNDS[0].name);
@@ -171,15 +197,19 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
       setDocError('Por favor ingresa el Nombre del Proyecto a postular.');
       return;
     }
-    if (!clientName.trim()) {
-      setDocError('Por favor ingresa el nombre de la Empresa Cliente o Contraparte Colaboradora.');
+    if (docBlocker) {
+      setDocError(docBlocker.text);
       return;
     }
-    if (!legalRepName.trim()) {
+    if (docDef.counterparty && !clientName.trim()) {
+      setDocError(`Por favor ingresa: ${docDef.counterparty.label}.`);
+      return;
+    }
+    if (docDef.needsLegalRep && !legalRepName.trim()) {
       setDocError('Por favor ingresa el Nombre del Representante Legal de la empresa postulante.');
       return;
     }
-    if (!legalRepRut.trim()) {
+    if (docDef.needsLegalRep && !legalRepRut.trim()) {
       setDocError('Por favor ingresa el RUT del Representante Legal de la empresa postulante.');
       return;
     }
@@ -207,11 +237,16 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
         body: JSON.stringify({
           documentType: genDocType,
           companyName: profile.companyName || '[COMPLETAR: Razón Social]',
-          clientOrPartnerName: clientName.trim(),
+          clientOrPartnerName: docDef.counterparty ? clientName.trim() : '',
+          isLetter: docDef.letter,
+          budget: budgetLines.length > 0 ? {
+            lines: budgetLines.map(b => ({ account: b.account, item: b.item, subsidioCLP: b.corfoContributionCLP || 0, aporteDineroCLP: b.companyPecuniaryCLP || 0, aporteValoradoCLP: b.companyValuedCLP || 0, justification: b.justification })),
+            totals: { ...budgetTotals, total: budgetTotals.subsidio + budgetTotals.pecuniario + budgetTotals.valorado }
+          } : null,
           projectName: projectName.trim(),
           fundName: fundTarget,
-          legalRepName: legalRepName.trim(),
-          legalRepRut: legalRepRut.trim(),
+          legalRepName: docDef.needsLegalRep ? legalRepName.trim() : '',
+          legalRepRut: docDef.needsLegalRep ? legalRepRut.trim() : '',
           city: city.trim(),
           profile,
           projectProfile: profile.projectProfile,
@@ -222,7 +257,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
             annualSalesCLP: profile.annualSalesCLP
           },
           details: {
-            clientContact: clientContactName.trim() || undefined,
+            clientContact: docDef.counterparty ? (clientContactName.trim() || undefined) : undefined,
             rut: profile.rut,
             sector: profile.sector || undefined,
             region: profile.region || undefined,
@@ -230,8 +265,13 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
           },
           formulation: formulation ? {
             projectTitle: formulation.projectTitle || projectName.trim(),
-            problemStatement: formulation.problemStatement,
-            solutionOverview: formulation.solutionAndInnovation
+            pitch: formulation.pitchSummary30s,
+            problemStatement: sectionText(formulation, 'problem'),
+            solutionOverview: sectionText(formulation, 'solution'),
+            market: sectionText(formulation, 'market'),
+            businessModel: sectionText(formulation, 'model'),
+            workPlan: sectionText(formulation, 'workplan'),
+            team: sectionText(formulation, 'team')
           } : null,
           taxFolderSummary: profile.taxFolderSummary || (profile.taxFolderUploaded ? 'Carpeta Tributaria Electrónica SII acreditada y validada en el expediente' : null)
         })
@@ -266,7 +306,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
         id: docId,
         ownerId: uid,
         tipo: genDocType,
-        contraparte: clientName.trim(),
+        contraparte: docDef.counterparty ? clientName.trim() : (profile.companyName || ''),
         proyecto: projectName.trim(),
         fondo: fundTarget,
         texto: docText,
@@ -518,12 +558,9 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
               onChange={(e) => setGenDocType(e.target.value)}
               className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:border-cyan-500 focus:outline-hidden"
             >
-              <option value="Carta de Manifestación de Interés Comercial (LOI)">Carta de Interés Comercial (LOI)</option>
-              <option value="Carta de Compromiso de Aporte Empresarial Pecuniario">Carta Compromiso Aporte Efectivo</option>
-              <option value="Carta de Compromiso de Aporte Valorado de Socios">Carta Compromiso Aporte Valorado</option>
-              <option value="Memoria Explicativa de Gastos e Inversiones CORFO">Memoria Explicativa de Gastos</option>
-              <option value="Resumen Ejecutivo de 1 Página para Evaluadores">Resumen Ejecutivo de 1 Página</option>
+              {availableDocTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
+            <p className="text-[11px] text-slate-400 mt-1">{docDef.hint}</p>
           </div>
 
           <div>
@@ -560,31 +597,35 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
             />
           </div>
 
+          {docDef.counterparty && (
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-              Cliente Piloto / Contraparte Colaboradora: <span className="text-red-400">*</span>
+              {docDef.counterparty.label}: <span className="text-red-400">*</span>
             </label>
             <input
               type="text"
               value={clientName}
               onChange={(e) => setClientName(e.target.value)}
-              placeholder="Ej: Minera Escondida, Sodimac, Viña San Pedro"
+              placeholder={docDef.counterparty.placeholder}
               className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:border-cyan-500 focus:outline-hidden placeholder:text-slate-500 placeholder:italic"
             />
           </div>
+          )}
 
+          {docDef.counterparty?.contactLabel && (
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-              Nombre y Cargo del Decisor Contraparte:
+              {docDef.counterparty.contactLabel}:
             </label>
             <input
               type="text"
               value={clientContactName}
               onChange={(e) => setClientContactName(e.target.value)}
-              placeholder="Ej: Juan Pérez (Gerente de Operaciones)"
+              placeholder="Si no lo sabes, déjalo vacío y quedará para completar"
               className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:border-cyan-500 focus:outline-hidden placeholder:text-slate-500 placeholder:italic"
             />
           </div>
+          )}
 
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1.5">
@@ -599,6 +640,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
             />
           </div>
 
+          {docDef.needsLegalRep && (<>
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1.5">
               Representante Legal (Empresa Postulante): <span className="text-red-400">*</span>
@@ -624,6 +666,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
               className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:border-cyan-500 focus:outline-hidden placeholder:text-slate-500 placeholder:italic"
             />
           </div>
+          </>)}
 
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1.5">
@@ -636,6 +679,15 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
           </div>
         </div>
 
+        {docBlocker && (
+          <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/40 text-amber-100 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <span className="flex items-start gap-2"><AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />{docBlocker.text}</span>
+            {docBlocker.go && onNavigateTab && (
+              <button type="button" onClick={() => onNavigateTab(docBlocker.go!.target)} className="px-3 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold cursor-pointer shrink-0">{docBlocker.go.label}</button>
+            )}
+          </div>
+        )}
+
         {/* Action Button */}
         <div className="flex items-center justify-between pt-2">
           <p className="text-[11px] text-slate-400">
@@ -644,7 +696,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
 
           <button
             onClick={handleGenerateDocument}
-            disabled={generatingDoc || planLoading}
+            disabled={generatingDoc || planLoading || Boolean(docBlocker)}
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold text-xs shadow-lg shadow-cyan-600/20 transition-all disabled:opacity-50 cursor-pointer"
           >
             {planLoading ? (
@@ -737,9 +789,14 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
               <p className="text-sm font-bold text-emerald-200">¿Y ahora qué hago con este documento?</p>
               <ol className="list-decimal pl-5 space-y-1.5 text-xs text-slate-200 leading-relaxed">
                 <li><strong>Descárgalo en Word</strong> y revisa que los datos estén correctos. Completa cualquier marca [COMPLETAR].</li>
-                <li><strong>Envíaselo a {clientName.trim() || 'la contraparte'}</strong> por correo, pidiéndole que lo pase a su papel con logo, lo firme y te lo devuelva en PDF.</li>
+                {docDef.letter ? (<>
+                <li><strong>{docDef.counterparty ? `Envíaselo a ${clientName.trim() || 'la contraparte'}` : 'Fírmalo como representante de tu empresa'}</strong>{docDef.counterparty ? ' por correo, pidiéndole que lo pase a su papel con logo, lo firme y te lo devuelva en PDF.' : ' y guárdalo en PDF.'}</li>
                 <li>Cuando tengas la carta firmada, búscala en <strong>"Tus documentos generados"</strong> (más abajo) y presiona <strong>"Marcar como firmada"</strong>. Así cuenta en tu Hoja de Ruta.</li>
                 <li>Guarda el PDF firmado: lo adjuntarás al postular en el portal del fondo.</li>
+                </>) : (<>
+                <li>Compara cada monto y dato con tu formulario y presupuesto: deben coincidir exactamente.</li>
+                <li>Guárdalo en PDF para adjuntarlo o copiar su contenido en el portal del fondo, si las bases lo piden.</li>
+                </>)}
               </ol>
               <div className="flex flex-wrap gap-2 pt-1">
                 <button
@@ -863,8 +920,8 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
 
                   {/* Actions for this document */}
                   <div className="flex items-center flex-wrap gap-2 shrink-0">
-                    {/* Toggle Signed Button */}
-                    <button
+                    {/* Toggle Signed Button: solo las cartas se firman */}
+                    {isLetterDoc(docItem.tipo) && <button
                       type="button"
                       onClick={() => handleToggleDocSigned(docItem)}
                       className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
@@ -885,7 +942,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
                           <span>Marcar como Firmada</span>
                         </>
                       )}
-                    </button>
+                    </button>}
 
                     {/* View in preview */}
                     <button

@@ -7,6 +7,7 @@ import { ApplicationItem, ApplicationResult } from '../types/application';
 import { ResultPanel, ReapplyBanner } from './ResultPanel';
 import { validateRut } from '../utils/rutValidator';
 import { computeRoadmap } from '../data/fundStandards';
+import { isLetterDoc } from '../data/docTypes';
 import { 
   ArrowLeft, 
   ArrowRight,
@@ -117,7 +118,7 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
       auditResult: auditResult || expediente?.auditResult,
       checks: { ...((application?.roadmapConfirmations as any)?.checks || {}), ...((expediente?.roadmapConfirmations as any)?.checks || {}) },
       confirmedGarantia: Boolean(application?.roadmapConfirmations?.confirmedGarantia || expediente?.roadmapConfirmations?.confirmedGarantia),
-      signedLetters: (expediente?.generatedDocs || []).filter((d: any) => d.status === 'firmada').length,
+      signedLetters: (expediente?.generatedDocs || []).filter((d: any) => d.status === 'firmada' && isLetterDoc(d.tipo)).length,
       submitted: (application as any)?.status === 'enviada'
     });
     return { completedCount: rm.completed, percentage: rm.percentage, steps: rm.steps };

@@ -1237,9 +1237,9 @@ export function blockStatus(block: FormBlock, f: any): { done: boolean; pending:
     case 'title_pitch': return { done: Boolean(txt(f.projectTitle) && txt(f.pitchSummary30s)), pending: hasPending(f.pitchSummary30s) };
     case 'problem': return { done: txt(f.problemStatement).length > 30, pending: hasPending(f.problemStatement) };
     case 'solution': return { done: txt(f.solutionAndInnovation).length > 30, pending: hasPending(f.solutionAndInnovation) };
-    case 'market': return { done: Boolean(txt(f.marketAnalysisTAM?.tam) || txt(f.marketAnalysisTAM?.clientArchetype)), pending: hasPending(JSON.stringify(f.marketAnalysisTAM || '')) };
+    case 'market': return { done: Boolean(txt(f.marketAnalysisTAM?.tam) || txt(f.marketAnalysisTAM?.clientArchetype) || txt(f.sectionTexts?.market)), pending: hasPending(JSON.stringify(f.marketAnalysisTAM || '')) || hasPending(f.sectionTexts?.market) };
     case 'model': return { done: txt(f.businessModel).length > 20, pending: hasPending(f.businessModel) };
-    case 'workplan': return { done: Array.isArray(f.workPlanMilestones) && f.workPlanMilestones.length > 0, pending: hasPending(JSON.stringify(f.workPlanMilestones || '')) };
+    case 'workplan': return { done: (Array.isArray(f.workPlanMilestones) && f.workPlanMilestones.length > 0) || txt(f.sectionTexts?.workplan).length > 20, pending: hasPending(JSON.stringify(f.workPlanMilestones || '')) || hasPending(f.sectionTexts?.workplan) };
     case 'team': return { done: txt(f.teamCapabilities).length > 20, pending: hasPending(f.teamCapabilities) };
     case 'budget': return { done: Array.isArray(f.budgetBreakdown) && f.budgetBreakdown.some((b: any) => (b.corfoContributionCLP || 0) > 0), pending: false };
   }
@@ -1273,7 +1273,7 @@ export function computeRoadmap(input: RoadmapInput): { steps: RoadmapStep[]; com
     }
     if (d.link === 'letters') {
       const ok = signedLetters > 0 || confirmed;
-      return { id, label: d.label, done: ok, confirmable: true, detail: ok ? (signedLetters > 0 ? `${signedLetters} carta(s) firmada(s)` : 'Confirmado por ti') : d.detail || 'Puedes generarlas en Documentos', go: { label: 'Generar carta', target: 'documents#doc-generator' } };
+      return { id, label: d.label, done: ok, confirmable: true, detail: ok ? (signedLetters > 0 ? `${signedLetters} carta(s) firmada(s)` : 'Confirmado por ti') : d.detail || 'Puedes generarlas en Documentos', go: { label: 'Generar carta', target: 'documents#doc-generator:Carta de Compromiso de Entidad Asociada o Colaboradora' } };
     }
     if (d.link === 'formulator') {
       const blocksDone = r.formSections.every(s => s.blocks.every(b => blockStatus(b, formulation).done));

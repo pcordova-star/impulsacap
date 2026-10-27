@@ -261,6 +261,8 @@ export interface FormulationOutput {
   teamCapabilities: string;
   bonusFemaleJustification?: string;
   pitchSummary30s: string;
+  /** Texto final de cada sección tal como quedó en el formulador (redactado por la IA o escrito/editado por la persona) */
+  sectionTexts?: Partial<Record<FormBlock, string>>;
 }
 
 export interface BlindAuditResult {

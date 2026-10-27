@@ -50,6 +50,7 @@ import { GuaranteesCalculator } from './GuaranteesCalculator';
 import { usePlan } from '../hooks/usePlan';
 import { PlanPaywallCard } from './PlanPaywallCard';
 import { apiFetch } from '../utils/apiFetch';
+import { isLetterDoc } from '../data/docTypes';
 import { announceEarlyAccess } from '../utils/earlyAccess';
 import { auth } from '../firebase';
 import { requestLogin } from '../utils/authEvents';
@@ -273,7 +274,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
     try { localStorage.setItem(`confirmed_checks_${userKey}_${selectedFund.id}`, JSON.stringify(next)); } catch { /* sin almacenamiento */ }
   };
   const signedLetters = expediente
-    ? expediente.generatedDocs.filter((d: any) => d.status === 'firmada').length
+    ? expediente.generatedDocs.filter((d: any) => d.status === 'firmada' && isLetterDoc(d.tipo)).length
     : (profile.customerValidationCount || 0);
 
   const roadmapRef = useRef<number>(1);
