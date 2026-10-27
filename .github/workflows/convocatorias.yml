@@ -9,7 +9,9 @@ on:
 jobs:
   scrape-and-sync:
     name: Extraer y Sincronizar Convocatorias Corfo
-    runs-on: ubuntu-latest
+    # Versión fija: ubuntu-latest pasa a Ubuntu 26 y podría romper la instalación de Chromium
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
 
     steps:
       - name: Checkout del código
@@ -44,64 +46,52 @@ jobs:
             exit 1
           fi
 
-      - name: Enviar convocatorias al endpoint de sincronización
+      - name: Despertar el servidor y esperar a Firestore
+        # Cloud Run apaga la app cuando no hay visitas. Al encender, la conexión con Firestore
+        # tarda unos segundos: se espera a que /api/health/admin responda "ok" antes de enviar datos.
         run: |
           if [ -z "${{ secrets.APP_URL }}" ]; then
             echo "::error::Secret APP_URL no configurado en GitHub Actions."
             exit 1
           fi
+          BASE_URL=$(echo "${{ secrets.APP_URL }}" | sed 's:/*$::')
+          for i in 1 2 3 4 5 6 7 8; do
+            BODY=$(curl -s --max-time 30 "${BASE_URL}/api/health/admin" || true)
+            echo "Intento $i: $BODY"
+            if echo "$BODY" | grep -q '"firestoreAdmin":"ok"'; then
+              echo "Servidor listo."
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::warning::Firestore Admin no respondió 'ok' después de 2 minutos; se intentará igual."
 
+      - name: Enviar convocatorias al endpoint de sincronización
+        run: |
           if [ -z "${{ secrets.CONVOCATORIAS_IMPORT_TOKEN }}" ]; then
             echo "::error::Secret CONVOCATORIAS_IMPORT_TOKEN no configurado en GitHub Actions."
             exit 1
           fi
-
-          # Eliminar posibles slashes finales de APP_URL
           BASE_URL=$(echo "${{ secrets.APP_URL }}" | sed 's:/*$::')
           ENDPOINT="${BASE_URL}/api/admin/convocatorias/import"
-
           echo "Enviando datos hacia: $ENDPOINT"
-          HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$ENDPOINT" \
-            -H "Content-Type: application/json" \
-            -H "x-import-token: ${{ secrets.CONVOCATORIAS_IMPORT_TOKEN }}" \
-            --data-binary @convocatorias.json)
 
-          HTTP_BODY=$(echo "$HTTP_RESPONSE" | sed '$d')
-          HTTP_STATUS=$(echo "$HTTP_RESPONSE" | tail -n 1)
+          # Hasta 4 intentos si el servidor responde 5xx (por ejemplo, recién encendido)
+          for i in 1 2 3 4; do
+            HTTP_RESPONSE=$(curl -s --max-time 120 -w "\n%{http_code}" -X POST "$ENDPOINT" \
+              -H "Content-Type: application/json" \
+              -H "x-import-token: ${{ secrets.CONVOCATORIAS_IMPORT_TOKEN }}" \
+              --data-binary @convocatorias.json || true)
+            HTTP_BODY=$(echo "$HTTP_RESPONSE" | sed '$d')
+            HTTP_STATUS=$(echo "$HTTP_RESPONSE" | tail -n 1)
+            echo "Intento $i — código HTTP $HTTP_STATUS: $HTTP_BODY"
+            if [ "$HTTP_STATUS" = "200" ]; then
+              echo "Sincronización completada con éxito."
+              exit 0
+            fi
+            case "$HTTP_STATUS" in 5*|000*|"") sleep 20 ;; *) break ;; esac
+          done
+          echo "::error::Fallo en la sincronización. Código HTTP $HTTP_STATUS: $HTTP_BODY"
+          exit 1
 
-          echo "Código HTTP de respuesta: $HTTP_STATUS"
-          echo "Cuerpo de respuesta: $HTTP_BODY"
-
-          if [ "$HTTP_STATUS" -ne 200 ]; then
-            echo "::error::Fallo en la sincronización. Código HTTP $HTTP_STATUS: $HTTP_BODY"
-            exit 1
-          fi
-
-          echo "Sincronización completada con éxito."
-
-      - name: Enviar recordatorios de vencimiento del Plan Semestral
-        # Corre aunque falle la sincronización de convocatorias
-        if: ${{ !cancelled() }}
-        run: |
-          if [ -z "${{ secrets.APP_URL }}" ] || [ -z "${{ secrets.CONVOCATORIAS_IMPORT_TOKEN }}" ]; then
-            echo "::error::Faltan los secrets APP_URL o CONVOCATORIAS_IMPORT_TOKEN."
-            exit 1
-          fi
-
-          BASE_URL=$(echo "${{ secrets.APP_URL }}" | sed 's:/*$::')
-          ENDPOINT="${BASE_URL}/api/admin/recordatorios"
-
-          echo "Solicitando recordatorios en: $ENDPOINT"
-          HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$ENDPOINT" \
-            -H "x-import-token: ${{ secrets.CONVOCATORIAS_IMPORT_TOKEN }}")
-
-          HTTP_BODY=$(echo "$HTTP_RESPONSE" | sed '$d')
-          HTTP_STATUS=$(echo "$HTTP_RESPONSE" | tail -n 1)
-
-          echo "Código HTTP de respuesta: $HTTP_STATUS"
-          echo "Resultado: $HTTP_BODY"
-
-          if [ "$HTTP_STATUS" -ne 200 ]; then
-            echo "::error::Fallo al enviar recordatorios. Código HTTP $HTTP_STATUS: $HTTP_BODY"
-            exit 1
-          fi
+      # Los recordatorios de vencimiento se envían en su propio robot (recordatorios.yml, 9:00).

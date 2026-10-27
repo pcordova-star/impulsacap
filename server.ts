@@ -298,31 +298,41 @@ const adminDb = getAdminFirestore(adminApp, firebaseConfig.firestoreDatabaseId);
 // Estado de autorización de Application Default Credentials para Firestore Admin
 let isFirestoreAdminAuthorized = false;
 
-// Test de lectura a Firestore al arrancar el servidor (sin detener la app si falla)
-async function testFirestoreAdminConnection(): Promise<boolean> {
-  try {
-    await adminDb.collection('entitlements').limit(1).get();
-    isFirestoreAdminAuthorized = true;
-    console.log('firebase-admin OK');
-    return true;
-  } catch (err: any) {
-    isFirestoreAdminAuthorized = false;
-    const errorMsg = err?.message || String(err);
-    console.log(`firebase-admin SIN PERMISOS: ${errorMsg}`);
-    return false;
-  }
+// Test de lectura a Firestore al arrancar el servidor (sin detener la app si falla).
+// Si ya hay una prueba en curso, se espera esa misma (antes, una solicitud que llegaba justo al
+// encender la instancia veía "no autorizado" mientras la prueba inicial aún no terminaba → error 503).
+let firestoreAdminCheckInFlight: Promise<boolean> | null = null;
+function testFirestoreAdminConnection(): Promise<boolean> {
+  if (firestoreAdminCheckInFlight) return firestoreAdminCheckInFlight;
+  firestoreAdminCheckInFlight = (async () => {
+    try {
+      await adminDb.collection('entitlements').limit(1).get();
+      isFirestoreAdminAuthorized = true;
+      console.log('firebase-admin OK');
+      return true;
+    } catch (err: any) {
+      isFirestoreAdminAuthorized = false;
+      console.log(`firebase-admin SIN PERMISOS: ${err?.message || String(err)}`);
+      return false;
+    } finally {
+      firestoreAdminCheckInFlight = null;
+    }
+  })();
+  return firestoreAdminCheckInFlight;
 }
 
-// Si la prueba inicial falla (por ejemplo, credenciales aún no disponibles al encender la instancia),
-// se vuelve a intentar: en segundo plano cada 30 s y antes de atender cualquier /api, como máximo cada 10 s.
-let lastFirestoreAdminCheck = Date.now();
+// Antes de atender una solicitud: si la prueba está en curso, se espera; si falló, se reintenta
+// (como máximo cada 5 s para no saturar Firestore).
+let lastFirestoreAdminCheck = 0;
 async function ensureFirestoreAdmin(): Promise<boolean> {
   if (isFirestoreAdminAuthorized) return true;
-  if (Date.now() - lastFirestoreAdminCheck < 10_000) return false;
+  if (firestoreAdminCheckInFlight) return firestoreAdminCheckInFlight;
+  if (Date.now() - lastFirestoreAdminCheck < 5_000) return false;
   lastFirestoreAdminCheck = Date.now();
   return testFirestoreAdminConnection();
 }
 
+lastFirestoreAdminCheck = Date.now();
 testFirestoreAdminConnection();
 const firestoreAdminRetry = setInterval(() => {
   if (isFirestoreAdminAuthorized) return;
@@ -2756,6 +2766,7 @@ app.post('/api/admin/convocatorias/import', async (req, res) => {
     const now = new Date().toISOString();
     const incomingIds = new Set<string>();
     let upsertCount = 0;
+    let vigenteCount = 0;
     const newlyOpened: OpenedCall[] = [];
 
     // Procesar en lotes de Firestore (batch max 400 operaciones)
@@ -2777,8 +2788,12 @@ app.post('/api/admin/convocatorias/import', async (req, res) => {
 
       const firstSeenAt = existingData?.firstSeenAt || now;
       const fundId = item.fundId || matchConvocatoriaToFundId(item.titulo, item.url);
+      // El extractor calcula la vigencia con la fecha de cierre: Corfo a veces sigue listando como
+      // "abiertas" convocatorias que ya cerraron. Esas se guardan como no vigentes.
+      const isVigente = item.vigente !== false;
+      if (isVigente) vigenteCount++;
       // Convocatoria que recién aparece (o que vuelve a abrir): genera novedad y alertas
-      if (!existingData || existingData.vigente === false) {
+      if (isVigente && (!existingData || existingData.vigente === false)) {
         newlyOpened.push({ id, titulo: String(item.titulo || '').trim(), url: String(item.url || 'https://www.corfo.gob.cl').trim(), cierre: item.cierre || null, fundId: fundId || null, resumen: item.resumen || item.beneficioResumen || null, alcance: String(item.alcance || 'Todo Chile').trim() });
       }
 
@@ -2795,7 +2810,7 @@ app.post('/api/admin/convocatorias/import', async (req, res) => {
         venta: item.venta || [],
         url: String(item.url || 'https://www.corfo.gob.cl').trim(),
         fuente: 'CORFO',
-        vigente: true,
+        vigente: isVigente,
         permanente: Boolean(item.permanente || (!item.cierre && item.estado_corfo?.toLowerCase() === 'abiertas')),
         firstSeenAt,
         lastSeenAt: now,
@@ -2845,7 +2860,7 @@ app.post('/api/admin/convocatorias/import', async (req, res) => {
     await adminDb.collection('meta').doc('convocatoriasSync').set({
       lastSyncAt: now,
       total: incomingIds.size,
-      totalVigentes: incomingIds.size,
+      totalVigentes: vigenteCount,
       markedNotVigente,
       updatedAt: now
     }, { merge: true });
