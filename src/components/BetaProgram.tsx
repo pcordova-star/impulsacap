@@ -18,6 +18,10 @@ interface BetaStatus {
 }
 
 const FEEDBACK_EMAIL = 'contacto@impulsacap.cl';
+/** Marca que la persona creó su cuenta desde la invitación: al entrar se le lleva directo a "Quiero participar" */
+export const BETA_INTENT_KEY = 'impulsacap_beta_intent';
+export const hasBetaIntent = () => { try { return sessionStorage.getItem(BETA_INTENT_KEY) === '1'; } catch { return false; } };
+const setBetaIntent = (on: boolean) => { try { if (on) sessionStorage.setItem(BETA_INTENT_KEY, '1'); else sessionStorage.removeItem(BETA_INTENT_KEY); } catch { /* sin almacenamiento */ } };
 
 function useBetaStatus() {
   const [st, setSt] = useState<BetaStatus | null>(null);
@@ -58,6 +62,18 @@ export const BetaInviteCard: React.FC<{ compact?: boolean }> = ({ compact }) => 
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [highlight, setHighlight] = useState(false);
+
+  // Recién creó su cuenta desde la invitación: se lleva la vista a la invitación y se destaca
+  const eligible = Boolean(st && st.activo && !st.participando && !st.participoAntes && !st.tienePlan);
+  useEffect(() => {
+    if (compact || !loggedIn || !st) return;
+    if (!eligible) { if (st.participando || st.participoAntes || st.tienePlan) setBetaIntent(false); return; }
+    if (!hasBetaIntent()) return;
+    setHighlight(true);
+    const t = setTimeout(() => document.getElementById('programa-prueba-invitacion')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 400);
+    return () => clearTimeout(t);
+  }, [compact, loggedIn, st, eligible]);
 
   if (!st || !st.activo || st.participando || st.participoAntes || st.tienePlan) {
     return msg ? <p className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-800 flex items-center gap-2"><CheckCircle2 className="w-4 h-4" />{msg}</p> : null;
@@ -69,6 +85,7 @@ export const BetaInviteCard: React.FC<{ compact?: boolean }> = ({ compact }) => 
       const res = await apiFetch('/api/beta/inscribir', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ aceptaCompromiso: true }) });
       const b = await res.json().catch(() => ({}));
       if (!res.ok) { setErr(b.error || 'No pudimos inscribirte.'); await reload(); return; }
+      setBetaIntent(false);
       setMsg(`¡Listo! Tienes ${b.dias} días para probar ImpulsaCap con una postulación. Te enviamos las instrucciones por correo.`);
       await Promise.all([reload(), refresh()]);
     } finally { setBusy(false); }
@@ -82,13 +99,13 @@ export const BetaInviteCard: React.FC<{ compact?: boolean }> = ({ compact }) => 
       await reload();
     } finally { setBusy(false); }
   };
-  const loginThen = (fn: () => void) => requestLogin({
+  const loginThen = (fn: () => void) => { setBetaIntent(true); requestLogin({
     mode: 'register',
     message: 'Crea tu cuenta (o inicia sesión) para continuar.',
     onSuccess: async () => { await reload(); fn(); }
-  });
+  }); };
 
-  const box = `rounded-2xl border ${st.abierto ? 'border-violet-300 bg-gradient-to-br from-violet-50 to-white' : 'border-slate-200 bg-slate-50'} ${compact ? 'p-4' : 'p-5 sm:p-6'} space-y-3`;
+  const box = `rounded-2xl border ${st.abierto ? 'border-violet-300 bg-gradient-to-br from-violet-50 to-white' : 'border-slate-200 bg-slate-50'} ${compact ? 'p-4' : 'p-5 sm:p-6'} space-y-3 ${highlight && st.abierto ? 'ring-4 ring-violet-400/60' : ''}`;
 
   if (st.lleno) {
     return (
@@ -120,6 +137,7 @@ export const BetaInviteCard: React.FC<{ compact?: boolean }> = ({ compact }) => 
       </p>
       {loggedIn ? (
         <>
+          {highlight && <p className="text-sm font-bold text-violet-800">¡Tu cuenta está lista! Último paso: marca la casilla y presiona "Quiero participar".</p>}
           <label className="flex items-start gap-2 text-xs text-slate-700 cursor-pointer">
             <input type="checkbox" checked={accepted} onChange={e => setAccepted(e.target.checked)} className="mt-0.5 accent-violet-600" />
             <span>Me comprometo a enviar mis comentarios a <strong>{FEEDBACK_EMAIL}</strong> antes de que terminen los {st.dias} días, y acepto las <a href="/terminos#programa-prueba" target="_blank" rel="noopener noreferrer" className="text-violet-700 underline underline-offset-2">condiciones del programa de prueba</a>.</span>
