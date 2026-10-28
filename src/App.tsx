@@ -9,7 +9,7 @@ import type { PostulationSubTab } from './components/PostulationWorkspace';
 import { NewApplicationModal } from './components/NewApplicationModal';
 import { HelpBot } from './components/HelpBot';
 import { MonitorHero } from './components/MonitorHero';
-import { BetaInviteCard, BetaActiveBanner, BetaTopStrip } from './components/BetaProgram';
+import { BetaInviteCard, BetaActiveBanner, BetaTopStrip, hasBetaIntent } from './components/BetaProgram';
 import { QuickFeedback } from './components/QuickFeedback';
 import { HowItWorks, PlanComparison, LandingFaq } from './components/LandingSections';
 import { FundUseFinder } from './components/FundUseFinder';
@@ -576,7 +576,8 @@ export default function App() {
     if (!currentUser || applicationsLoading || applications.length > 0) return;
     let done = false;
     try { done = localStorage.getItem(welcomeKey(currentUser.id)) === '1'; } catch { done = false; }
-    if (!done) setWelcomeOpen(true);
+    // Si creó la cuenta desde la invitación del programa de prueba, primero ve la invitación (no la bienvenida)
+    if (!done && !hasBetaIntent()) setWelcomeOpen(true);
   }, [currentUser, applicationsLoading, applications.length]);
 
   const [preferredFundId, setPreferredFundId] = useState<string | null>(null);
