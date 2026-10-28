@@ -73,6 +73,14 @@ const INTROS: Record<string, FundIntro> = {
     comoSeGana: 'Primero un test de preselección, luego el formulario y un video de 90 segundos (20% de la nota), una visita a terreno (30%) y una presentación ante el comité regional (50%). Cada región fija su nota de corte.',
     consejo: 'El comité regional vale la mitad: practica tu presentación de 5 minutos. Y cuida que las inversiones que pides tengan relación directa con el negocio y con su orientación sostenible (pesa 30%).'
   },
+  sercotec_modo_empleo: {
+    hook: 'Para quienes están sin trabajo y quieren crear su propio negocio.',
+    queEs: 'Es un subsidio de Sercotec de $3.000.000 para personas desempleadas que quieren empezar un negocio formal. No se devuelve: solo aportas el 3% en efectivo, y recibes acompañamiento y capacitación.',
+    paraQuien: 'Personas mayores de 18 años sin inicio de actividades en primera categoría y sin cotizaciones previsionales en los últimos 6 meses. Prioriza a jóvenes de 18 a 29 años, mujeres de 30 a 54 años y personas de 55 años o más.',
+    queFinancia: 'Entre $200.000 y $500.000 en asesoría, capacitación o marketing, y hasta $2.800.000 en máquinas, equipos, habilitación del lugar y capital de trabajo.',
+    comoSeGana: 'Primero un test de preselección, luego el formulario y un video de 90 segundos (20% de la nota), una visita a terreno (30%) y el comité regional (50%). En el comité lo que más pesa es que demuestres que conoces tu negocio (40%).',
+    consejo: 'Ten listo tu certificado de cotizaciones de la AFP: es lo que acredita que estás sin trabajo. Y practica tu presentación: el comité regional vale la mitad de la nota.'
+  },
   sercotec_abeja_emprende: {
     hook: 'Capital para que las mujeres partan su propio negocio.',
     queEs: 'Es la versión de Capital Semilla exclusiva para mujeres: $3.500.000 de Sercotec, con un aporte tuyo de solo 3%, para iniciar un negocio.',

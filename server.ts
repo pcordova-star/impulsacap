@@ -2787,6 +2787,7 @@ function matchConvocatoriaToFundId(titulo: string, url?: string): string | null 
   if (text.includes('sumate a innovar')) return 'corfo_sumate_innovar';
   if ((text.includes('startup chile') || text.includes('start-up chile')) && text.includes('build')) return 'startup_chile_build';
   if (text.includes('startup chile') || text.includes('start-up chile') || text.includes('ignite')) return 'startup_chile_ignite';
+  if (text.includes('modo empleo')) return 'sercotec_modo_empleo';
   if (text.includes('semilla emprende') || text.includes('capital semilla')) return 'sercotec_semilla_emprende';
   if (text.includes('abeja emprende') || text.includes('capital abeja')) return 'sercotec_abeja_emprende';
   if (text.includes('crece') && (text.includes('sercotec') || text.includes('desarrollo de negocios'))) return 'sercotec_crece';

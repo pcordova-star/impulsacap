@@ -362,6 +362,59 @@ export const CHILEAN_FUNDS: ChileanFund[] = [
     ]
   },
   {
+    id: 'sercotec_modo_empleo',
+    name: 'SERCOTEC Capital Semilla Modo Empleo',
+    agency: 'SERCOTEC',
+    category: 'Capital Semilla',
+    badge: '$3M • Para personas sin trabajo que quieren emprender',
+    maxSubsidyCLP: 3000000,
+    subsidyFormatted: '$3.000.000 CLP netos',
+    maxCoFinancePct: 97,
+    beneficiaryTypes: ['sin_iniciar'],
+    salesRequirement: 'Personas naturales mayores de 18 años, sin inicio de actividades en primera categoría y sin cotizaciones previsionales en los 6 meses anteriores a la convocatoria. Prioriza jóvenes de 18 a 29 años, mujeres de 30 a 54 y personas de 55 años o más.',
+    salesBracketsEligible: ['sin_ventas'],
+    trlRange: 'Idea de negocio o emprendimiento informal por formalizar',
+    trlEligible: ['idea_concepto', 'prototipo_lab', 'mvp_validado'],
+    requiresInnovation: false,
+    requiresCommercialValidation: false,
+    status: 'Próxima Convocatoria',
+    callStatus: 'por_confirmar',
+    closeDate: null,
+    lastVerified: '2026-10-28',
+    callSchedule: 'Convocatoria nacional por región (2026: 25 de agosto al 8 de septiembre)',
+    summary: 'Subsidio para personas sin trabajo que quieren crear su propio negocio formal: financia asesorías, capacitación, marketing, equipos, habilitación y capital de trabajo.',
+    description: 'Entre $200.000 y $500.000 para gestión empresarial y hasta $2.800.000 en inversiones. Aporte del 3% en efectivo. Mismo proceso que Capital Semilla: test de preselección, formulario de modelo de negocio, video pitch de 90 segundos, visita a terreno y comité regional.',
+    evaluationCriteria: [
+      { name: 'Fundamentación de la oportunidad de negocio', weight: 40, description: 'Que conozcas tu negocio y la necesidad de tus clientes (comité regional).' },
+      { name: 'Potencial del proyecto de negocio', weight: 30, description: 'Proyección del negocio (comité regional).' },
+      { name: 'Coherencia y factibilidad técnica', weight: 30, description: 'Que el negocio y las inversiones sean coherentes y realizables.' }
+    ],
+    eligibleExpenses: [
+      'Acciones de gestión empresarial: asesorías, capacitación, marketing y formalización ($200.000 a $500.000).',
+      'Activos fijos e intangibles.',
+      'Habilitación de infraestructura (hasta 30% si arriendas).',
+      'Capital de trabajo (máximo 40% de las inversiones; mercadería máximo 20%).'
+    ],
+    ineligibleExpenses: [
+      'IVA y otros impuestos recuperables.',
+      'Bienes raíces y vehículos con permiso de circulación.',
+      'Compras a ti mismo, tu pareja, socios o hijos.',
+      'Consumos básicos (agua, luz, gas, teléfono), deudas e intereses.',
+      'Pago a consultores por preparar la postulación.'
+    ],
+    requiredDocuments: [
+      'Test de preselección en sercotec.cl.',
+      'Formulario de modelo de negocio (10 ámbitos).',
+      'Estructura de costos.',
+      'Video pitch de hasta 90 segundos.',
+      'Certificado de cotizaciones previsionales (sin cotizaciones en los últimos 6 meses).'
+    ],
+    corfoAccountsBudget: [
+      { account: 'Acciones de Gestión Empresarial', description: 'Asesorías, capacitación, marketing y formalización ($200.000 a $500.000).' },
+      { account: 'Inversiones', description: 'Activos, habilitación de infraestructura y capital de trabajo (hasta $2.800.000).' }
+    ]
+  },
+  {
     id: 'sercotec_abeja_emprende',
     name: 'SERCOTEC Capital Abeja Emprende',
     agency: 'SERCOTEC',

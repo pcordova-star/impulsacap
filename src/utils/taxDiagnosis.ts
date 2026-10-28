@@ -225,6 +225,7 @@ function specificChecks(fund: ChileanFund, c: Ctx): Check[] {
       break;
     case 'sercotec_semilla_emprende':
     case 'sercotec_abeja_emprende':
+    case 'sercotec_modo_empleo':
       out.push(c.firstCategory
         ? { verdict: 'no_cumple', reason: 'Es solo para personas sin inicio de actividades en primera categoría, y ya lo tienes' }
         : { verdict: 'revisar', reason: 'Tu carpeta no muestra primera categoría: confirma que no tienes inicio de actividades en esa categoría' });
