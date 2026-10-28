@@ -81,7 +81,10 @@ export function recommendFromFeatures(f: CaseFeatures, opts: { ufCLP?: number | 
     if (mujer) add('sercotec_abeja_emprende', 70, 'eres mujer y aún no inicias actividades en 1ª categoría');
     else add('sercotec_semilla_emprende', 60, 'aún no inicias actividades en 1ª categoría');
     if (!mujer) add('sercotec_semilla_emprende', obj.has('formalizarse') || equipar ? 15 : 0, 'quieres formalizarte o equiparte para partir');
+    // Alternativa para quien está sin trabajo (sin cotizaciones en 6 meses): mismo formulario, $3.000.000
+    add('sercotec_modo_empleo', 40, 'aún no inicias actividades en 1ª categoría; si estás sin trabajo (sin cotizaciones en los últimos 6 meses), este fondo es para ti');
   } else {
+    block('sercotec_modo_empleo', 'es solo para personas sin inicio de actividades y sin trabajo en los últimos 6 meses');
     block('sercotec_semilla_emprende', 'es solo para personas sin inicio de actividades');
     block('sercotec_abeja_emprende', 'es solo para mujeres sin inicio de actividades');
   }

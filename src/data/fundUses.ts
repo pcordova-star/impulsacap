@@ -106,6 +106,7 @@ export const FUND_USES: Record<string, Entry> = {
   startup_chile_growth: { ...STARTUP, personas: { v: 'si', note: 'Contrataciones para crecer' } },
   sercotec_semilla_emprende: SERCOTEC_EMPRENDE,
   sercotec_abeja_emprende: SERCOTEC_EMPRENDE,
+  sercotec_modo_empleo: SERCOTEC_EMPRENDE,
   sercotec_crece: {
     maquinaria: { v: 'si', note: 'Máquinas, equipos y software' },
     vehiculos: { v: 'tope', note: 'Solo sin permiso de circulación' },

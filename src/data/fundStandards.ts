@@ -855,6 +855,58 @@ export const FUND_RULES: Record<string, FundRules> = {
     notes: ['Durante el proceso hay una visita a terreno y una presentación de 5 minutos ante el comité regional: prepárala con el mismo guion de tu video.']
   },
 
+  sercotec_modo_empleo: {
+    family: 'sercotec',
+    bases: { title: "Bases Capital Semilla Modo Empleo 2026 (Sercotec, O'Higgins)", url: 'https://www.sercotec.cl/wp-content/uploads/2026/08/Bases-Capital-Semilla-Modo-Empleo-O%C2%B4Higgins-2026-1.pdf', verifiedAt: '2026-10-28', note: 'Cada región publica sus bases; los montos, requisitos y el proceso son iguales.' },
+    requirements: [
+      { id: 'tipo', label: 'Persona natural mayor de 18 años, chilena o extranjera', check: { kind: 'companyType', allowed: ['sin_iniciar'] } },
+      { id: 'sin_inicio', label: 'Sin inicio de actividades en primera categoría ante el SII (segunda categoría sí se acepta)', check: { kind: 'firstCategory', required: false } },
+      { id: 'sin_cotizaciones', label: 'Sin cotizaciones previsionales (dependiente, independiente ni voluntaria) en los 6 meses anteriores a la convocatoria', detail: 'Se acredita con tu certificado de cotizaciones de la AFP.' },
+      { id: 'segmento', label: 'Ser de un segmento priorizado: 18 a 29 años, mujer de 30 a 54 años, o 55 años o más' },
+      { id: 'no_beneficiario', label: 'No haber ganado Capital Semilla, Abeja o Pioneras (Emprende) en 2024 a 2026' },
+      { id: 'participacion', label: 'No tener más del 50% de participación en sociedades o EIRL existentes' },
+      req.noDebts(),
+      req.pensionRegistry(),
+      { id: 'cursos', label: 'Inscribirte en los cursos en línea de Sercotec: Diseño de Modelos de Negocios, Sustentabilidad y uno de gestión' },
+      { id: 'domicilio', label: 'Domicilio en la región de la convocatoria' }
+    ],
+    applicationDocs: [
+      { id: 'test', label: 'Test de preselección en sercotec.cl', detail: 'Perfil del emprendedor (70%) y del negocio (30%); define quién pasa a evaluación.' },
+      { id: 'formulario', label: 'Formulario de modelo de negocio (10 ámbitos tipo Canvas)', link: 'formulator' },
+      { id: 'costos', label: 'Estructura de costos: gestión empresarial e inversiones', link: 'formulator' },
+      { id: 'video', label: 'Video pitch de máximo 90 segundos, en español', detail: 'Lo presentas tú: quién eres, el problema y tus clientes, tu solución y qué te diferencia.', link: 'pitch' },
+      { id: 'cotizaciones', label: 'Certificado de cotizaciones previsionales de los últimos 6 meses', detail: 'Lo descargas en el sitio de tu AFP.' }
+    ],
+    formalizationDocs: ['Inicio de actividades en primera categoría (después del inicio de la convocatoria)', 'Certificados laboral, previsional y tributario', 'Inscripción en el Registro Pymes', 'Cursos de Sercotec aprobados', 'Pago del aporte empresarial (3%)', 'Autorización para revisar tu carpeta tributaria (365 días)'],
+    formSections: [
+      { title: 'Clientes', blocks: ['problem'] },
+      { title: 'Oferta de valor, elemento diferenciador y sustentabilidad', blocks: ['solution'] },
+      { title: 'Canales y relación con los clientes', blocks: ['market'] },
+      { title: 'Ingresos, costos y recursos clave', blocks: ['model'] },
+      { title: 'Actividades y alianzas clave', blocks: ['workplan'] },
+      { title: 'Experiencia de quien postula', blocks: ['team'] },
+      { title: 'Video pitch de 90 segundos', blocks: ['title_pitch'] },
+      { title: 'Estructura de costos', blocks: ['budget'] }
+    ],
+    pitch: { label: 'Video pitch de 90 segundos', seconds: 90, content: 'Quién eres, el problema y tus clientes, tu solución y qué te diferencia. Lo presentas tú, sin música de fondo.' },
+    evaluation: {
+      scale: 'Nota con dos decimales', passMark: null, target: 4.0,
+      rule: 'Cada región fija su corte según presupuesto. Nota final: evaluación técnica 20% (formulario 60% y video 40%), visita a terreno 30% y comité regional 50%.',
+      stages: [
+        { name: 'Test de preselección', weight: 0, detail: 'Perfil del emprendedor 70% y del negocio 30%' },
+        { name: 'Evaluación técnica', weight: 20, detail: 'Formulario 60% y video pitch 40%' },
+        { name: 'Visita a terreno', weight: 30, detail: 'Coherencia 25%, factibilidad 25%, estado de desarrollo 20%, viabilidad económica 15% y capacidades 15%' },
+        { name: 'Comité de Evaluación Regional', weight: 50, detail: 'Potencial 30%, fundamentación de la oportunidad 40% y coherencia y factibilidad 30%' }
+      ]
+    },
+    coFinance: { text: 'Subsidio de $3.000.000 netos: entre $200.000 y $500.000 para gestión empresarial y hasta $2.800.000 para inversiones (capital de trabajo máximo 40%; mercadería máximo 20%). Aportas 3% del subsidio en efectivo antes del contrato. El IVA lo pagas tú.', contributionOfSubsidyPct: 3 },
+    guarantee: { required: false, text: 'No se exigen garantías.' },
+    portal: { name: 'Sercotec', url: 'https://www.sercotec.cl' },
+    duration: 'Plan de trabajo de 3 meses desde la firma del contrato.',
+    budget: BUDGETS.sercotec_emprende,
+    notes: ['Hay una visita a terreno y una presentación ante el comité regional: prepárala con el mismo guion de tu video.', 'Si eres seleccionado, debes iniciar actividades en primera categoría para firmar el contrato.']
+  },
+
   sercotec_abeja_emprende: {
     family: 'sercotec',
     bases: { title: 'Bases Capital Abeja Emprende 2026 (Sercotec, Antofagasta)', url: 'https://www.sercotec.cl/wp-content/uploads/2026/05/Bases-Abeja-EMPRENDE-2026-Antofagasta-VB°.pdf', verifiedAt: VERIFIED, note: 'Cada región publica sus bases con sus comunas y focos priorizados.' },
