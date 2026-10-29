@@ -27,6 +27,10 @@ PRÓXIMAS APERTURAS
 - En el inicio, el panel y el catálogo aparece "Se vienen convocatorias" con las fechas estimadas de apertura (calendario anunciado por Corfo; pueden cambiar). En noviembre de 2026: Start-Up Chile el 4, Crea y Valida el 10, Semilla Inicia y Semilla Expande el 17.
 - Se puede preparar la postulación antes de que abra. Cuando abre, la convocatoria aparece en el monitor y avisamos por correo a quienes calzan.
 
+EQUIPO DEL PROYECTO (CURRÍCULUMS Y LINKEDIN)
+- En "Equipo" (Mi empresa y el formulario) se suben los currículums (hasta 5, PDF o Word) y la IA arma nombre, rol y experiencia de cada persona. No se guardan los archivos.
+- Con LinkedIn: en el perfil, "Más" → "Guardar en PDF" y subir ese archivo; o "pega el texto del perfil" y "Ordenar con IA". Un enlace de LinkedIn no sirve: LinkedIn no deja leer perfiles desde el enlace.
+
 QUÉ FINANCIA CADA FONDO
 - En el inicio y en "Buscar fondos" está "¿Para qué necesitas la plata?": eliges qué quieres financiar (máquinas, vehículos, contratar personas, arreglar el local, arriendo, mercadería, marketing, software, prototipos, asesorías, vender afuera) y muestra qué fondos lo financian, cuáles con límites y cuáles no.
 - Vehículos con patente: casi ningún fondo los financia. Sercotec acepta solo los que no necesitan permiso de circulación. Corfo Semilla no financia vehículos ni inmuebles.

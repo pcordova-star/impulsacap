@@ -3654,9 +3654,13 @@ Responde SOLO este JSON:
 app.post('/api/perfil/desde-cv', requireAuth, perUserLimiter(10, 'Subiste muchos currículums en la última hora. Intenta más tarde.'), guardAi('perfil-cv'), async (req, res) => {
   try {
     const files: CvFile[] = Array.isArray(req.body?.files) ? req.body.files.slice(0, 5) : [];
-    if (files.length === 0) return res.status(400).json({ error: 'Adjunta al menos un currículum.' });
-    const docs = [];
+    // También se puede pegar el texto (por ejemplo, copiado del perfil de LinkedIn)
+    const pasted = String(req.body?.pastedText || '').replace(/\s+\n/g, '\n').trim().slice(0, 20000);
+    if (/^https?:\/\/\S+$/i.test(pasted)) return res.status(422).json({ error: 'Pegaste un enlace. LinkedIn no deja leer perfiles desde un enlace: copia el texto del perfil, o descárgalo en PDF (Más → Guardar en PDF) y súbelo.' });
+    if (files.length === 0 && pasted.length < 40) return res.status(400).json({ error: 'Adjunta al menos un currículum o pega el texto del perfil.' });
+    const docs: { name: string; text: string; pdfBase64?: string }[] = [];
     for (const f of files) docs.push(await cvToText(f));
+    if (pasted.length >= 40) docs.push({ name: 'texto pegado (perfil o currículum)', text: pasted });
     const parts: any[] = [];
     docs.forEach((d, i) => {
       if (d.pdfBase64) {

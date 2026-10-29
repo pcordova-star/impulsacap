@@ -160,6 +160,27 @@ export const TeamCvImport: React.FC<{ value: string; onApply: (value: string) =>
   const [teamText, setTeamText] = useState('');
   const [teamApplied, setTeamApplied] = useState(false);
   const values = { teamDetails: value };
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasted, setPasted] = useState('');
+  const isLink = /^https?:\/\/\S+$/i.test(pasted.trim()) || /^(www\.)?linkedin\.com\//i.test(pasted.trim());
+
+  const readPasted = async () => {
+    if (pasted.trim().length < 40 || isLink) return;
+    setCvBusy(true); setCvErr(null); setPeople(null); setTeamApplied(false);
+    try {
+      const res = await apiFetch('/api/perfil/desde-cv', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ files: [], pastedText: pasted, projectSummary }), timeoutMs: 120_000 });
+      const b = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(b.error || 'No pudimos leer el texto.');
+      setPeople(b.people || []);
+      setTeamText(b.teamDetails || '');
+      setPasteOpen(false);
+      setPasted('');
+    } catch (e: any) {
+      setCvErr(e?.message || 'No pudimos leer el texto.');
+    } finally {
+      setCvBusy(false);
+    }
+  };
 
   const readCvs = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -202,6 +223,26 @@ export const TeamCvImport: React.FC<{ value: string; onApply: (value: string) =>
           {cvBusy ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Leyendo…</> : 'Subir currículums'}
         </button>
       </div>
+      <p className={`text-[11px] ${sub}`}>
+        <strong className={txt}>¿Usan LinkedIn?</strong> En el perfil toca <em>Más → Guardar en PDF</em> y sube ese archivo aquí arriba. O{' '}
+        <button type="button" onClick={() => setPasteOpen(v => !v)} className={`font-bold hover:underline cursor-pointer ${link}`}>{pasteOpen ? 'cierra el texto' : 'pega el texto del perfil'}</button>.
+      </p>
+      {pasteOpen && (
+        <div className="space-y-1.5">
+          <textarea
+            value={pasted}
+            onChange={e => setPasted(e.target.value)}
+            rows={5}
+            aria-label="Texto del perfil o currículum"
+            placeholder={'Copia y pega aquí el perfil de LinkedIn (sección "Acerca de" y "Experiencia") o el currículum de cada persona. Puedes pegar varias personas, una después de otra.'}
+            className={`w-full rounded-lg border p-2 text-xs ${dark ? 'bg-slate-950 border-slate-700 text-slate-100 placeholder:text-slate-500' : 'bg-white border-slate-300 text-slate-800'}`}
+          />
+          {isLink && <p className="text-[11px] text-amber-600">Eso es un enlace. LinkedIn no deja leer perfiles desde un enlace: copia el texto del perfil o descárgalo en PDF (Más → Guardar en PDF).</p>}
+          <button type="button" onClick={readPasted} disabled={cvBusy || pasted.trim().length < 40 || isLink} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold cursor-pointer disabled:opacity-50">
+            {cvBusy ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Leyendo…</> : 'Ordenar con IA'}
+          </button>
+        </div>
+      )}
       {cvErr && <p className="text-[11px] text-rose-500">{cvErr}</p>}
       {people && people.length === 0 && <p className={`text-[11px] ${sub}`}>No encontramos datos del equipo en esos archivos.</p>}
       {people && people.length > 0 && (
