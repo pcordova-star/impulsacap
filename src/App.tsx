@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'react';
+import { UpcomingCallsBanner } from './components/UpcomingCallsBanner';
 import { fundFit, isCompanyReady } from './data/journey';
 import { regionFit, type RegionFit } from './utils/region';
 import { CompanyProfile, ChileanFund, FormulationOutput, BlindAuditResult, CompanyUser } from './types/funds';
@@ -923,6 +924,21 @@ export default function App() {
 
             {/* Programa de prueba: invitación con cupos (o aviso de cupos llenos) */}
             <BetaInviteCard />
+
+            {/* 1b. SE VIENEN: aperturas esperadas con cuenta regresiva */}
+            <UpcomingCallsBanner
+              convocatorias={convocatorias}
+              actionLabel={currentUser ? 'Preparar mi postulación' : 'Ver si califico'}
+              onAction={(call) => {
+                const options = call.fundIds.map(id => CHILEAN_FUNDS.find(f => f.id === id)).filter(Boolean) as ChileanFund[];
+                const best = options.find(f => fundFit(f, profile).status !== 'no_cumple') || options[0];
+                if (!best) return;
+                if (currentUser) { handleSelectFundToFormulate(best); return; }
+                setPreferredFundId(best.id);
+                showToast({ id: 'fondo-preferido', level: 'info', title: `Revisemos si calificas a ${best.name}`, message: 'Responde las 5 preguntas: lo revisamos primero.', durationMs: 6000 });
+                document.getElementById('asistente-5-preguntas')?.scrollIntoView({ behavior: 'smooth' });
+              }}
+            />
 
             {/* 2. CÓMO FUNCIONA: las 3 etapas del recorrido */}
             <HowItWorks />

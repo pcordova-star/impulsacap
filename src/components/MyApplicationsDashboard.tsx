@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { UpcomingCallsBanner } from './UpcomingCallsBanner';
 import { request as requestNav } from '../utils/navFocus';
 import { PLAN_PRICE, PLAN_PRICE_TEXT } from '../data/pricing';
 import { usePlan } from '../hooks/usePlan';
@@ -385,6 +386,20 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
           En este panel encontrarás: avisos de cierres próximos, tus postulaciones con su avance y el próximo paso de cada una, y tu plan. Si en algún momento no sabes qué hacer, abre tu consultor: siempre te dice cuál es el siguiente paso.
         </p>
       </section>
+
+      {/* 1b. SE VIENEN: aperturas esperadas (prepararse antes) */}
+      <UpcomingCallsBanner
+        convocatorias={convocatorias}
+        actionLabel="Preparar mi postulación"
+        intro="Prepárate antes de que abran: si empiezas ahora, cuando se abra solo te queda revisar y enviar."
+        onAction={(call) => {
+          const options = call.fundIds.map(id => funds.find(f => f.id === id)).filter(Boolean) as ChileanFund[];
+          const already = options.find(f => activeApplications.some(a => a.fundId === f.id));
+          if (already) { const app = activeApplications.find(a => a.fundId === already.id)!; onContinueApplication(app.id); return; }
+          const best = options.find(f => fundFit(f, profile).status !== 'no_cumple') || options[0];
+          if (best) onSelectFundToFormulate(best);
+        }}
+      />
 
       {/* 2. CIERRES PRÓXIMOS (solo si hay) */}
       {closingSoonAlerts.map(alert => (

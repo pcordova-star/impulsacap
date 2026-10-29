@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
 import { flowConfig, flowCreatePayment, flowGetStatus } from './server/flow';
-import { collectNews, listRecipients, recipientsFitting, digestEmail, alertEmail, unsubUrl, unsubToken, NEWS_TYPES, type DigestItem, type ClosingCall } from './server/news';
+import { collectNews, listRecipients, recipientsFitting, digestEmail, alertEmail, upcomingEmail, unsubUrl, unsubToken, NEWS_TYPES, type DigestItem, type ClosingCall } from './server/news';
 import { getFundIntro } from './src/data/fundIntros';
 import { regionFit } from './src/utils/region';
 import { isSemillaInicia } from './src/data/semillaWinners';
@@ -61,6 +61,8 @@ import {
   getAppUrl,
 } from './server/email';
 import { createCounterBuffer } from './server/counterBuffer';
+import { pendingUpcoming, fmtShortDate, daysText, UPCOMING_SOURCE } from './src/data/upcomingCalls';
+import { fundFit } from './src/data/journey';
 import { aiGuard, aiContext, recordAiUsage, inputTextChars, AI_MAX_INPUT_CHARS, AI_MAX_OUTPUT, AiLimitError, AI_LIMITS, chileDay } from './server/aiUsage';
 import {
   PRICE_FULL,
@@ -3079,6 +3081,48 @@ async function runDigest(opts: { testTo?: string; force?: boolean; appUrl: strin
   await metaRef.set({ lastDigestWeek: week, lastDigestAt: now, lastDigest: { enviados: sent, errores, noticias: items.length, cierres: closing.length } }, { merge: true });
   return { status: 200, body: { ok: true, enviados: sent, errores, noticias: items.length, cierres: closing.length } };
 }
+
+// Aviso "se vienen convocatorias" (desde /admin). Se puede retomar: no repite a quien ya lo recibió.
+async function runUpcomingNotice(opts: { appUrl: string; testTo?: string; testName?: string }) {
+  if (!(await ensureFirestoreAdmin())) return { status: 503, body: { error: 'Firestore Admin no está autorizado.' } };
+  if (!isEmailConfigured()) return { status: 503, body: { error: 'RESEND_API_KEY no está configurada.' } };
+  const calls = pendingUpcoming([]);
+  if (!calls.length) return { status: 200, body: { ok: true, omitido: 'no hay aperturas pendientes en el calendario' } };
+  const campaign = `aperturas_${calls.map(c => c.id).join('_')}`.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120);
+  const build = (profile: any) => calls.map(c => ({
+    label: c.label, detail: c.detail, amount: c.amount, dateText: fmtShortDate(c.date), daysText: daysText(c.days),
+    fits: profile ? c.fundIds.map(id => CHILEAN_FUNDS.find(f => f.id === id)).filter(f => f && fundFit(f, profile).status === 'cumple').map(f => f!.name) : []
+  }));
+  if (opts.testTo) {
+    const mail = upcomingEmail({ firstName: opts.testName || '', calls: build(null), appUrl: opts.appUrl, unsubscribeUrl: `${opts.appUrl}/`, sourceNote: UPCOMING_SOURCE });
+    const ok = await sendEmail({ to: opts.testTo, ...mail, subject: `[Prueba] ${mail.subject}` });
+    return { status: ok ? 200 : 500, body: { ok, prueba: true, aperturas: calls.length } };
+  }
+  const recipients = await listRecipients(adminDb);
+  const sentSnap = await adminDb.collection('campaign_sends').where('campaign', '==', campaign).get();
+  const already = new Set(sentSnap.docs.map(d => String(d.data().uid)));
+  const pending = recipients.filter(r => !already.has(r.uid));
+  const started = Date.now();
+  let enviados = 0, errores = 0;
+  for (const r of pending) {
+    if (Date.now() - started > 240_000) break; // se corta antes del límite de tiempo; se retoma con otro clic
+    const mail = upcomingEmail({ firstName: r.firstName, companyName: r.companyName, calls: build(r.profile), appUrl: opts.appUrl, unsubscribeUrl: unsubUrl(opts.appUrl, r.uid), sourceNote: UPCOMING_SOURCE });
+    const ok = await sendEmail({ to: r.email, ...mail, idempotencyKey: `${campaign}-${r.uid}` });
+    if (ok) {
+      enviados++;
+      await adminDb.collection('campaign_sends').doc(`${campaign}_${r.uid}`).set({ campaign, uid: r.uid, at: new Date().toISOString() });
+    } else errores++;
+    await sleep(550);
+  }
+  const faltan = pending.length - enviados - errores;
+  return { status: 200, body: { ok: true, enviados, errores, faltan, yaRecibieron: already.size, total: recipients.length } };
+}
+app.post('/api/admin/aviso-aperturas/ahora', requireAuth, requireAdminUser, async (req, res) => {
+  const user = (req as AuthenticatedRequest).user!;
+  const prueba = req.body?.prueba !== false;
+  const r = await runUpcomingNotice({ appUrl: publicAppUrl(req), testTo: prueba ? user.email : undefined });
+  res.status(r.status).json(r.body);
+});
 
 // Automático (GitHub Actions): recolectar a diario y enviar el boletín los lunes
 app.post('/api/admin/novedades/recolectar', requireAdminToken, async (_req, res) => {

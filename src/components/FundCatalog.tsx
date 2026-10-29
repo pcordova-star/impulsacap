@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { upcomingForFund, fmtShortDate, daysText, UPCOMING_SOURCE } from '../data/upcomingCalls';
 import { ChileanFund, Agency, getFundVisibleStatus, CompanyProfile } from '../types/funds';
 import { fundFit } from '../data/journey';
 import { Convocatoria } from '../types/convocatoria';
@@ -227,11 +228,18 @@ export const FundCatalog: React.FC<FundCatalogProps> = ({
                             ? (matchingCall.diasRestantes === 0 ? ' (cierra hoy)' : ` (${matchingCall.diasRestantes} ${matchingCall.diasRestantes === 1 ? 'día' : 'días'})`)
                             : ''}</span>
                         </span>
-                      ) : (
-                        <span className="text-[10px] font-medium px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
-                          ⚪ Sin convocatoria abierta (referencial)
-                        </span>
-                      )}
+                      ) : (() => {
+                        const up = upcomingForFund(fund.id, (convocatorias || []).filter((c: any) => c.vigente && c.fundId).map((c: any) => String(c.fundId)));
+                        return up ? (
+                          <span title={UPCOMING_SOURCE} className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-300">
+                            📅 Abriría el {fmtShortDate(up.date)} ({daysText(up.days)}) · fecha estimada
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-medium px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
+                            ⚪ Sin convocatoria abierta (referencial)
+                          </span>
+                        );
+                      })()}
 
                       {fund.femaleBonusPct && (
                         <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-pink-50 text-pink-700 border border-pink-200">

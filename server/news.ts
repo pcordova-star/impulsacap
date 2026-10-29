@@ -397,6 +397,41 @@ export function alertEmail(args: { firstName?: string; companyName?: string; fun
   return { subject: `Se abrió ${args.titulo} y tu empresa calza`.slice(0, 140), html: shell(inner, footer, `Convocatoria abierta de ${args.fundName}`), text };
 }
 
+export interface UpcomingEmailCall { label: string; detail?: string; dateText: string; daysText: string; amount: string; fits: string[] }
+
+/** Aviso "se vienen convocatorias": calendario estimado y, si se puede, qué le sirve a esta empresa */
+export function upcomingEmail(args: { firstName?: string; companyName?: string; calls: UpcomingEmailCall[]; appUrl: string; unsubscribeUrl: string; sourceNote: string }) {
+  const hello = args.firstName ? `Hola, ${esc(args.firstName)}:` : 'Hola:';
+  const anyFit = args.calls.some(c => c.fits.length);
+  const rows = args.calls.map(c => `
+    <tr>
+      <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;vertical-align:top;white-space:nowrap;font-weight:bold;color:#b45309">${esc(c.dateText)}<br><span style="font-size:12px;font-weight:normal;color:#64748b">${esc(c.daysText)}</span></td>
+      <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;vertical-align:top">
+        <strong style="color:#0f172a">${esc(c.label)}</strong><br>
+        <span style="font-size:13px;color:#475569">${c.detail ? `${esc(c.detail)} · ` : ''}${esc(c.amount)}</span>
+        ${c.fits.length ? `<br><span style="font-size:13px;color:#047857;font-weight:bold">✓ Según tus datos, te puede servir: ${esc(c.fits.join(', '))}</span>` : ''}
+      </td>
+    </tr>`).join('');
+  const inner = `
+    <p style="margin:10px 0 4px;font-size:11px;font-weight:bold;letter-spacing:.04em;text-transform:uppercase;color:#b45309">Se vienen convocatorias</p>
+    <h1 style="margin:0 0 14px;font-size:21px;line-height:1.3;color:#0f172a">En noviembre abrirían fondos de Corfo y Start-Up Chile</h1>
+    <p style="margin:0 0 12px">${hello} ${anyFit ? `revisamos los datos de ${args.companyName ? esc(args.companyName) : 'tu empresa'} y algunos de estos fondos te pueden servir.` : 'te dejo las fechas de las convocatorias que se vienen.'} Abren por pocas semanas, así que conviene prepararse <strong>antes</strong>: quien llega con la postulación lista le saca ventaja al resto.</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:6px 0 10px;border:1px solid #e2e8f0;border-radius:12px;border-collapse:separate">${rows}</table>
+    <p style="margin:0 0 12px;font-size:13px;color:#64748b">${esc(args.sourceNote)}</p>
+    <p style="margin:0 0 12px">En ImpulsaCap puedes dejar lista hoy tu postulación: revisar los requisitos con tus datos, redactar el formulario con ayuda de la IA y ver cómo te evaluaría el comité. Cuando abra, te avisamos si tu empresa calza.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0 6px"><tr><td style="border-radius:10px;background:#059669">
+      <a href="${esc(args.appUrl)}" style="display:inline-block;padding:13px 24px;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none">Preparar mi postulación</a>
+    </td></tr></table>`;
+  const footer = `Recibes este aviso porque tienes una cuenta en ImpulsaCap. <a href="${esc(args.unsubscribeUrl)}" style="color:#64748b">Dejar de recibir novedades y alertas</a>.<br>ImpulsaCap es operado por Tresna SpA.`;
+  const text = [
+    'Se vienen convocatorias', '',
+    ...args.calls.map(c => `• ${c.dateText} (${c.daysText}): ${c.label}${c.detail ? ` (${c.detail})` : ''} · ${c.amount}${c.fits.length ? `\n  Según tus datos te puede servir: ${c.fits.join(', ')}` : ''}`),
+    '', args.sourceNote, '', `Prepara tu postulación: ${args.appUrl}`, '', `Dejar de recibir: ${args.unsubscribeUrl}`
+  ].join('\n');
+  const first = args.calls[0];
+  return { subject: `Se vienen fondos: ${first?.label || 'convocatorias'} abriría ${first?.daysText || 'pronto'}`.slice(0, 140), html: shell(inner, footer, `${first?.label} abriría el ${first?.dateText}`), text };
+}
+
 // ---------------------------------------------------------------------------
 // Destinatarios
 // ---------------------------------------------------------------------------

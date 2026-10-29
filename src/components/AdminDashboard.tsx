@@ -4,6 +4,7 @@ import { apiFetch } from '../utils/apiFetch';
 import { auth } from '../firebase';
 import { requestLogin } from '../utils/authEvents';
 import { CHILEAN_FUNDS } from '../data/chileanFunds';
+import { pendingUpcoming, fmtShortDate } from '../data/upcomingCalls';
 
 /* Tipos del resumen que entrega GET /api/admin/resumen (server/adminStats.ts) */
 interface SeriesPoint { date: string; views: number; visitors: number; signups: number; purchases: number; revenue: number; applications: number }
@@ -909,6 +910,37 @@ const ClientErrorsPanel: React.FC = () => {
   );
 };
 
+/** Aviso por correo "se vienen convocatorias" (calendario de src/data/upcomingCalls.ts) */
+const UpcomingNoticeTools: React.FC = () => {
+  const [busy, setBusy] = useState<'test' | 'send' | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const calls = pendingUpcoming([]);
+  const run = async (kind: 'test' | 'send') => {
+    if (kind === 'send' && !confirm('¿Enviar el aviso de aperturas a todos los usuarios? Quien ya lo recibió no lo vuelve a recibir.')) return;
+    setBusy(kind); setMsg(null);
+    try {
+      const res = await apiFetch('/api/admin/aviso-aperturas/ahora', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prueba: kind === 'test' }), timeoutMs: 280000 } as any);
+      const b = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(b.error || 'No se pudo enviar.');
+      setMsg(b.prueba ? 'Te enviamos el aviso de prueba: revisa tu correo (y spam).'
+        : b.omitido ? `No se envió: ${b.omitido}.`
+        : `Enviados: ${b.enviados} · errores: ${b.errores} · ya lo tenían: ${b.yaRecibieron} · total: ${b.total}.${b.faltan > 0 ? ` Faltan ${b.faltan}: vuelve a presionar "Enviar a todos" para seguir.` : ''}${b.errores > 0 ? ' Si hay muchos errores, puede ser el límite diario de Resend (100 correos en el plan gratis).' : ''}`);
+    } catch (e: any) { setMsg(e?.message || 'No se pudo enviar.'); } finally { setBusy(null); }
+  };
+  if (calls.length === 0) return null;
+  return (
+    <div className="w-full p-4 rounded-xl border border-amber-200 bg-amber-50/60 space-y-2">
+      <p className="text-sm font-bold text-slate-900">Aviso por correo: se vienen convocatorias</p>
+      <p className="text-xs text-slate-600">Calendario: {calls.map(c => `${c.label} (${fmtShortDate(c.date)})`).join(' · ')}. A cada empresa le dice cuáles le sirven según sus datos. Respeta a quienes se dieron de baja.</p>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" disabled={!!busy} onClick={() => run('test')} className="px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 text-xs font-bold cursor-pointer disabled:opacity-50">{busy === 'test' ? 'Enviando…' : 'Enviarme la prueba'}</button>
+        <button type="button" disabled={!!busy} onClick={() => run('send')} className="px-3 py-2 rounded-lg bg-amber-600 text-white text-xs font-bold cursor-pointer disabled:opacity-50">{busy === 'send' ? 'Enviando (puede tardar unos minutos)…' : 'Enviar a todos'}</button>
+      </div>
+      {msg && <p className="text-xs text-slate-700">{msg}</p>}
+    </div>
+  );
+};
+
 /** Publicar una novedad escrita por ti (sale en Novedades y en el próximo boletín) */
 const OwnNewsForm: React.FC<{ onDone: () => void }> = ({ onDone }) => {
   const [open, setOpen] = useState(false);
@@ -1005,6 +1037,7 @@ const NewsPanel: React.FC = () => {
         <button type="button" disabled={!!busy} onClick={() => run('send')} className="px-3 py-2 rounded-lg border border-emerald-600 text-emerald-700 text-xs font-bold cursor-pointer disabled:opacity-50">{busy === 'send' ? 'Enviando…' : 'Enviar boletín a todos ahora'}</button>
         <button type="button" onClick={() => setShowSources(v => !v)} className="px-3 py-2 rounded-lg text-xs font-bold text-blue-700 hover:underline cursor-pointer">{showSources ? 'Ocultar fuentes' : 'Ver estado de las fuentes'}</button>
         <OwnNewsForm onDone={() => { setEstado('aprobada'); load(); }} />
+        <UpcomingNoticeTools />
       </div>
       {msg && <p className="text-xs text-slate-700 mb-3">{msg}</p>}
       {showSources && d && (
