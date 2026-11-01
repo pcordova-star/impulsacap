@@ -34,7 +34,8 @@ import {
   isValidTaxSales, 
   parseNumberCLP 
 } from './server/taxFolderExtractor';
-import { buildAdminSummary, chileDayKey, TRACKED_PAGES } from './server/adminStats';
+import { buildAdminSummary, buildPostulationFunnel, chileDayKey, TRACKED_PAGES } from './server/adminStats';
+import { calculateProjectProfileCompletion } from './src/types/funds';
 import { SUPPORT_KNOWLEDGE } from './server/supportKnowledge';
 import { groundFigures } from './server/figureCheck';
 import {
@@ -62,7 +63,7 @@ import {
 } from './server/email';
 import { createCounterBuffer } from './server/counterBuffer';
 import { pendingUpcoming, fmtShortDate, daysText, UPCOMING_SOURCE } from './src/data/upcomingCalls';
-import { fundFit } from './src/data/journey';
+import { fundFit, isCompanyReady } from './src/data/journey';
 import { aiGuard, aiContext, recordAiUsage, inputTextChars, AI_MAX_INPUT_CHARS, AI_MAX_OUTPUT, AiLimitError, AI_LIMITS, chileDay } from './server/aiUsage';
 import {
   PRICE_FULL,
@@ -3975,6 +3976,18 @@ app.post('/api/metrics/error', clientErrorLimiter, express.json({ limit: '16kb',
       at: new Date().toISOString()
     });
   } catch { /* sin efecto */ }
+});
+
+app.get('/api/admin/embudo-postulacion', requireAuth, requireAdminUser, async (_req, res) => {
+  try {
+    if (!(await ensureFirestoreAdmin())) return res.status(503).json({ error: 'Firestore Admin no está autorizado.' });
+    const steps = await buildPostulationFunnel(adminDb, isCompanyReady, calculateProjectProfileCompletion);
+    res.set('Cache-Control', 'no-store');
+    return res.json({ steps });
+  } catch (e: any) {
+    console.error('[embudo] Error:', e?.message);
+    return res.status(500).json({ error: 'No se pudo calcular el embudo.' });
+  }
 });
 
 app.get('/api/admin/errores', requireAuth, requireAdminUser, async (_req, res) => {

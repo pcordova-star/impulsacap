@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'react';
+import { remainingMinutes, fmtMinutes, prepChecklist } from './data/effort';
+import { computeRoadmap } from './data/fundStandards';
+import { validateRut } from './utils/rutValidator';
 import { UpcomingCallsBanner } from './components/UpcomingCallsBanner';
 import { fundFit, isCompanyReady } from './data/journey';
 import { regionFit, type RegionFit } from './utils/region';
@@ -1210,6 +1213,17 @@ export default function App() {
                   ))}
                 </ul>
               )}
+              {(() => {
+                const rm = computeRoadmap({ fund: g.fund, profile, rutValid: validateRut(profile.rut || ''), formulation: null, auditResult: null, checks: {} });
+                const mins = remainingMinutes(rm.steps).toSubmit;
+                const prep = prepChecklist(g.fund, profile).filter(p => !p.done);
+                return (
+                  <div className="mt-3 rounded-xl bg-blue-50 border border-blue-200 p-3 text-sm text-blue-950 space-y-1.5">
+                    <p><strong>Tiempo estimado:</strong> unas {fmtMinutes(mins)} de trabajo, en partes. Todo queda guardado y te guiamos paso a paso.</p>
+                    {prep.length > 0 && <p className="text-xs"><strong>Ten a mano:</strong> {prep.slice(0, 5).map(p => p.label.split(' (')[0].split(':')[0]).join(' · ')}.</p>}
+                  </div>
+                );
+              })()}
               <p className="mt-3 text-xs text-slate-500">Empezar la postulación usa 1 de tus 3 cupos (puedes archivarla después para liberarlo). Te armamos la hoja de ruta con las bases de este fondo.</p>
               <div className="mt-5 flex flex-col gap-2">
                 {warn ? (

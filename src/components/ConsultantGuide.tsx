@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { remainingMinutes, companyMinutes, readyToSubmit, fmtMinutes } from '../data/effort';
 import { ArrowRight, CheckCircle2, ChevronDown, ChevronUp, Compass, Lock, X } from 'lucide-react';
 import type { ChileanFund, CompanyProfile, CompanyUser } from '../types/funds';
 import type { ExpedienteData } from '../types/expediente';
@@ -53,6 +54,9 @@ export const ConsultantGuide: React.FC<Props> = ({ currentUser, profile, hasActi
   const current = journey.current;
   const total = journey.total;
   const doneCount = journey.doneCount;
+  // Tiempo que falta para poder enviar (empresa + pasos obligatorios del fondo)
+  const minutesLeft = journey.roadmap ? remainingMinutes(journey.roadmap.steps, stages).toSubmit : companyMinutes(stages);
+  const canSubmit = Boolean(journey.roadmap && readyToSubmit(journey.roadmap.steps));
 
   // Diálogo "¿qué hacemos ahora?" después de guardar o de completar un paso
   const [prompt, setPrompt] = useState<{ kind: 'done' | 'saved'; label: string } | null>(null);
@@ -182,6 +186,11 @@ export const ConsultantGuide: React.FC<Props> = ({ currentUser, profile, hasActi
           </div>
           <span className="text-[11px] font-bold tabular-nums">{doneCount}/{total}</span>
         </div>
+        {hasActiveApplication && !stages.some(s => s.id === 'resultado') && (
+          <p className="mt-1.5 text-[11px] font-semibold text-white/90">
+            {canSubmit ? '✓ Ya puedes enviar tu postulación' : minutesLeft > 0 ? `Te faltan unas ${fmtMinutes(minutesLeft)} de trabajo para poder enviarla` : null}
+          </p>
+        )}
       </div>
 
       <div className="p-4 space-y-3 max-h-[60vh] overflow-y-auto">

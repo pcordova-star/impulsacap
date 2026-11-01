@@ -1,4 +1,5 @@
 import { splitTarget, goToTarget, setReturnContext, request as requestNav } from '../utils/navFocus';
+import { remainingMinutes, readyToSubmit, fmtMinutes } from '../data/effort';
 import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { showToast } from '../utils/toast';
 import { askFeedback } from '../utils/feedbackEvents';
@@ -122,7 +123,8 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
       signedLetters: (expediente?.generatedDocs || []).filter((d: any) => d.status === 'firmada' && isLetterDoc(d.tipo)).length,
       submitted: (application as any)?.status === 'enviada'
     });
-    return { completedCount: rm.completed, percentage: rm.percentage, steps: rm.steps };
+    const rem = remainingMinutes(rm.steps);
+    return { completedCount: rm.completed, percentage: rm.percentage, steps: rm.steps, minutesToSubmit: rem.toSubmit, ready: readyToSubmit(rm.steps) };
   }, [fund, profile, application, expediente, formulation, auditResult]);
 
   // Project profile completion percentage (Requirement A.2)
@@ -264,6 +266,9 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
                 <span className="text-xs font-black text-blue-700">{progress.percentage}%</span>
                 <span className="text-[10px] text-slate-400">({progress.completedCount}/6)</span>
               </div>
+              <p className={`text-[10px] font-semibold mt-0.5 ${progress.ready ? 'text-emerald-700' : 'text-slate-500'}`}>
+                {progress.ready ? '✓ Ya la puedes enviar' : `Faltan unas ${fmtMinutes(progress.minutesToSubmit)} para enviarla`}
+              </p>
               <div className="w-28 sm:w-36 h-2 bg-slate-100 rounded-full overflow-hidden mt-1 border border-slate-200/80">
                 <div 
                   className="h-full bg-gradient-to-r from-blue-600 to-emerald-600 transition-all duration-500 rounded-full"

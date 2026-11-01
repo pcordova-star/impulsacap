@@ -880,6 +880,50 @@ const NewsRow: React.FC<{ n: AdminNews; estado: string; onDone: () => void }> = 
   );
 };
 
+/** Embudo de la postulación: dónde se queda la gente */
+const PostulationFunnel: React.FC = () => {
+  const [steps, setSteps] = useState<{ key: string; label: string; value: number }[] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await apiFetch('/api/admin/embudo-postulacion');
+        const b = await res.json().catch(() => ({}));
+        if (res.ok) setSteps(b.steps); else setErr(b.error || 'No se pudo cargar.');
+      } catch (e: any) { setErr(e?.message || 'No se pudo cargar.'); }
+    })();
+  }, []);
+  const max = Math.max(1, ...(steps || []).map(s => s.value));
+  let worst: { label: string; drop: number } | null = null;
+  (steps || []).forEach((s, i) => {
+    if (i === 0 || i === (steps || []).length - 1) return;
+    const prev = steps![i - 1].value;
+    if (prev >= 5) { const drop = 1 - s.value / prev; if (!worst || drop > worst.drop) worst = { label: s.label, drop }; }
+  });
+  return (
+    <Card title="Embudo de la postulación" subtitle="Personas distintas que llegaron a cada paso (desde el inicio). El % es respecto del paso anterior: donde más baja es donde hay que mejorar.">
+      {err && <p className="text-xs text-rose-700">{err}</p>}
+      {!steps && !err && <p className="text-xs text-slate-500">Calculando…</p>}
+      {steps && (
+        <ol className="space-y-1.5">
+          {steps.map((s, i) => {
+            const prev = i > 0 ? steps[i - 1].value : 0;
+            const pctPrev = i > 0 && prev > 0 ? Math.round((s.value / prev) * 100) : null;
+            return (
+              <li key={s.key} className="grid grid-cols-[minmax(0,13rem)_1fr_auto] items-center gap-2 text-xs">
+                <span className="text-slate-700 truncate">{s.label}</span>
+                <span className="h-3 rounded-full bg-slate-100 overflow-hidden"><span className="block h-full rounded-full bg-blue-600" style={{ width: `${Math.max(2, (s.value / max) * 100)}%` }} /></span>
+                <span className="font-mono text-slate-800 w-20 text-right">{s.value}{pctPrev !== null ? <span className={`ml-1 ${pctPrev < 50 ? 'text-rose-600 font-bold' : 'text-slate-400'}`}>{pctPrev}%</span> : null}</span>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+      {worst && <p className="mt-3 text-xs text-slate-700">Donde más se pierde gente: <strong>{(worst as any).label}</strong> (baja {Math.round((worst as any).drop * 100)}% respecto del paso anterior).</p>}
+    </Card>
+  );
+};
+
 /** Errores de pantalla que vieron los visitantes (para reaccionar rápido con mucho tráfico) */
 const ClientErrorsPanel: React.FC = () => {
   const [d, setD] = useState<{ total24h: number; items: { message: string; url: string; at: string; count: number }[] } | null>(null);
@@ -1374,6 +1418,7 @@ export const AdminDashboard: React.FC = () => {
         )}
       </Card>
 
+      <PostulationFunnel />
       <ClientErrorsPanel />
       <NewsPanel />
 

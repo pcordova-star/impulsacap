@@ -278,3 +278,49 @@ export async function buildAdminSummary(
 }
 
 export type AdminSummary = Awaited<ReturnType<typeof buildAdminSummary>>;
+
+/**
+ * Embudo de la postulación (personas distintas que llegaron a cada paso).
+ * Muestra dónde se queda la gente: cuenta → empresa → fondo → formulario → presupuesto → evaluación → envío → resultado.
+ */
+export async function buildPostulationFunnel(db: Firestore, isCompanyReady: (p: any) => boolean, projectPct: (pp: any) => number) {
+  const [usersSnap, compSnap, appsSnap] = await Promise.all([
+    db.collection('users').select('email').get(),
+    db.collection('companies').get(),
+    db.collection('applications').select('ownerId', 'status', 'result', 'auditResult.overallScore', 'roadmapConfirmations.checks.portal', 'formulation.problemStatement', 'formulation.solutionAndInnovation', 'formulation.budgetBreakdown').get()
+  ]);
+  const ready = new Set<string>();
+  const project = new Set<string>();
+  compSnap.docs.forEach(d => {
+    const c = d.data() || {};
+    const p = c.profileData || c;
+    const uid = String(c.ownerId || '');
+    if (!uid) return;
+    if (isCompanyReady(p)) ready.add(uid);
+    if (projectPct(p.projectProfile) >= 60) project.add(uid);
+  });
+  const withApp = new Set<string>(), started = new Set<string>(), budget = new Set<string>(), audited = new Set<string>(), sent = new Set<string>(), won = new Set<string>();
+  appsSnap.docs.forEach(d => {
+    const a: any = d.data() || {};
+    const uid = String(a.ownerId || '');
+    if (!uid || a.status === 'archivada') return;
+    withApp.add(uid);
+    const f = a.formulation || {};
+    if (String(f.problemStatement || f.solutionAndInnovation || '').trim().length > 40) started.add(uid);
+    if (Array.isArray(f.budgetBreakdown) && f.budgetBreakdown.some((b: any) => Number(b?.corfoContributionCLP) > 0)) budget.add(uid);
+    if (Number(a.auditResult?.overallScore) > 0) audited.add(uid);
+    if (a.status === 'enviada' || a.roadmapConfirmations?.checks?.portal || a.result) sent.add(uid);
+    if (a.result?.outcome === 'adjudicada') won.add(uid);
+  });
+  return [
+    { key: 'cuenta', label: 'Crearon su cuenta', value: usersSnap.size },
+    { key: 'empresa', label: 'Completaron los datos de la empresa', value: ready.size },
+    { key: 'proyecto', label: 'Describieron su proyecto (60% o más)', value: project.size },
+    { key: 'fondo', label: 'Eligieron un fondo', value: withApp.size },
+    { key: 'formulario', label: 'Empezaron el formulario', value: started.size },
+    { key: 'presupuesto', label: 'Armaron el presupuesto', value: budget.size },
+    { key: 'evaluacion', label: 'Hicieron la evaluación simulada', value: audited.size },
+    { key: 'envio', label: 'Enviaron la postulación', value: sent.size },
+    { key: 'gano', label: 'Ganaron', value: won.size }
+  ];
+}

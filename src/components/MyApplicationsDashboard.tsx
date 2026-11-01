@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { remainingMinutes, readyToSubmit, fmtMinutes } from '../data/effort';
 import { UpcomingCallsBanner } from './UpcomingCallsBanner';
 import { request as requestNav } from '../utils/navFocus';
 import { PLAN_PRICE, PLAN_PRICE_TEXT } from '../data/pricing';
@@ -195,7 +196,9 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
       steps,
       nextIndex,
       nextTarget: cur?.action.target || null,
-      nextLabel: cur?.action.label || ''
+      nextLabel: cur?.action.label || '',
+      minutesToSubmit: remainingMinutes(rm.steps).toSubmit,
+      ready: readyToSubmit(rm.steps)
     };
   }
 
@@ -537,7 +540,7 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
                       </li>
                     ))}
                   </ol>
-                  <p className="text-xs text-slate-600"><strong className="text-slate-900">{progress.completedCount} de 6 pasos</strong> listos ({progress.percentage}%)</p>
+                  <p className="text-xs text-slate-600"><strong className="text-slate-900">{progress.completedCount} de 6 pasos</strong> listos ({progress.percentage}%){app.status !== 'enviada' && (progress.ready ? <span className="text-emerald-700 font-bold"> · ¡lista para enviar!</span> : <> · te faltan unas <strong className="text-slate-900">{fmtMinutes(progress.minutesToSubmit)}</strong> de trabajo</>)}</p>
 
                   {/* Próximo paso */}
                   <div className="mt-auto p-3.5 rounded-2xl bg-blue-50 border border-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
