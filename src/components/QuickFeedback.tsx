@@ -27,6 +27,24 @@ function markAsked(uid: string, m: FeedbackMoment) {
   try { localStorage.setItem(seenKey(uid, m), new Date().toISOString()); } catch { /* sin almacenamiento */ }
 }
 
+// Pocas veces y espaciadas: como máximo 2 encuestas por persona, con al menos 7 días entre una y otra.
+// Si la cierra sin responder, no se vuelve a preguntar en 30 días.
+const MAX_ASKS = 2;
+const GAP_DAYS = 7;
+const MUTE_DAYS = 30;
+const metaKey = (uid: string) => `impulsacap_feedback_${uid}_meta`;
+function readMeta(uid: string): { count: number; last: number; muteUntil: number } {
+  try { return { count: 0, last: 0, muteUntil: 0, ...JSON.parse(localStorage.getItem(metaKey(uid)) || '{}') }; } catch { return { count: 0, last: 0, muteUntil: 0 }; }
+}
+function writeMeta(uid: string, m: { count: number; last: number; muteUntil: number }) {
+  try { localStorage.setItem(metaKey(uid), JSON.stringify(m)); } catch { /* sin almacenamiento */ }
+}
+function canAsk(uid: string): boolean {
+  const m = readMeta(uid);
+  const now = Date.now();
+  return m.count < MAX_ASKS && now - m.last > GAP_DAYS * 864e5 && now > m.muteUntil;
+}
+
 export const QuickFeedback: React.FC = () => {
   const { isBeta } = usePlan();
   const [req, setReq] = useState<FeedbackRequest | null>(null);
@@ -42,9 +60,11 @@ export const QuickFeedback: React.FC = () => {
 
   useEffect(() => onFeedbackRequest(r => {
     const uid = auth.currentUser?.uid;
-    if (!uid || openRef.current || alreadyAsked(uid, r.moment)) return;
+    if (!uid || openRef.current || alreadyAsked(uid, r.moment) || !canAsk(uid)) return;
     markAsked(uid, r.moment);
     if (!isBetaRef.current && Math.random() > SAMPLE_RATE) return;
+    const meta = readMeta(uid);
+    writeMeta(uid, { ...meta, count: meta.count + 1, last: Date.now() });
     if (timer.current) clearTimeout(timer.current);
     // Se muestra un momento después, para no interrumpir mientras la persona mira el resultado
     timer.current = setTimeout(() => { setReq(r); setRating(null); setComment(''); setSent(false); }, 2500);
@@ -78,7 +98,7 @@ export const QuickFeedback: React.FC = () => {
 
   return (
     <div role="dialog" aria-label="¿Cómo te está funcionando ImpulsaCap?" className="fixed z-50 bottom-20 sm:bottom-6 right-3 sm:right-6 left-3 sm:left-auto sm:w-80 rounded-2xl bg-white border border-slate-200 shadow-2xl p-4 animate-fade-in">
-      <button type="button" onClick={() => setReq(null)} className="absolute top-2.5 right-2.5 p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer" aria-label="Cerrar">
+      <button type="button" onClick={() => { const uid = auth.currentUser?.uid; if (uid && !rating) { const m = readMeta(uid); writeMeta(uid, { ...m, muteUntil: Date.now() + MUTE_DAYS * 864e5 }); } setReq(null); }} className="absolute top-2.5 right-2.5 p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer" aria-label="Cerrar">
         <X className="w-4 h-4" />
       </button>
       {sent ? (
