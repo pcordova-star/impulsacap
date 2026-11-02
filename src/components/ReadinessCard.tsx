@@ -16,9 +16,11 @@ export const ReadinessCard: React.FC<{
   storageKey: string;
   onGo: (target: string) => void;
   hasActivePlan?: boolean;
+  /** Plazo de la convocatoria (se detalla más abajo, en "Sobre este fondo") */
+  deadlineText?: string;
   /** Próxima acción del recorrido completo (incluye preparar la empresa y bloqueos) */
   nextAction?: { title: string; detail?: string; label: string; target: string; blocker?: boolean; alt?: { label: string; target: string } } | null;
-}> = ({ steps, fund, profile, storageKey, onGo, hasActivePlan = true, nextAction }) => {
+}> = ({ steps, fund, profile, storageKey, onGo, hasActivePlan = true, deadlineText, nextAction }) => {
   const rem = useMemo(() => remainingMinutes(steps), [steps]);
   const ready = readyToSubmit(steps);
   const submitted = steps.find(s => s.id === 'step_submit')?.items.find(i => i.id === 'portal')?.done;
@@ -62,6 +64,7 @@ export const ReadinessCard: React.FC<{
               ? `Tienes lo obligatorio: requisitos, formulario, presupuesto y documentos.${auditPending ? ' Antes de enviar, te recomendamos la evaluación simulada (unos 5 minutos): te dice qué mejorar para subir la nota.' : ' Abre el expediente, copia cada sección al portal y envíala.'}`
               : 'No tienes que hacerlo todo hoy: puedes avanzar en partes y todo queda guardado. Te guiamos en cada paso.'}
           </p>
+          {deadlineText && <p className="text-[11px] text-slate-400 mt-1 line-clamp-2">Plazo: {deadlineText}</p>}
         </div>
       </div>
 

@@ -1229,6 +1229,8 @@ export interface RoadmapItem {
   warn?: boolean;
   /** El usuario puede marcarlo como listo */
   confirmable?: boolean;
+  /** Recomendado: no impide dar el paso por listo ni enviar la postulación */
+  optional?: boolean;
   /** Destino del botón: pestaña#objetivo, o 'sii' | 'dossier' | 'guarantees' | 'url:...' */
   go?: { label: string; target: string };
 }
@@ -1358,10 +1360,18 @@ export function computeRoadmap(input: RoadmapInput): { steps: RoadmapStep[]; com
   const budgetDone = blockStatus('budget', formulation).done;
   const budgetItems: RoadmapItem[] = [
     { id: 'budget', label: `Presupuesto en las cuentas de ${fund.agency}`, done: budgetDone, detail: budgetDone ? `${formulation?.budgetBreakdown?.filter((b: any) => (b.corfoContributionCLP || 0) > 0).length} cuentas con montos` : r.budget.map(b => b.account).join(' · '), go: { label: 'Ir al presupuesto', target: 'formulator#section:budget' } },
-    { id: 'aporte', label: 'Aporte de tu empresa', done: budgetDone, detail: r.coFinance.text }
+    { id: 'aporte', label: 'Aporte de tu empresa', done: budgetDone, detail: r.coFinance.text },
+    (() => {
+      // Que las sumas cuadren no prueba que el gasto sea aceptable: se separa "revisado contra las bases y con respaldo"
+      const used = (formulation?.budgetBreakdown || []).filter((b: any) => (b.corfoContributionCLP || 0) + (b.companyPecuniaryCLP || 0) > 0);
+      const reviewed = used.filter((b: any) => b.eligibilityConfirmed);
+      const backed = used.filter((b: any) => Array.isArray(b.lines) && b.lines.length > 0 && b.lines.every((l: any) => l.support === 'cotizacion' || l.support === 'precio_publicado'));
+      const done = used.length > 0 && reviewed.length === used.length && backed.length === used.length;
+      return { id: 'budget_review', label: 'Cada gasto revisado contra las bases y con su respaldo', done, optional: true, detail: used.length ? `${reviewed.length} de ${used.length} cuentas revisadas · ${backed.length} con detalle y cotización o precio publicado` : 'Primero completa el presupuesto', go: { label: 'Revisar los gastos', target: 'formulator#section:budget' } } as RoadmapItem;
+    })()
   ];
   if (r.guarantee.required) {
-    budgetItems.push({ id: 'garantia', label: 'Garantía (se entrega si ganas; conviene planificarla)', done: Boolean(confirmedGarantia), confirmable: true, detail: r.guarantee.text, go: { label: 'Simular garantía', target: 'guarantees' } });
+    budgetItems.push({ id: 'garantia', label: 'Garantía (se entrega si ganas; conviene planificarla)', done: Boolean(confirmedGarantia), confirmable: true, optional: true, detail: r.guarantee.text, go: { label: 'Simular garantía', target: 'guarantees' } });
   }
 
   // 5. Evaluación simulada
@@ -1381,7 +1391,7 @@ export function computeRoadmap(input: RoadmapInput): { steps: RoadmapStep[]; com
   ];
 
   const mk = (number: number, id: string, title: string, subtitle: string, items: RoadmapItem[], action: { label: string; target: string }, needsPlan = false): RoadmapStep =>
-    ({ number, id, title, subtitle, items, done: items.length > 0 && items.every(i => i.done), action, needsPlan });
+    ({ number, id, title, subtitle, items, done: items.length > 0 && items.every(i => i.done || i.optional), action, needsPlan });
 
   // Orden de trabajo de un consultor: primero confirmar que calzas, luego redactar, presupuestar,
   // juntar anexos, simular la evaluación y enviar.

@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Calculator, CheckCircle2, AlertTriangle, ChevronDown, Info, Wand2, ExternalLink } from 'lucide-react';
+import { Calculator, CheckCircle2, AlertTriangle, ChevronDown, Info, Wand2, ExternalLink, Plus, Trash2 } from 'lucide-react';
+import type { BudgetLine } from '../types/funds';
 
 /**
  * Paso 8 del formulador: presupuesto guiado para alguien sin experiencia.
@@ -9,8 +10,56 @@ import { Calculator, CheckCircle2, AlertTriangle, ChevronDown, Info, Wand2, Exte
  * 4) Revisión con instrucciones concretas y ajuste automático.
  */
 
-export type BudgetField = 'corfoContributionCLP' | 'companyPecuniaryCLP' | 'item' | 'justification';
-export interface BudgetAccountData { corfoContributionCLP: number; companyPecuniaryCLP: number; item: string; justification: string }
+export type BudgetField = 'corfoContributionCLP' | 'companyPecuniaryCLP' | 'item' | 'justification' | 'lines' | 'eligibilityConfirmed';
+export interface BudgetAccountData { corfoContributionCLP: number; companyPecuniaryCLP: number; item: string; justification: string; lines?: BudgetLine[]; eligibilityConfirmed?: boolean }
+
+const SUPPORT_LABEL: Record<BudgetLine['support'], string> = {
+  cotizacion: 'Cotización del proveedor',
+  precio_publicado: 'Precio publicado (web o catálogo)',
+  estimado: 'Estimado (aún sin respaldo)',
+  '': 'Elige el respaldo'
+};
+export const lineTotal = (l: BudgetLine) => Math.round((l.qty || 0) * (l.unitCLP || 0));
+export const linesTotal = (ls?: BudgetLine[]) => (ls || []).reduce((a, l) => a + lineTotal(l), 0);
+const backed = (l: BudgetLine) => l.support === 'cotizacion' || l.support === 'precio_publicado';
+
+/** Detalle de una cuenta: cada compra o contratación con cantidad, costo unitario y respaldo */
+const LinesEditor: React.FC<{ id: string; lines: BudgetLine[]; onChange: (ls: BudgetLine[]) => void; placeholder: string }> = ({ id, lines, onChange, placeholder }) => {
+  const set = (i: number, patch: Partial<BudgetLine>) => onChange(lines.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+  return (
+    <div className="space-y-2">
+      {lines.map((l, i) => (
+        <div key={i} className="grid gap-2 sm:grid-cols-[1fr_70px_130px_210px_auto] items-end rounded-xl bg-slate-900/60 border border-slate-800 p-2.5">
+          <div>
+            <label htmlFor={`${id}-d${i}`} className="text-[10px] font-semibold text-slate-400 block mb-0.5">Qué es</label>
+            <input id={`${id}-d${i}`} value={l.description} onChange={e => set(i, { description: e.target.value })} placeholder={placeholder} className="w-full bg-slate-900 border border-slate-700 text-slate-100 text-xs rounded-lg px-2.5 py-2 focus:outline-none focus:border-cyan-500 placeholder:text-slate-600" />
+          </div>
+          <div>
+            <label htmlFor={`${id}-q${i}`} className="text-[10px] font-semibold text-slate-400 block mb-0.5">Cantidad</label>
+            <input id={`${id}-q${i}`} inputMode="numeric" value={l.qty || ''} onChange={e => set(i, { qty: Number(e.target.value.replace(/[^\d]/g, '')) || 0 })} placeholder="1" className="w-full bg-slate-900 border border-slate-700 text-slate-100 text-xs rounded-lg px-2.5 py-2 font-mono focus:outline-none focus:border-cyan-500" />
+          </div>
+          <div>
+            <label htmlFor={`${id}-u${i}`} className="text-[10px] font-semibold text-slate-400 block mb-0.5">Costo unitario (neto)</label>
+            <input id={`${id}-u${i}`} inputMode="numeric" value={l.unitCLP ? l.unitCLP.toLocaleString('es-CL') : ''} onChange={e => set(i, { unitCLP: parseClp(e.target.value) })} placeholder="$0" className="w-full bg-slate-900 border border-slate-700 text-slate-100 text-xs rounded-lg px-2.5 py-2 font-mono focus:outline-none focus:border-cyan-500" />
+          </div>
+          <div>
+            <label htmlFor={`${id}-s${i}`} className="text-[10px] font-semibold text-slate-400 block mb-0.5">Respaldo del precio</label>
+            <select id={`${id}-s${i}`} value={l.support} onChange={e => set(i, { support: e.target.value as BudgetLine['support'] })} className={`w-full bg-slate-900 border text-xs rounded-lg px-2 py-2 focus:outline-none focus:border-cyan-500 ${backed(l) ? 'border-slate-700 text-slate-100' : 'border-amber-500/60 text-amber-200'}`}>
+              {(['', 'cotizacion', 'precio_publicado', 'estimado'] as const).map(k => <option key={k} value={k} disabled={k === ''}>{SUPPORT_LABEL[k]}</option>)}
+            </select>
+          </div>
+          <div className="flex items-center gap-2 sm:pb-1.5">
+            <span className="text-xs font-mono text-slate-200 whitespace-nowrap">{clp(lineTotal(l))}</span>
+            <button type="button" aria-label={`Quitar línea ${i + 1}`} onClick={() => onChange(lines.filter((_, j) => j !== i))} className="p-1.5 rounded-lg text-slate-500 hover:text-rose-300 hover:bg-rose-500/10 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
+          </div>
+        </div>
+      ))}
+      <button type="button" onClick={() => onChange([...lines, { description: '', qty: 1, unitCLP: 0, support: '' }])} className="inline-flex items-center gap-1.5 text-xs font-bold text-cyan-300 hover:text-cyan-200 cursor-pointer">
+        <Plus className="w-3.5 h-3.5" /> Agregar una compra o contratación
+      </button>
+    </div>
+  );
+};
 
 interface AccountGuide {
   key: string;
@@ -118,6 +167,13 @@ export const BudgetWizard: React.FC<{
   const subExceeded = hasMax && totals.sub > maxSubsidyCLP;
   const pctExceeded = totals.total > 0 && totals.pct > maxPct + 0.05;
   const valid = totals.sub > 0 && !subExceeded && !pctExceeded;
+  // Elegibilidad: separada de las sumas. Cada cuenta usada debe estar revisada contra las bases y con respaldo
+  const usedGuides = GUIDES.filter(g => { const a = accounts[g.key]; return a && (a.corfoContributionCLP || a.companyPecuniaryCLP); });
+  const notReviewed = usedGuides.filter(g => !accounts[g.key]?.eligibilityConfirmed);
+  const noDetail = usedGuides.filter(g => !(accounts[g.key]?.lines || []).length);
+  const unbacked = usedGuides.filter(g => (accounts[g.key]?.lines || []).some(l => !backed(l)));
+  const mismatched = usedGuides.filter(g => { const ls = accounts[g.key]?.lines || []; const a = accounts[g.key]!; return ls.length > 0 && linesTotal(ls) !== (a.corfoContributionCLP || 0) + (a.companyPecuniaryCLP || 0); });
+  const eligibilityOk = usedGuides.length > 0 && !notReviewed.length && !noDetail.length && !unbacked.length && !mismatched.length;
   const missingTexts = GUIDES.filter(g => {
     const a = accounts[g.key];
     return a && (a.corfoContributionCLP || a.companyPecuniaryCLP) && (!a.item?.trim() || !a.justification?.trim());
@@ -243,7 +299,7 @@ export const BudgetWizard: React.FC<{
                 </span>
                 <span className="flex items-center gap-3 shrink-0">
                   <span className="text-xs font-mono text-slate-300">{clp(sum)}</span>
-                  {sum > 0 && (textsOk ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <AlertTriangle className="w-4 h-4 text-amber-400" />)}
+                  {sum > 0 && (textsOk && a.eligibilityConfirmed && (a.lines || []).length > 0 ? <CheckCircle2 className="w-4 h-4 text-emerald-400" aria-label="Cuenta completa" /> : <AlertTriangle className="w-4 h-4 text-amber-400" aria-label="Falta completar o revisar" />)}
                   <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
                 </span>
               </button>
@@ -280,6 +336,29 @@ export const BudgetWizard: React.FC<{
                       <input id={`b-${g.key}-just`} value={a.justification} onChange={e => onChange(g.key, 'justification', e.target.value)} placeholder={g.justificationPlaceholder} className="w-full bg-slate-900 border border-slate-700 text-slate-100 text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:border-cyan-500 placeholder:text-slate-600" />
                     </div>
                   </div>
+                  {/* Detalle por línea: cantidad × costo unitario, con respaldo */}
+                  <div className="space-y-2 pt-1">
+                    <p className="text-[11px] font-semibold text-slate-300">Detalle: cada compra o contratación, con su cantidad, costo unitario y de dónde sale el precio</p>
+                    <LinesEditor id={`b-${g.key}-l`} lines={a.lines || []} onChange={ls => onChange(g.key, 'lines', ls)} placeholder={g.itemPlaceholder.replace(/^Ej: /, 'Ej: ')} />
+                    {(a.lines || []).length > 0 && (() => {
+                      const lt = linesTotal(a.lines);
+                      if (lt === sum) return <p className="text-[11px] text-emerald-300">El detalle suma {clp(lt)}: coincide con lo que pusiste en esta cuenta.</p>;
+                      const s2 = Math.min(lt, Math.floor((lt * maxPct) / 100 / 1000) * 1000);
+                      return (
+                        <p className="text-[11px] text-amber-200">
+                          El detalle suma {clp(lt)} y la cuenta tiene {clp(sum)}.{' '}
+                          <button type="button" onClick={() => { onChange(g.key, 'corfoContributionCLP', s2); onChange(g.key, 'companyPecuniaryCLP', lt - s2); }} className="font-bold underline cursor-pointer">Usar el total del detalle</button>
+                          {' '}(reparte {maxPct}% fondo y el resto tu empresa; después revisa los topes).
+                        </p>
+                      );
+                    })()}
+                  </div>
+                  {sum > 0 && (
+                    <label className="flex items-start gap-2 text-xs text-slate-200 cursor-pointer">
+                      <input type="checkbox" checked={Boolean(a.eligibilityConfirmed)} onChange={e => onChange(g.key, 'eligibilityConfirmed', e.target.checked)} className="mt-0.5 w-4 h-4 shrink-0" />
+                      <span>Revisé en las bases{basesUrl ? <> (<a href={basesUrl} target="_blank" rel="noopener noreferrer" className="text-cyan-300 underline">abrir</a>)</> : null} que estos gastos se permiten en esta cuenta y respetan sus topes.</span>
+                    </label>
+                  )}
                   {i < GUIDES.length - 1 && (
                     <button type="button" onClick={() => setOpenKey(GUIDES[i + 1].key)} className="text-xs font-bold text-cyan-300 hover:text-cyan-200 cursor-pointer">
                       Siguiente: {GUIDES[i + 1].plainName} →
@@ -314,7 +393,22 @@ export const BudgetWizard: React.FC<{
               <Wand2 className="w-4 h-4" /> Ajustar automáticamente
             </button>
           )}
-          {valid && <p className="text-emerald-200">Tu presupuesto cumple los topes de {fundName}: el fondo pone el {totals.pct.toFixed(1)}% y tu empresa {clp(totals.emp)}.</p>}
+          {valid && <p className="text-emerald-200"><strong>Sumas y topes correctos:</strong> el fondo pone el {totals.pct.toFixed(1)}% y tu empresa {clp(totals.emp)}, dentro de lo que permite {fundName}.</p>}
+          {valid && (
+            <div className={`mt-1 p-3 rounded-xl border ${eligibilityOk ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-100' : 'bg-amber-500/10 border-amber-500/30 text-amber-100'}`}>
+              <p className="font-bold">{eligibilityOk ? 'Gastos revisados y con respaldo' : 'Que las sumas cuadren no basta: falta revisar los gastos'}</p>
+              {eligibilityOk ? (
+                <p>Cada cuenta tiene su detalle, precios con respaldo y la confirmaste contra las bases. La aceptación final de cada gasto la decide el organismo.</p>
+              ) : (
+                <ul className="list-disc pl-4 space-y-0.5 mt-1">
+                  {noDetail.length > 0 && <li>Agrega el detalle (cantidad y costo unitario) en: {noDetail.map(g => g.plainName.toLowerCase()).join(', ')}.</li>}
+                  {mismatched.length > 0 && <li>El detalle no coincide con el monto de: {mismatched.map(g => g.plainName.toLowerCase()).join(', ')}.</li>}
+                  {unbacked.length > 0 && <li>Hay precios sin cotización ni precio publicado en: {unbacked.map(g => g.plainName.toLowerCase()).join(', ')}. Pide una cotización o guarda el enlace del precio.</li>}
+                  {notReviewed.length > 0 && <li>Confirma contra las bases que se permiten los gastos de: {notReviewed.map(g => g.plainName.toLowerCase()).join(', ')}.</li>}
+                </ul>
+              )}
+            </div>
+          )}
           {missingTexts.length > 0 && (
             <p className="text-amber-200">Falta explicar en qué gastarás y por qué en: {missingTexts.map(g => g.plainName.toLowerCase()).join(', ')}. Los evaluadores revisan que cada gasto se justifique.</p>
           )}

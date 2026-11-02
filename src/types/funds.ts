@@ -257,6 +257,10 @@ export interface FormulationOutput {
     companyPecuniaryCLP: number;
     companyValuedCLP: number;
     justification: string;
+    /** Detalle por línea: cantidad × costo unitario y su respaldo */
+    lines?: BudgetLine[];
+    /** La persona confirmó en las bases que estos gastos se permiten */
+    eligibilityConfirmed?: boolean;
   }[];
   teamCapabilities: string;
   bonusFemaleJustification?: string;
@@ -311,4 +315,14 @@ export function getFundVisibleStatus(fund: { callStatus?: 'abierta' | 'cerrada' 
   if (fund.callStatus === 'cerrada') return 'Cerrada';
   if (fund.callStatus === 'proxima') return 'Próxima';
   return 'Por confirmar';
+}
+
+
+/** Una línea del presupuesto: qué se compra o contrata, cuánto y con qué respaldo */
+export interface BudgetLine {
+  description: string;
+  qty: number;
+  unitCLP: number;
+  /** De dónde sale el precio */
+  support: 'cotizacion' | 'precio_publicado' | 'estimado' | '';
 }

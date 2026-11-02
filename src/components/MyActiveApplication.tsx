@@ -505,143 +505,9 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
         storageKey={`${userKey}_${selectedFund.id}`}
         onGo={runTarget}
         hasActivePlan={hasActivePlan}
+        deadlineText={selectedFund.callSchedule || ''}
         nextAction={nextJ ? { title: nextJ.blocker ? 'No cumples un requisito de este fondo' : nextJ.title, detail: nextJ.next ? `${nextJ.blocker ? 'No cumples: ' : 'Falta: '}${nextJ.next}` : nextJ.why, label: nextJ.action.label, target: nextJ.action.target, blocker: Boolean(nextJ.blocker), alt: nextJ.alt } : null}
       />
-
-      {/* Conoce tu fondo: explicación del consultor */}
-      <FundIntroCard fund={selectedFund} userKey={userKey} />
-
-      {/* Ejemplos reales: ganadores de Semilla Inicia parecidos a este proyecto */}
-      {isSemillaInicia(selectedFund) && <SimilarWinners profile={profile} />}
-
-      {/* 2. PROMINENT DEADLINE COUNTDOWN: "NO QUEDAR FUERA DE PLAZO" */}
-      <div className="p-6 rounded-3xl bg-gradient-to-r from-blue-50/90 via-white to-emerald-50/80 border border-blue-200 shadow-sm relative overflow-hidden">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-xs font-bold">
-                <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
-                Cierre de la convocatoria
-              </span>
-              <span className="text-xs text-slate-500 font-medium">
-                {selectedFund.status}
-              </span>
-            </div>
-
-            <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <span>Plazo Límite de Envío:</span>
-              <span className="text-blue-700 font-extrabold">{selectedFund.callSchedule}</span>
-            </h3>
-            <p className="text-xs text-slate-600">
-              Los portales cierran a la hora exacta indicada en las bases (en Corfo suele ser a las 15:00 o 16:00). No dejes el envío para el último momento.
-            </p>
-          </div>
-
-          {/* Big Digital Countdown Clock: solo si hay una fecha de cierre futura */}
-          {hasFutureCloseDate ? (
-          <div className="flex items-center gap-2 sm:gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
-            <div className="text-center px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 min-w-[58px]">
-              <span className="text-2xl sm:text-3xl font-black text-blue-700 font-mono tracking-tight">
-                {String(timeLeft.days).padStart(2, '0')}
-              </span>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Días</p>
-            </div>
-            <span className="text-xl font-bold text-slate-400">:</span>
-
-            <div className="text-center px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 min-w-[58px]">
-              <span className="text-2xl sm:text-3xl font-black text-slate-800 font-mono tracking-tight">
-                {String(timeLeft.hours).padStart(2, '0')}
-              </span>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Horas</p>
-            </div>
-            <span className="text-xl font-bold text-slate-400">:</span>
-
-            <div className="text-center px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 min-w-[58px]">
-              <span className="text-2xl sm:text-3xl font-black text-slate-800 font-mono tracking-tight">
-                {String(timeLeft.minutes).padStart(2, '0')}
-              </span>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Min</p>
-            </div>
-            <span className="text-xl font-bold text-slate-400">:</span>
-
-            <div className="text-center px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 min-w-[58px]">
-              <span className="text-2xl sm:text-3xl font-black text-emerald-600 font-mono tracking-tight">
-                {String(timeLeft.seconds).padStart(2, '0')}
-              </span>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Seg</p>
-            </div>
-          </div>
-          ) : (
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs text-sm text-slate-600 max-w-xs">
-              Este fondo no tiene una fecha de cierre publicada. Revisa la convocatoria vigente en el monitor antes de postular.
-            </div>
-          )}
-        </div>
-
-        {/* Recordatorios de calendario: solo con una fecha conocida (cierre publicado o apertura anunciada) */}
-        {calendarLabel(selectedFund) && <div className="mt-4 pt-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
-          <span className="text-slate-600 font-medium flex items-center gap-1.5">
-            <Flame className="w-4 h-4 text-amber-500" />
-            <span>Evita quedar fuera de plazo por saturación del sistema fiscal.</span>
-          </span>
-
-          <div className="flex items-center gap-2">
-            <a
-              href={getGoogleCalendarUrl(selectedFund)!}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-bold transition-all shadow-xs"
-            >
-              <CalendarPlus className="w-3.5 h-3.5 text-blue-600" />
-              <span>{calendarLabel(selectedFund)} en Google Calendar</span>
-            </a>
-
-            <button
-              onClick={() => downloadIcsFile(selectedFund)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-bold transition-all cursor-pointer shadow-xs"
-              title="Descargar archivo de calendario .ics para Outlook o Apple Calendar"
-            >
-              <Download className="w-3.5 h-3.5 text-slate-500" />
-              <span>Descargar .ics</span>
-            </button>
-          </div>
-        </div>}
-      </div>
-
-      {/* BASES DEL FONDO: lo esencial que cambia de un fondo a otro */}
-      <details className="rounded-3xl bg-white border border-slate-200 shadow-sm p-5 sm:p-6 group" open={false}>
-        <summary className="cursor-pointer list-none flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Lo que dicen las bases de este fondo</p>
-            <p className="text-sm font-bold text-slate-900">{fundRules.bases.title}</p>
-          </div>
-          <span className="text-xs font-bold text-blue-700 group-open:hidden">Ver resumen</span>
-          <span className="text-xs font-bold text-blue-700 hidden group-open:inline">Ocultar</span>
-        </summary>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 text-sm text-slate-700">
-          <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3"><p className="text-xs font-bold text-slate-500 mb-1">Financiamiento y aportes</p><p>{fundRules.coFinance.text}</p>{fundRules.coFinance.minCashText && <p className="text-xs text-slate-500 mt-1">{fundRules.coFinance.minCashText}</p>}</div>
-          <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3"><p className="text-xs font-bold text-slate-500 mb-1">Cómo se evalúa ({fundRules.evaluation.scale})</p><p>{fundRules.evaluation.rule}</p>
-            {fundRules.evaluation.stages && (
-              <ul className="mt-1 text-xs text-slate-600 space-y-0.5">
-                {fundRules.evaluation.stages.map(st => <li key={st.name}>• {st.name}{st.weight ? ` (${st.weight}%)` : ''}{st.detail ? `: ${st.detail}` : ''}</li>)}
-              </ul>
-            )}
-          </div>
-          {fundRules.partners && <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3"><p className="text-xs font-bold text-slate-500 mb-1">Con quién se postula</p><p>{fundRules.partners}</p></div>}
-          <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3"><p className="text-xs font-bold text-slate-500 mb-1">Duración y garantía</p><p>{fundRules.duration}</p><p className="text-xs text-slate-600 mt-1">{fundRules.guarantee.text}</p></div>
-          {fundRules.formalizationDocs.length > 0 && (
-            <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3 sm:col-span-2"><p className="text-xs font-bold text-slate-500 mb-1">Si ganas, te pedirán</p>
-              <ul className="text-xs text-slate-600 grid sm:grid-cols-2 gap-x-4 gap-y-0.5">{fundRules.formalizationDocs.map(d => <li key={d}>• {d}</li>)}</ul>
-            </div>
-          )}
-          {fundRules.notes && fundRules.notes.map(n => <p key={n} className="sm:col-span-2 text-xs rounded-xl bg-amber-50 border border-amber-200 text-amber-900 p-2.5">{n}</p>)}
-          {fundRules.bases.note && <p className="sm:col-span-2 text-xs text-slate-500">{fundRules.bases.note}</p>}
-          <p className="sm:col-span-2 text-xs text-slate-500">
-            {fundRules.bases.verifiedAt ? `Revisado el ${fundRules.bases.verifiedAt.split('-').reverse().join('-')}. ` : ''}Las bases de cada convocatoria mandan: revisa la versión de tu región antes de postular.{' '}
-            <a href={fundRules.bases.url} target="_blank" rel="noopener noreferrer" className="font-bold text-blue-700 underline underline-offset-2">Abrir bases oficiales</a>
-          </p>
-        </div>
-      </details>
 
       {/* 4. NAVIGATION VIEW SELECTOR: TIMELINE VS DEEP DIVE TOOLS */}
       <div id="roadmap-views" className="scroll-mt-40 flex items-center justify-between border-b border-slate-800 pb-2">
@@ -679,7 +545,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
             }`}
           >
             <Coins className="w-4 h-4 text-amber-400" />
-            <span>Simulador de Garantías & Anticipo</span>
+            <span>Garantías (si ganas)</span>
           </button>
         </div>
       </div>
@@ -1083,6 +949,146 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
       {activeView === 'guarantees' && (
         <GuaranteesCalculator fund={selectedFund} />
       )}
+
+      {/* Sobre este fondo: plazo, explicación y bases (consulta; la lista de pasos va primero) */}
+      <div className="space-y-4 pt-2">
+        <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider px-2">Sobre este fondo: plazo, cómo funciona y sus bases</h3>
+      {/* Conoce tu fondo: explicación del consultor */}
+      <FundIntroCard fund={selectedFund} userKey={userKey} />
+
+      {/* Ejemplos reales: ganadores de Semilla Inicia parecidos a este proyecto */}
+      {isSemillaInicia(selectedFund) && <SimilarWinners profile={profile} />}
+
+      {/* 2. PROMINENT DEADLINE COUNTDOWN: "NO QUEDAR FUERA DE PLAZO" */}
+      <div className="p-6 rounded-3xl bg-gradient-to-r from-blue-50/90 via-white to-emerald-50/80 border border-blue-200 shadow-sm relative overflow-hidden">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-xs font-bold">
+                <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
+                Cierre de la convocatoria
+              </span>
+              <span className="text-xs text-slate-500 font-medium">
+                {selectedFund.status}
+              </span>
+            </div>
+
+            <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <span>Plazo Límite de Envío:</span>
+              <span className="text-blue-700 font-extrabold">{selectedFund.callSchedule}</span>
+            </h3>
+            <p className="text-xs text-slate-600">
+              Los portales cierran a la hora exacta indicada en las bases (en Corfo suele ser a las 15:00 o 16:00). No dejes el envío para el último momento.
+            </p>
+          </div>
+
+          {/* Big Digital Countdown Clock: solo si hay una fecha de cierre futura */}
+          {hasFutureCloseDate ? (
+          <div className="flex items-center gap-2 sm:gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
+            <div className="text-center px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 min-w-[58px]">
+              <span className="text-2xl sm:text-3xl font-black text-blue-700 font-mono tracking-tight">
+                {String(timeLeft.days).padStart(2, '0')}
+              </span>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Días</p>
+            </div>
+            <span className="text-xl font-bold text-slate-400">:</span>
+
+            <div className="text-center px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 min-w-[58px]">
+              <span className="text-2xl sm:text-3xl font-black text-slate-800 font-mono tracking-tight">
+                {String(timeLeft.hours).padStart(2, '0')}
+              </span>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Horas</p>
+            </div>
+            <span className="text-xl font-bold text-slate-400">:</span>
+
+            <div className="text-center px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 min-w-[58px]">
+              <span className="text-2xl sm:text-3xl font-black text-slate-800 font-mono tracking-tight">
+                {String(timeLeft.minutes).padStart(2, '0')}
+              </span>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Min</p>
+            </div>
+            <span className="text-xl font-bold text-slate-400">:</span>
+
+            <div className="text-center px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 min-w-[58px]">
+              <span className="text-2xl sm:text-3xl font-black text-emerald-600 font-mono tracking-tight">
+                {String(timeLeft.seconds).padStart(2, '0')}
+              </span>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Seg</p>
+            </div>
+          </div>
+          ) : (
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs text-sm text-slate-600 max-w-xs">
+              Este fondo no tiene una fecha de cierre publicada. Revisa la convocatoria vigente en el monitor antes de postular.
+            </div>
+          )}
+        </div>
+
+        {/* Recordatorios de calendario: solo con una fecha conocida (cierre publicado o apertura anunciada) */}
+        {calendarLabel(selectedFund) && <div className="mt-4 pt-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <span className="text-slate-600 font-medium flex items-center gap-1.5">
+            <Flame className="w-4 h-4 text-amber-500" />
+            <span>Evita quedar fuera de plazo por saturación del sistema fiscal.</span>
+          </span>
+
+          <div className="flex items-center gap-2">
+            <a
+              href={getGoogleCalendarUrl(selectedFund)!}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-bold transition-all shadow-xs"
+            >
+              <CalendarPlus className="w-3.5 h-3.5 text-blue-600" />
+              <span>{calendarLabel(selectedFund)} en Google Calendar</span>
+            </a>
+
+            <button
+              onClick={() => downloadIcsFile(selectedFund)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-bold transition-all cursor-pointer shadow-xs"
+              title="Descargar archivo de calendario .ics para Outlook o Apple Calendar"
+            >
+              <Download className="w-3.5 h-3.5 text-slate-500" />
+              <span>Descargar .ics</span>
+            </button>
+          </div>
+        </div>}
+      </div>
+
+      {/* BASES DEL FONDO: lo esencial que cambia de un fondo a otro */}
+      <details className="rounded-3xl bg-white border border-slate-200 shadow-sm p-5 sm:p-6 group" open={false}>
+        <summary className="cursor-pointer list-none flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Lo que dicen las bases de este fondo</p>
+            <p className="text-sm font-bold text-slate-900">{fundRules.bases.title}</p>
+          </div>
+          <span className="text-xs font-bold text-blue-700 group-open:hidden">Ver resumen</span>
+          <span className="text-xs font-bold text-blue-700 hidden group-open:inline">Ocultar</span>
+        </summary>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 text-sm text-slate-700">
+          <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3"><p className="text-xs font-bold text-slate-500 mb-1">Financiamiento y aportes</p><p>{fundRules.coFinance.text}</p>{fundRules.coFinance.minCashText && <p className="text-xs text-slate-500 mt-1">{fundRules.coFinance.minCashText}</p>}</div>
+          <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3"><p className="text-xs font-bold text-slate-500 mb-1">Cómo se evalúa ({fundRules.evaluation.scale})</p><p>{fundRules.evaluation.rule}</p>
+            {fundRules.evaluation.stages && (
+              <ul className="mt-1 text-xs text-slate-600 space-y-0.5">
+                {fundRules.evaluation.stages.map(st => <li key={st.name}>• {st.name}{st.weight ? ` (${st.weight}%)` : ''}{st.detail ? `: ${st.detail}` : ''}</li>)}
+              </ul>
+            )}
+          </div>
+          {fundRules.partners && <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3"><p className="text-xs font-bold text-slate-500 mb-1">Con quién se postula</p><p>{fundRules.partners}</p></div>}
+          <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3"><p className="text-xs font-bold text-slate-500 mb-1">Duración y garantía</p><p>{fundRules.duration}</p><p className="text-xs text-slate-600 mt-1">{fundRules.guarantee.text}</p></div>
+          {fundRules.formalizationDocs.length > 0 && (
+            <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3 sm:col-span-2"><p className="text-xs font-bold text-slate-500 mb-1">Si ganas, te pedirán</p>
+              <ul className="text-xs text-slate-600 grid sm:grid-cols-2 gap-x-4 gap-y-0.5">{fundRules.formalizationDocs.map(d => <li key={d}>• {d}</li>)}</ul>
+            </div>
+          )}
+          {fundRules.notes && fundRules.notes.map(n => <p key={n} className="sm:col-span-2 text-xs rounded-xl bg-amber-50 border border-amber-200 text-amber-900 p-2.5">{n}</p>)}
+          {fundRules.bases.note && <p className="sm:col-span-2 text-xs text-slate-500">{fundRules.bases.note}</p>}
+          <p className="sm:col-span-2 text-xs text-slate-500">
+            {fundRules.bases.verifiedAt ? `Revisado el ${fundRules.bases.verifiedAt.split('-').reverse().join('-')}. ` : ''}Las bases de cada convocatoria mandan: revisa la versión de tu región antes de postular.{' '}
+            <a href={fundRules.bases.url} target="_blank" rel="noopener noreferrer" className="font-bold text-blue-700 underline underline-offset-2">Abrir bases oficiales</a>
+          </p>
+        </div>
+      </details>
+
+      </div>
 
       {/* 8. OFFICIAL DOSSIER MODAL */}
       <React.Suspense fallback={null}>

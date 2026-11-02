@@ -702,7 +702,8 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
                   </thead>
                   <tbody className="divide-y divide-slate-800/60 print:divide-black">
                     {realBudgetItems.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-slate-900/40">
+                      <React.Fragment key={idx}>
+                      <tr className="hover:bg-slate-900/40">
                         <td className="py-2.5 px-2 font-semibold text-white print:text-black">{item.account}</td>
                         <td className="py-2.5 px-2 text-slate-300 print:text-black">{item.item || 'Gasto programado'}</td>
                         <td className="py-2.5 px-2 text-right font-mono text-cyan-400 print:text-black">
@@ -715,6 +716,19 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
                           ${((item.corfoContributionCLP || 0) + (item.companyPecuniaryCLP || 0)).toLocaleString('es-CL')}
                         </td>
                       </tr>
+                      {Array.isArray(item.lines) && item.lines.length > 0 && (
+                        <tr>
+                          <td colSpan={5} className="pb-2.5 px-2">
+                            <ul className="text-[11px] text-slate-400 space-y-0.5 print:text-black">
+                              {item.lines.map((l, li) => (
+                                <li key={li}>· {l.description || 'Sin descripción'}: {l.qty} × ${Number(l.unitCLP || 0).toLocaleString('es-CL')} = ${Math.round((l.qty || 0) * (l.unitCLP || 0)).toLocaleString('es-CL')} ({l.support === 'cotizacion' ? 'cotización' : l.support === 'precio_publicado' ? 'precio publicado' : 'estimado, sin respaldo'})</li>
+                              ))}
+                              <li className={item.eligibilityConfirmed ? 'text-emerald-400 print:text-black' : 'text-amber-400 print:text-black'}>{item.eligibilityConfirmed ? 'Revisado contra las bases por quien postula.' : 'Falta revisar contra las bases que estos gastos se permiten.'}</li>
+                            </ul>
+                          </td>
+                        </tr>
+                      )}
+                      </React.Fragment>
                     ))}
                     <tr className="font-bold border-t-2 border-slate-700 text-white bg-slate-900/60 print:border-black print:bg-white print:text-black">
                       <td colSpan={2} className="py-3 px-2 uppercase text-slate-300 print:text-black">

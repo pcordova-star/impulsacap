@@ -9,7 +9,7 @@ import { getFundRules } from './fundStandards';
 
 /** Lo que conviene hacer, pero no impide enviar la postulación */
 export function isRecommendedItem(stepId: string, itemId: string): boolean {
-  return stepId === 'step_audit' || itemId === 'dossier' || itemId === 'garantia';
+  return stepId === 'step_audit' || itemId === 'dossier' || itemId === 'garantia' || itemId === 'budget_review';
 }
 
 export function itemMinutes(stepId: string, it: RoadmapItem): number {
@@ -21,7 +21,7 @@ export function itemMinutes(stepId: string, it: RoadmapItem): number {
     case 'step_form':
       return it.warn ? 5 : 10;
     case 'step_budget':
-      return it.id === 'budget' ? 15 : it.id === 'garantia' ? 5 : 0;
+      return it.id === 'budget' ? 15 : it.id === 'garantia' ? 5 : it.id === 'budget_review' ? 15 : 0;
     case 'step_documents':
       if (/carpeta|taxfolder/i.test(it.id) || it.go?.target === 'sii') return 5;
       if (it.go?.target?.startsWith('documents#doc-generator')) return 15;

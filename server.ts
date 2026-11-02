@@ -1219,7 +1219,7 @@ function fundRulesForPrompt(fundIn: any): string {
   const fund = officialFund(fundIn);
   const r = getFundRules(fund);
   const crit = (fund.evaluationCriteria || []).map((c: any) => `- ${c.name} (${c.weight}%): ${c.description}`).join('\n');
-  return `BASES OFICIALES DEL FONDO "${fund.name}" (${fund.agency}) — ${r.bases.title}:
+  return `BASES DEL FONDO "${fund.name}" (${fund.agency}) — DOCUMENTO FUENTE: ${r.bases.title}${r.bases.url ? ` (${r.bases.url})` : ''}${r.bases.verifiedAt ? `, revisado por ImpulsaCap el ${r.bases.verifiedAt}` : ''}${r.bases.note ? `. Nota: ${r.bases.note}` : ''}:
 - Requisitos para postular: ${r.requirements.map(q => q.label).join('; ')}
 - Financiamiento: ${r.coFinance.text}${r.partners ? `\n- Con quién se postula: ${r.partners}` : ''}
 - Duración: ${r.duration}
@@ -1889,7 +1889,11 @@ DATOS CONFIRMADOS DE CARPETA TRIBUTARIA Y EMPRESA:
 
 ${currentFund && currentFund.id ? fundRulesForPrompt(currentFund) : 'Fondo en consulta: ninguno seleccionado.'}
 
-Cuando respondas sobre requisitos, montos, documentos o evaluación, usa las bases del fondo indicadas arriba; si algo no está ahí, dilo y recomienda revisar las bases de la convocatoria.
+Cuando respondas sobre requisitos, admisibilidad, montos, gastos permitidos, documentos, evaluación o rendición:
+- Usa las bases del fondo indicadas arriba y separa con claridad lo que exigen las bases (obligatorio) de lo que tú recomiendas (sugerencia).
+- Termina la respuesta con una línea "Fuente:" que nombre el documento fuente y su enlace tal como aparecen arriba, y la fecha en que se revisó. Si el dato no está en ese resumen, escribe "Fuente: no está en el resumen de las bases que tengo; confírmalo en las bases de la convocatoria (sección de requisitos, gastos o rendición)".
+- NUNCA inventes números de artículo, numerales ni resoluciones: solo cítalos si aparecen literalmente arriba. Si no los tienes, di en qué sección de las bases buscar.
+- Si la convocatoria puede haber cambiado (nueva generación, otra región), dilo.
 
 Sé conciso, empático, directo y ultra práctico. Habla con terminología chilena natural pero muy profesional (UF, CLP, RUT, SpA, SII, TGR, rendición, contraparte, cofinanciamiento).`;
 

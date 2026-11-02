@@ -4,7 +4,7 @@ import { SimilarWinners } from './SimilarWinners';
 import { isSemillaInicia } from '../data/semillaWinners';
 import React, { useState, useEffect, useMemo } from 'react';
 import { consume, onRequest } from '../utils/navFocus';
-import { BudgetWizard } from './BudgetWizard';
+import { BudgetWizard, type BudgetAccountData, type BudgetField } from './BudgetWizard';
 import { notifySaved } from '../utils/guideEvents';
 import { askFeedback } from '../utils/feedbackEvents';
 import { SectionHelper } from './SectionHelpers';
@@ -351,12 +351,7 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
   const [missingDataBySection, setMissingDataBySection] = useState<Record<string, string[]>>({});
 
   // Dedicated Budget Accounts State (Requirement 10: Real amounts entered by user)
-  const [budgetAccounts, setBudgetAccounts] = useState<Record<string, {
-    corfoContributionCLP: number;
-    companyPecuniaryCLP: number;
-    item: string;
-    justification: string;
-  }>>(() => {
+  const [budgetAccounts, setBudgetAccounts] = useState<Record<string, BudgetAccountData>>(() => {
     const existing = expediente?.formulation?.budgetBreakdown || initialFormulation?.budgetBreakdown;
     const initialMap: Record<string, any> = {};
 
@@ -369,7 +364,9 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
         companyPecuniaryCLP: found ? found.companyPecuniaryCLP : 0,
         // Sin texto genérico: el usuario escribe en qué gastará y por qué (no se inventa nada)
         item: found?.item && found.item !== old?.defaultItem ? found.item : '',
-        justification: found?.justification && found.justification !== old?.defaultJustification ? found.justification : ''
+        justification: found?.justification && found.justification !== old?.defaultJustification ? found.justification : '',
+        lines: Array.isArray(found?.lines) ? found!.lines : [],
+        eligibilityConfirmed: Boolean(found?.eligibilityConfirmed)
       };
     });
     return initialMap;
@@ -618,7 +615,7 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
   };
 
   // Helper to handle budget inputs
-  const handleBudgetAccountChange = (accKey: string, field: 'corfoContributionCLP' | 'companyPecuniaryCLP' | 'item' | 'justification', val: any) => {
+  const handleBudgetAccountChange = (accKey: string, field: BudgetField, val: any) => {
     setBudgetAccounts(prev => {
       const next = {
         ...prev,
@@ -635,6 +632,8 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
         budgetAnswers[`${k}_empresa`] = String(item.companyPecuniaryCLP);
         budgetAnswers[`${k}_item`] = item.item;
         budgetAnswers[`${k}_justification`] = item.justification;
+        budgetAnswers[`${k}_lines`] = JSON.stringify(item.lines || []);
+        budgetAnswers[`${k}_ok`] = item.eligibilityConfirmed ? '1' : '';
       });
 
       if (onSaveSectionAnswers) {
@@ -820,7 +819,9 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
         corfoContributionCLP: Number(data?.corfoContributionCLP || 0),
         companyPecuniaryCLP: Number(data?.companyPecuniaryCLP || 0),
         companyValuedCLP: 0,
-        justification: data?.justification || '[COMPLETAR: por qué el proyecto necesita este gasto]'
+        justification: data?.justification || '[COMPLETAR: por qué el proyecto necesita este gasto]',
+        lines: (data?.lines || []).filter(l => l.description?.trim() || l.unitCLP > 0),
+        eligibilityConfirmed: Boolean(data?.eligibilityConfirmed)
       };
     }).filter(b => b.corfoContributionCLP > 0 || b.companyPecuniaryCLP > 0);
 
