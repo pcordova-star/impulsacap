@@ -33,15 +33,16 @@ interface BlindAuditorProps {
 /** A qué parte del formulario lleva cada observación de la auditoría (por palabras clave). */
 function fixTargetFor(text: string): { target: string; label: string } | null {
   const t = (text || '').toLowerCase();
+  // Orden: primero lo más específico (los nombres de criterio como "Escalabilidad: modelo de negocio")
   const rules: [RegExp, string, string][] = [
     [/equipo|integrante|fundador|dedicaci|emprendedor/, 'formulator#section:team', 'Completar equipo'],
-    [/mercado|tam|sam|som|escalab|cliente objetivo|comercializ|adquisici/, 'formulator#section:market', 'Calcular mercado'],
+    [/modelo de negocio|monetiz|ingreso|precio|suscripci|sostenibilidad/, 'formulator#section:model', 'Modelo de negocio'],
+    [/plan de (trabajo|validaci)|hito|cronograma|entregable|validaci[oó]n t[eé]cnica/, 'formulator#section:workplan', 'Plan de trabajo'],
+    [/relevancia del problema|problema|dolor/, 'formulator#section:problem', 'Trabajar el problema'],
+    [/mercado|tam\b|sam\b|som\b|cliente objetivo|comercializ|adquisici|competencia/, 'formulator#section:market', 'Calcular mercado'],
     [/innova|novedad|diferenci|propuesta de valor|tecnolog|soluci[oó]n/, 'formulator#section:solution', 'Explicar innovación'],
-    [/problema|dolor/, 'formulator#section:problem', 'Trabajar el problema'],
-    [/modelo de negocio|monetiz|ingreso|precio|suscripci/, 'formulator#section:model', 'Modelo de negocio'],
-    [/plan de trabajo|hito|cronograma|entregable/, 'formulator#section:workplan', 'Plan de trabajo'],
     [/presupuest|financiamiento|cofinanc|gasto|aporte/, 'formulator#section:budget', 'Revisar presupuesto'],
-    [/pitch|t[ií]tulo/, 'formulator#section:title_pitch', 'Título y pitch'],
+    [/pitch|t[ií]tulo|video/, 'formulator#section:title_pitch', 'Título y pitch'],
     [/perfil|no informado|empresa|avance|desarrollo actual/, 'my-company#project-profile', 'Completar perfil']
   ];
   for (const [re, target, label] of rules) if (re.test(t)) return { target, label };
@@ -303,7 +304,7 @@ export const BlindAuditor: React.FC<BlindAuditorProps> = ({
                     {crit.improvementTips}
                   </div>
                   {(() => {
-                    const fix = fixTargetFor(`${crit.criterion} ${crit.improvementTips}`);
+                    const fix = fixTargetFor(crit.criterion) || fixTargetFor(crit.improvementTips);
                     return fix && onNavigateTab && Number(crit.score) < 4.5 ? (
                       <button type="button" onClick={() => onNavigateTab(fix.target)} className="mt-1 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-[11px] font-black cursor-pointer">
                         Mejorar: {fix.label} →

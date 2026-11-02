@@ -52,6 +52,10 @@ export function groundFigures(text: string, corpus: string): { text: string; unv
       const before = whole.slice(Math.max(0, offset - 1), offset);
       if (/^\s*de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)/.test(after)) return match;
       if (/^[/-]\d/.test(after) || before === '/' || /^-[\dk]/i.test(after)) return match;
+      // Medidas del propio texto (duración del video, largo del guion): no son datos del proyecto
+      if (/^\s*(palabras|caracteres|segundos?\b|seg\b|s\b|minutos?\b|min\b)/.test(after)) return match;
+      // Horas y marcas de tiempo ("00:10", "13:00")
+      if (before === ':' || /^:\d\d/.test(after)) return match;
       // Numeración de listas o cláusulas al inicio de línea ("10. Firmas", "11) Plazos")
       const pos = offset + (match.match(/^\s*/)?.[0].length || 0);
       const lineStart = pos === 0 || /\n[ \t]*$/.test(whole.slice(Math.max(0, pos - 4), pos));

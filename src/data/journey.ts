@@ -150,6 +150,8 @@ export function computeJourney(input: {
         return;
       }
       let next = pending?.label;
+      // Sección redactada pero con datos [COMPLETAR]: se dice qué falta de verdad
+      if (pending?.warn && pending.id.startsWith('form_')) next = `Completar los datos marcados [COMPLETAR] en: ${pending.label}`;
       let action = pending?.go || st.action;
       if (pending && !pending.go && pending.confirmable) {
         next = `Confirma que cumples: ${pending.label}`;

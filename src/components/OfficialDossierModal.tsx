@@ -65,6 +65,13 @@ export const OfficialDossierModal: React.FC<OfficialDossierModalProps> = ({
   const signedDocs = generatedDocs.filter(d => d.status === 'firmada');
   const signedLoiCount = signedDocs.filter(d => d.tipo.includes('LOI') || d.tipo.includes('Interés')).length;
 
+  // Persona sin empresa: no se le muestran campos de sociedad ni carpeta tributaria como pendientes
+  const isPersonApplicant = profile.companyType === 'persona_natural' || profile.companyType === 'sin_iniciar';
+  const noActivity = profile.companyType === 'sin_iniciar';
+  const TYPE_LABEL: Record<string, string> = { spa: 'SpA', srl: 'Sociedad de Responsabilidad Limitada', eirl: 'EIRL', sa: 'Sociedad Anónima', persona_natural: 'Persona con inicio de actividades', sin_iniciar: 'Persona sin inicio de actividades' };
+  const STAGE_LABEL: Record<string, string> = { idea_concepto: 'Idea', prototipo_lab: 'Prototipo', mvp_validado: 'Producto validado, sin ventas', primeras_ventas: 'Con ventas', escalamiento_global: 'Escalamiento' };
+  const SALES_LABEL: Record<string, string> = { sin_ventas: 'Sin ventas', menor_60m: 'Menos de $60 millones', micro_200_a_2400uf: 'Microempresa', pequena_2400_a_25000uf: 'Pequeña empresa', mediana_25000_a_100000uf: 'Mediana empresa', grande_mayor_100000uf: 'Gran empresa' };
+
   // Real budget calculation - NO FAKE DEFAULTS
   const realBudgetItems = formulation?.budgetBreakdown && formulation.budgetBreakdown.length > 0
     ? formulation.budgetBreakdown
@@ -136,8 +143,8 @@ ${missingSections.length > 0 ? `- **Secciones Pendientes:** ${missingSections.ma
 ---
 
 ## 1. IDENTIFICACIÓN DE LA ENTIDAD POSTULANTE
-- **Razón Social:** ${profile.companyName || 'Sin completar'}
-- **RUT Empresa:** ${profile.rut || 'Sin completar'} (${isRutValid ? 'Válido Módulo 11' : 'RUT inválido'})
+- **${isPersonApplicant ? 'Postulante / proyecto' : 'Razón social'}:** ${profile.companyName || 'Sin completar'}
+- **${isPersonApplicant ? 'RUT' : 'RUT de la empresa'}:** ${profile.rut || 'Sin completar'} (${isRutValid ? 'Válido Módulo 11' : 'RUT inválido'})
 - **Tipo Societario:** ${profile.companyType?.toUpperCase() || 'Sin completar'}
 - **Región:** ${profile.region || 'Sin completar'}
 - **Sector Económico:** ${profile.sector || 'Sin completar'}
@@ -255,11 +262,11 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
               <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
                 <span>Expediente de Postulación (borrador para revisión)</span>
                 <span className={`text-[10px] px-2 py-0.5 rounded-full border ${
-                  completedCount === 10
+                  completedCount === sectionsStatus.length
                     ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
                     : 'bg-amber-500/20 text-amber-400 border-amber-500/30'
                 }`}>
-                  {completedCount === 10 ? 'Listo para Postulación' : `${completedCount}/10 Completo`}
+                  {completedCount === sectionsStatus.length ? 'Redacción completa' : `Redacción ${completedCount} de ${sectionsStatus.length}`}
                 </span>
               </h3>
               <p className="text-[11px] text-slate-400">
@@ -401,8 +408,8 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
                 </strong>
               </div>
               <div>
-                <span className="text-[10px] text-slate-400 block print:text-black">Régimen Legal</span>
-                <strong className="text-white print:text-black">{profile.companyType?.toUpperCase() || 'Sin completar'}</strong>
+                <span className="text-[10px] text-slate-400 block print:text-black">Postula como</span>
+                <strong className="text-white print:text-black">{TYPE_LABEL[profile.companyType || ''] || 'Sin completar'}</strong>
               </div>
               <div>
                 <span className="text-[10px] text-slate-400 block print:text-black">Región</span>
@@ -420,7 +427,7 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
               <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 print:border-black print:bg-white">
-                <span className="text-[10px] text-slate-400 block print:text-black">Razón Social</span>
+                <span className="text-[10px] text-slate-400 block print:text-black">{isPersonApplicant ? 'Postulante / proyecto' : 'Razón social'}</span>
                 <strong className="text-white print:text-black">
                   {profile.companyName?.trim() || <span className="text-slate-500 italic">Sin completar</span>}
                 </strong>
@@ -428,7 +435,7 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
 
               {/* Requirement 4: "✓ Módulo 11" solo si validateRut(profile.rut) es true; si no, "RUT inválido" en rojo */}
               <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 print:border-black print:bg-white">
-                <span className="text-[10px] text-slate-400 block print:text-black">RUT Empresa</span>
+                <span className="text-[10px] text-slate-400 block print:text-black">{isPersonApplicant ? 'RUT' : 'RUT de la empresa'}</span>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <strong className="font-mono text-cyan-400 print:text-black">
                     {profile.rut?.trim() || 'Sin completar'}
@@ -446,18 +453,19 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
               </div>
 
               <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 print:border-black print:bg-white">
-                <span className="text-[10px] text-slate-400 block print:text-black">Ventas 12 Meses (SII)</span>
+                <span className="text-[10px] text-slate-400 block print:text-black">Ventas últimos 12 meses</span>
                 <strong className="text-white print:text-black">
                   {profile.annualSalesCLP !== null && profile.annualSalesCLP !== undefined
-                    ? `$${profile.annualSalesCLP.toLocaleString('es-CL')} CLP`
+                    ? `$${profile.annualSalesCLP.toLocaleString('es-CL')} CLP (carpeta SII)`
+                    : profile.salesBracket ? `${SALES_LABEL[profile.salesBracket] || profile.salesBracket} (declarado)`
                     : <span className="text-slate-500 italic">Sin completar</span>}
                 </strong>
               </div>
 
               <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 print:border-black print:bg-white">
-                <span className="text-[10px] text-slate-400 block print:text-black">Madurez Tecnológica (TRL)</span>
-                <strong className="text-white capitalize print:text-black">
-                  {profile.trlStage ? profile.trlStage.replace('_', ' ') : <span className="text-slate-500 italic">Sin completar</span>}
+                <span className="text-[10px] text-slate-400 block print:text-black">Etapa del proyecto</span>
+                <strong className="text-white print:text-black">
+                  {profile.trlStage ? (STAGE_LABEL[profile.trlStage] || profile.trlStage) : <span className="text-slate-500 italic">Sin completar (indícala en Mi empresa)</span>}
                 </strong>
               </div>
 
@@ -489,7 +497,7 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
                   <CheckCircle2 className="w-3 h-3" />
                   <span>Carpeta Acreditada</span>
                 </span>
-              ) : (
+              ) : noActivity ? null : (
                 <button
                   onClick={onOpenSiiModal}
                   className="text-xs px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 font-medium inline-flex items-center gap-1 cursor-pointer print:hidden"
@@ -568,9 +576,9 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
               <div className="p-4 rounded-xl bg-slate-900/60 border border-dashed border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 print:border-black print:bg-white">
                 <div className="flex items-center gap-2 text-amber-300 print:text-black">
                   <AlertCircle className="w-4 h-4 shrink-0 text-amber-400 print:text-black" />
-                  <span className="text-xs font-medium">Carpeta Tributaria Electrónica SII pendiente de acreditación</span>
+                  <span className="text-xs font-medium">{noActivity ? 'No aplica: postulas como persona sin inicio de actividades (no tienes carpeta tributaria todavía).' : 'Carpeta tributaria del SII pendiente: súbela para revisar tus ventas y antigüedad.'}</span>
                 </div>
-                {onOpenSiiModal && (
+                {onOpenSiiModal && !noActivity && (
                   <button
                     onClick={onOpenSiiModal}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-xs font-semibold border border-amber-500/30 transition-colors cursor-pointer print:hidden shrink-0"
@@ -754,13 +762,15 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
           <div className="p-5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-3 print:border-black print:bg-white print:text-black">
             <h2 className="text-sm font-bold uppercase tracking-wider text-amber-400 flex items-center gap-2 print:text-black">
               <ShieldCheck className="w-4 h-4" />
-              <span>5. Checklist de Admisibilidad Administrativa y Legal</span>
+              <span>5. Certificados y respaldos de referencia</span>
             </h2>
+            <p className="text-[11px] text-slate-400 print:text-black">Guía general de lo que suelen pedir los fondos. Lo que pide {fund.name} para postular está en el paso 4 de tu hoja de ruta; varios de estos se piden solo si ganas.{isPersonApplicant ? ' Como postulas como persona, los documentos de sociedad no aplican.' : ''}</p>
 
             {/* Requirement 5: Checklist reflects real state: ✓ listo, ⏳ pendiente, ✗ con observaciones. Never ready by default */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
               
-              {/* Item 1: Carpeta SII */}
+              {!noActivity && (<>
+{/* Item 1: Carpeta SII */}
               <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-900 border border-slate-800 print:border-black print:bg-white">
                 {taxFolder.taxFolderUploaded ? (
                   taxFolder.admissibilityVerdict === 'observado' ? (
@@ -790,7 +800,10 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
                 </div>
               </div>
 
-              {/* Item 2: Estatutos */}
+              </>)}
+
+              {!isPersonApplicant && (<>
+{/* Item 2: Estatutos */}
               <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-900 border border-slate-800 print:border-black print:bg-white">
                 {(roadmapConfirmations.confirmedEstatutoSocial || docStatuses.estatuto_res) ? (
                   <span className="p-1 rounded-md bg-emerald-500/20 text-emerald-400 font-bold shrink-0">✓</span>
@@ -816,6 +829,8 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
                 </div>
               </div>
 
+              </>)}
+
               {/* Item 3: TGR */}
               <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-900 border border-slate-800 print:border-black print:bg-white">
                 {docStatuses.deuda_tgr ? (
@@ -838,7 +853,8 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
                 </div>
               </div>
 
-              {/* Item 4: F30 Laboral */}
+              {!isPersonApplicant && (<>
+{/* Item 4: F30 Laboral */}
               <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-900 border border-slate-800 print:border-black print:bg-white">
                 {docStatuses.previsional_f30 ? (
                   <span className="p-1 rounded-md bg-emerald-500/20 text-emerald-400 font-bold shrink-0">✓</span>
@@ -859,6 +875,8 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
                   </p>
                 </div>
               </div>
+
+              </>)}
 
               {/* Item 5: Cartas LOI */}
               <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-900 border border-slate-800 sm:col-span-2 print:border-black print:bg-white">
@@ -959,7 +977,7 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-bold uppercase tracking-wider text-blue-300 flex items-center gap-2 print:text-black">
                   <Award className="w-4 h-4" />
-                  <span>7. Dictamen Auditor Ciego Preliminar</span>
+                  <span>7. Revisión orientativa con IA</span>
                 </h2>
                 <div className="text-right">
                   <span className="text-xs text-slate-400 mr-2 print:text-black">Calificación Ponderada:</span>
@@ -975,7 +993,7 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
                   {auditResult.verdict}
                 </span>
                 <p className="mt-2 text-[11px] text-slate-400 print:text-black">
-                  La propuesta ha sido auditada con los criterios de evaluación del organismo {fund.agency}.
+                  Revisión hecha por la IA de ImpulsaCap con los criterios publicados del fondo. No es una evaluación de {fund.agency}: la nota real la pone el organismo.
                 </p>
               </div>
             </div>
@@ -986,7 +1004,7 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
             <div className="space-y-1">
               <div className="w-48 mx-auto border-b border-slate-600 pb-1 print:border-black" />
               <p className="font-bold text-white print:text-black">{profile.companyName || 'Empresa Postulante'}</p>
-              <p className="text-[10px] text-slate-400 print:text-black">Representante Legal • RUT {profile.rut || 'Pendiente'}</p>
+              <p className="text-[10px] text-slate-400 print:text-black">{isPersonApplicant ? 'Postulante' : 'Representante legal'} • RUT {profile.rut || 'Pendiente'}</p>
             </div>
             <div className="space-y-1">
               <div className="w-48 mx-auto border-b border-slate-600 pb-1 print:border-black" />

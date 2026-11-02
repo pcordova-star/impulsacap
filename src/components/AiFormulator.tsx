@@ -761,7 +761,11 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
     const titleFromAns = answersBySection.title_pitch?.projectTitle?.trim();
     const pitchFromAns = answersBySection.title_pitch?.pitchSummary30s?.trim();
     const finalProjectTitle = titleFromAns || (updatedTexts.title_pitch?.split('\n')[0]?.trim()) || fullFormulation?.projectTitle || '';
-    const finalPitch = pitchFromAns || (updatedTexts.title_pitch?.split('\n').slice(1).join(' ').trim()) || fullFormulation?.pitchSummary30s || '';
+    // El texto final de la sección (lo que la persona revisó) manda sobre la respuesta usada para redactarlo
+    const tp = String(updatedTexts.title_pitch || '').trim();
+    const afterGuion = tp.match(/GUI[OÓ]N[^\n]*\n([\s\S]+)/i)?.[1];
+    const pitchFromText = tp ? String(afterGuion ?? tp.split('\n').slice(1).join('\n')).trim() : '';
+    const finalPitch = pitchFromText || pitchFromAns || fullFormulation?.pitchSummary30s || '';
 
     // Problema y Solución
     const problem = updatedTexts.problem || answersBySection.problem?.who || fullFormulation?.problemStatement || '';

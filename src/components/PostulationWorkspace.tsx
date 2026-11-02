@@ -473,7 +473,7 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
                       {st.title}
                     </p>
                     <p className={`text-[11px] mt-0.5 ${pending?.warn ? 'text-red-700 font-semibold' : 'text-slate-500'}`}>
-                      {st.done ? 'Listo' : pending ? `Falta: ${pending.label}` : 'Pendiente'}
+                      {st.done ? 'Listo' : pending ? (pending.warn && pending.id.startsWith('form_') ? `Faltan datos [COMPLETAR] en: ${pending.label}` : `Falta: ${pending.label}`) : 'Pendiente'}
                     </p>
                     {!st.done && (
                       <button type="button" onClick={() => routeTab((pending?.go || st.action).target)} className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:underline cursor-pointer">
