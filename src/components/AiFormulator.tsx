@@ -78,13 +78,13 @@ const SECTIONS: SectionDefinition[] = [
       {
         key: 'projectTitle',
         label: '¿Cuál es el título descriptivo de tu proyecto?',
-        placeholder: 'Ej: Plataforma IoT y Analítica Predictiva para Eficiencia Hídrica en Viñedos',
+        placeholder: 'Ej: Pan fresco sin gluten con reparto en el día para cafeterías de Talca',
         helpText: 'Debe sintetizar la tecnología, la aplicación y el sector objetivo según las bases del concurso.'
       },
       {
         key: 'pitchSummary30s',
         label: 'Elevator Pitch (30 segundos): describe en 2 o 3 oraciones qué hace, para quién y por qué es único:',
-        placeholder: 'Ej: Desarrollamos un sistema autónomo de sensores y modelos predictivos que permite a viticultores reducir un 30% el consumo de agua...',
+        placeholder: 'Ej: Hacemos pan sin gluten fresco y lo repartimos el mismo día. Hoy los celíacos solo encuentran pan congelado y caro...',
         helpText: 'Resumen ejecutivo de alto impacto que los evaluadores leen primero.'
       }
     ]
@@ -98,19 +98,19 @@ const SECTIONS: SectionDefinition[] = [
       {
         key: 'who',
         label: '¿A quién le afecta principalmente este problema?',
-        placeholder: 'Ej: Pymes del sector vitivinícola y agrícola en las regiones del Maule y OHiggins...',
+        placeholder: 'Ej: Personas celíacas y cafeterías de Talca que quieren ofrecer opciones sin gluten...',
         helpText: 'Indica el segmento específico de clientes o industrias perjudicadas.'
       },
       {
         key: 'cost',
         label: '¿Cuánto les cuesta hoy o qué pierden por no resolverlo?',
-        placeholder: 'Ej: Pierden en promedio $4.500.000 mensuales en mermas y 15 horas semanales en papeleo...',
+        placeholder: 'Ej: Pagan el doble por pan congelado o simplemente no lo ofrecen y pierden clientes...',
         helpText: 'Si no tienes la cifra exacta, no te preocupes: se redactará [COMPLETAR: costo estimado].'
       },
       {
         key: 'alternatives',
         label: '¿Por qué las soluciones o alternativas actuales no son suficientes?',
-        placeholder: 'Ej: Las soluciones actuales son softwares extranjeros costosos no adaptados a la normativa chilena...',
+        placeholder: 'Ej: El pan del supermercado es congelado; las panaderías del barrio no tienen línea sin gluten...',
         helpText: 'Menciona las fallas o vacíos de lo que hoy existe en el mercado.'
       }
     ]
@@ -124,19 +124,19 @@ const SECTIONS: SectionDefinition[] = [
       {
         key: 'how',
         label: '¿Cómo funciona tu producto o solución?',
-        placeholder: 'Ej: Desarrollamos una plataforma web y móvil conectada a sensores IoT que monitorea...',
+        placeholder: 'Ej: Cocinamos en una cocina certificada sin gluten y repartimos cada mañana con pedidos por WhatsApp...',
         helpText: 'Explica de forma clara y directa el funcionamiento para los evaluadores.'
       },
       {
         key: 'tech',
         label: '¿Qué tecnología, componente o metodología clave utiliza?',
-        placeholder: 'Ej: Algoritmos de visión computacional, backend en Python y protocolos LoRaWAN...',
+        placeholder: 'Ej: Receta propia probada con 20 clientes y control de contaminación cruzada (si no usas tecnología, cuéntalo así)...',
         helpText: 'Menciona las tecnologías clave que sustentan la novedad técnica.'
       },
       {
         key: 'noveltyVsCompetitors',
         label: '¿Cuál es la novedad y diferenciación frente a los competidores existentes en Chile o el mundo?',
-        placeholder: 'Ej: Es 60% más económico de implementar y procesa alertas climáticas en tiempo real...',
+        placeholder: 'Ej: Es fresco, se entrega el mismo día y cuesta parecido al congelado...',
         helpText: 'Destaca las barreras de entrada y factores diferenciadores.'
       }
     ]
@@ -150,25 +150,25 @@ const SECTIONS: SectionDefinition[] = [
       {
         key: 'archetype',
         label: '¿Quiénes te compran o te comprarían? (tipo de cliente y quién decide la compra)',
-        placeholder: 'Ej: Gerentes de Operaciones y Dueños de Medianas Empresas B2B con facturación sobre 2.400 UF...',
+        placeholder: 'Ej: Dueños de cafeterías de Talca y familias con una persona celíaca...',
         helpText: 'Define quién toma la decisión de compra de tu solución.'
       },
       {
         key: 'tam',
         label: '¿Dónde vendes o venderías? (tu comuna, región, todo Chile u otros países)',
-        placeholder: 'Ej: En Chile existen más de 12.000 empresas agrícolas; mercado potencial de $30 millones USD...',
+        placeholder: 'Ej: Todas las cafeterías y personas celíacas de Chile (si no sabes la cifra, déjalo en blanco)...',
         helpText: 'Con esto y el ayudante de arriba calculamos el tamaño de tu mercado. No necesitas estudios.'
       },
       {
         key: 'sam',
         label: '¿A cuántos clientes crees que podrías llegar? (una estimación tuya basta)',
-        placeholder: 'Ej: 2.500 empresas agrícolas tecnificadas en la zona centro-sur...',
+        placeholder: 'Ej: Las cafeterías y celíacos de la Región del Maule...',
         helpText: 'Opcional. Si no lo sabes, usa el ayudante de arriba.'
       },
       {
         key: 'som',
         label: '¿Cuántos clientes te gustaría tener en 1 a 2 años?',
-        placeholder: 'Ej: Capturar 50 clientes pagando suscripción durante los primeros 18 meses...',
+        placeholder: 'Ej: Llegar a 15 cafeterías comprando cada semana durante el primer año...',
         helpText: 'Objetivo de ventas concreto que planeas capturar con este subsidio.'
       }
     ]
@@ -182,13 +182,13 @@ const SECTIONS: SectionDefinition[] = [
       {
         key: 'revenue',
         label: '¿Cuáles serán las fuentes de ingresos y esquema de cobro?',
-        placeholder: 'Ej: Suscripción SaaS mensual de $150.000 CLP por sucursal más costo de instalación único...',
+        placeholder: 'Ej: Vendemos cada pan a $2.500 a cafeterías y a $3.000 por Instagram...',
         helpText: 'Modelo de monetización (SaaS, comisión, venta unitaria, etc.).'
       },
       {
         key: 'salesStrategy',
         label: '¿Cuál es la estrategia comercial y canales de venta (Go-to-Market)?',
-        placeholder: 'Ej: Venta directa a través de pilotos comerciales, inbound marketing y convenios gremiales...',
+        placeholder: 'Ej: Visitas a cafeterías, Instagram y la agrupación de celíacos de la región...',
         helpText: 'Canales y mecanismos para conseguir los primeros clientes con el subsidio.'
       }
     ]
@@ -228,19 +228,19 @@ const SECTIONS: SectionDefinition[] = [
       {
         key: 'members',
         label: 'Nombre, rol y experiencia relevante de cada integrante clave:',
-        placeholder: 'Ej: Juan Pérez (Líder Técnico, Ing. en Computación con 6 años en SaaS), María Soto (CEO, Comercial con MBA)...',
+        placeholder: 'Ej: Ana Pérez (dueña, 10 años como panadera), Luis Soto (ventas y reparto)...',
         helpText: 'Corfo exige demostrar complementariedad técnica y comercial en el equipo fundador.'
       },
       {
         key: 'dedication',
         label: '¿Qué dedicación horaria tendrá el equipo en el proyecto?',
-        placeholder: 'Ej: El líder técnico y la CEO tendrán dedicación de 40 horas semanales (100%)...',
+        placeholder: 'Ej: Ana trabajará 40 horas a la semana y Luis 20...',
         helpText: 'La dedicación completa suma puntaje en la pauta de evaluación.'
       },
       {
         key: 'skills',
         label: '¿Cuentan con las capacidades necesarias para ejecutar este fondo?',
-        placeholder: 'Ej: Contamos con experiencia previa en desarrollo ágil y red de contactos comerciales...',
+        placeholder: 'Ej: Ana ya vende a 2 cafeterías y conoce a los proveedores de harina sin gluten...',
         helpText: 'Respalda la capacidad técnica y operativa de la empresa.'
       }
     ]
