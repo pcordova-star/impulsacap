@@ -465,6 +465,8 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
             <ol className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {progress.steps.map(st => {
                 const pending = st.items.find(i => !i.done);
+                // Paso listo en lo obligatorio pero con algo recomendado pendiente (p. ej. revisar los gastos): se dice
+                const optionalPending = st.done ? st.items.find(i => !i.done && i.optional) : undefined;
                 return (
                   <li key={st.id} className={`p-4 rounded-2xl border ${st.done ? 'bg-emerald-50/60 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}>
                     <span className="text-[10px] font-bold text-slate-400 uppercase">Paso {st.number} de {progress.steps.length}</span>
@@ -473,7 +475,7 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
                       {st.title}
                     </p>
                     <p className={`text-[11px] mt-0.5 ${pending?.warn ? 'text-red-700 font-semibold' : 'text-slate-500'}`}>
-                      {st.done ? 'Listo' : pending ? (pending.warn && pending.id.startsWith('form_') ? `Faltan datos [COMPLETAR] en: ${pending.label}` : `Falta: ${pending.label}`) : 'Pendiente'}
+                      {st.done ? (optionalPending ? `Listo lo obligatorio · recomendado: ${optionalPending.label}` : 'Listo') : pending ? (pending.warn && pending.id.startsWith('form_') ? `Faltan datos [COMPLETAR] en: ${pending.label}` : `Falta: ${pending.label}`) : 'Pendiente'}
                     </p>
                     {!st.done && (
                       <button type="button" onClick={() => routeTab((pending?.go || st.action).target)} className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:underline cursor-pointer">

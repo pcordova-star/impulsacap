@@ -1180,7 +1180,15 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
             basesUrl={fundRules.bases.url || (currentFund as any).officialUrl || null}
             maxSubsidyCLP={maxAllowedSubsidy}
             maxPct={maxAllowedPct}
-            guides={budgetAccountsFor(currentFund)}
+            guides={(() => {
+              // Los ejemplos ("× 10 meses") siguen la duración real del programa
+              const m = executionMonths(currentFund);
+              const adapt = (t: string) => !m ? t : t
+                .replace(/\$([\d.]+) × 10 = \$[\d.]+/g, (_x, u) => { const n = Number(String(u).replace(/\./g, '')); return `$${u} × ${m} = $${(n * m).toLocaleString('es-CL')}`; })
+                .replace(/\$([\d.]+) × 10 meses = \$[\d.]+/g, (_x, u) => { const n = Number(String(u).replace(/\./g, '')); return `$${u} × ${m} meses = $${(n * m).toLocaleString('es-CL')}`; })
+                .replace(/\b10 meses\b/g, `${m} meses`);
+              return budgetAccountsFor(currentFund).map(g => ({ ...g, example: adapt(g.example), itemPlaceholder: adapt(g.itemPlaceholder) }));
+            })()}
             coFinanceText={fundRules.coFinance.text}
             accounts={budgetAccounts}
             onChange={(key, field, value) => handleBudgetAccountChange(key, field, value)}

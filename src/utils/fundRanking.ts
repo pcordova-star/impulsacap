@@ -81,19 +81,34 @@ const KEYWORDS: { re: RegExp; funds: string[]; reason: string }[] = [
 
 const INNOVATION_RE = /innov|tecnolog|software|\bapp\b|aplicacion movil|plataforma|prototipo|patente|i\+d|desarroll|digital|inteligencia artificial|sensor|automatiz|nuevo producto|nuevo proceso/;
 /** Frases que niegan la innovación ("sin tecnología", "no es innovador", "negocio tradicional") */
-const NEGATED_RE = /\b(sin|no (es|tiene|tengo|usa|uso|hay|incluye|requiere)|ni|ningun[ao]?)\s+(un[ao]?\s+|componente\s+|base\s+|desarrollo\s+|mayor\s+)?(innovaci\w*|innovador\w*|tecnolog\w*|software|app|digital\w*|i\+d|desarrollo tecnologico|prototipo\w*|investigaci\w*)/g;
 const TRADITIONAL_RE = /tradicional|de toda la vida|negocio de barrio|sin innovar/;
 /** Fondos para startups tecnológicas: sin componente tecnológico no corresponden */
 const TECH_ONLY = new Set(['startup_chile_build', 'startup_chile_ignite', 'startup_chile_growth']);
 const TECH_RE = /software|\bapp\b|aplicaci|plataforma|saas|inteligencia artificial|\bia\b|machine|digital|tecnolog|startup|marketplace|internet|iot|sensor|robot/;
 
-/** Quita las frases negadas para que "sin tecnología" no cuente como tecnología */
+/** Quita las frases negadas para que "sin tecnología" o "no usamos tecnología ni I+D" no cuenten como innovación.
+ *  Una negación (sin, no, ni, tampoco, ningún) seguida a 3 palabras o menos de un término de innovación
+ *  anula el resto de esa frase (hasta el punto, la coma o un "pero"). */
+const INNOV_WORD = /^(innovaci\w*|innovador\w*|innovar|tecnolog\w*|software|app|apps|digital\w*|i\+d|i\+d\+i|prototipo\w*|investigaci\w*|desarrollo|automatiz\w*|plataforma\w*|sensor\w*|inteligencia)$/;
 export function stripNegations(text: string): { clean: string; negatedInnovation: boolean } {
   const t = norm(text);
-  let negated = false;
-  const clean = t.replace(NEGATED_RE, () => { negated = true; return ' '; });
-  return { clean, negatedInnovation: negated || TRADITIONAL_RE.test(t) };
+  let negated = TRADITIONAL_RE.test(t);
+  const clauses = t.split(/([.;:!?\n]|,|\bpero\b|\bsino\b)/);
+  const out = clauses.map(cl => {
+    const words = cl.split(/\s+/).filter(Boolean);
+    for (let k = 0; k < words.length; k++) {
+      if (!/^(sin|no|ni|tampoco|ningun|ninguna|ninguno|nada)$/.test(words[k])) continue;
+      const near = words.slice(k + 1, k + 4);
+      if (near.some(w => INNOV_WORD.test(w.replace(/[^a-z0-9+]/g, '')))) {
+        negated = true;
+        return words.slice(0, k).join(' ');
+      }
+    }
+    return cl;
+  });
+  return { clean: out.join(' '), negatedInnovation: negated };
 }
+
 
 function eligibleType(fund: ChileanFund, companyType: string): boolean {
   if (!companyType) return true;

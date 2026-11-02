@@ -110,6 +110,17 @@ export const OfficialDossierModal: React.FC<OfficialDossierModalProps> = ({
   const missingSections = sectionsStatus.filter(s => !s.isComplete);
   const completionPercentage = Math.round((completedCount / sectionsStatus.length) * 100);
 
+  // Cada pendiente del checklist lleva a donde se resuelve
+  const goTo = (target: 'sii' | string) => () => {
+    onClose();
+    if (target === 'sii') onOpenSiiModal?.();
+    else onNavigateTab?.(target);
+  };
+  const pendingProps = (pending: boolean, action: () => void, label: string) => pending
+    ? { role: 'button', tabIndex: 0, title: label, onClick: action, onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); action(); } }, className: 'cursor-pointer hover:border-amber-400/60 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400/50' }
+    : { className: '' };
+  const GoHint: React.FC<{ show: boolean; text: string }> = ({ show, text }) => show ? <span className="ml-auto shrink-0 text-[11px] font-bold text-amber-300 print:hidden">{text} →</span> : null;
+
   const handleGoToFormulator = (sectionKey?: string) => {
     onClose();
     if (onNavigateToSection && sectionKey) {
@@ -495,7 +506,7 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
               {taxFolder.taxFolderUploaded ? (
                 <span className="text-[10px] px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-bold inline-flex items-center gap-1 print:border-black print:text-black">
                   <CheckCircle2 className="w-3 h-3" />
-                  <span>Carpeta Acreditada</span>
+                  <span>Carpeta cargada y leída</span>
                 </span>
               ) : noActivity ? null : (
                 <button
@@ -539,8 +550,9 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
                 </div>
 
                 <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 print:border-black print:bg-white">
-                  <span className="text-[10px] text-slate-400 block print:text-black">Períodos F29 Procesados</span>
-                  <strong className="text-white print:text-black">{taxFolder.f29Periods || profile.taxFolderF29Periods || 0} períodos</strong>
+                  <span className="text-[10px] text-slate-400 block print:text-black">Meses F29 leídos de la carpeta</span>
+                  <strong className="text-white print:text-black">{taxFolder.f29Periods || profile.taxFolderF29Periods || 0} meses</strong>
+                  {(taxFolder.f29Periods || profile.taxFolderF29Periods || 0) < 12 && <span className="block text-[10px] text-amber-400 print:text-black">Menos de 12 meses: las ventas anuales son parciales. Descarga una carpeta con los últimos 12 F29.</span>}
                 </div>
 
                 <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 print:border-black print:bg-white">
@@ -771,7 +783,7 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
               
               {!noActivity && (<>
 {/* Item 1: Carpeta SII */}
-              <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-900 border border-slate-800 print:border-black print:bg-white">
+              <div {...(({ className: _c, ...rest }) => rest)(pendingProps((!taxFolder.taxFolderUploaded || taxFolder.admissibilityVerdict === 'observado'), goTo('sii'), 'Subir o revisar la carpeta'))} className={`flex items-center gap-2.5 p-3 rounded-xl bg-slate-900 border border-slate-800 print:border-black print:bg-white ${pendingProps((!taxFolder.taxFolderUploaded || taxFolder.admissibilityVerdict === 'observado'), goTo('sii'), 'Subir o revisar la carpeta').className}`}>
                 {taxFolder.taxFolderUploaded ? (
                   taxFolder.admissibilityVerdict === 'observado' ? (
                     <span className="p-1 rounded-md bg-amber-500/20 text-amber-400 font-bold shrink-0">✗</span>
@@ -795,16 +807,17 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
                     </span>
                   </div>
                   <p className="text-[10px] text-slate-400 print:text-black mt-0.5">
-                    {taxFolder.taxFolderUploaded ? `F29 de ${taxFolder.f29Periods || profile.taxFolderF29Periods || 12} periodos acreditados` : 'Pendiente de carga en SII'}
+                    {taxFolder.taxFolderUploaded ? `${taxFolder.f29Periods || profile.taxFolderF29Periods || 0} meses de F29 leídos${taxFolder.admissibilityVerdict === 'observado' ? ' · hay observaciones por resolver' : ''}` : 'Pendiente: súbela para revisar ventas y antigüedad'}
                   </p>
                 </div>
+                <GoHint show={(!taxFolder.taxFolderUploaded || taxFolder.admissibilityVerdict === 'observado')} text="Resolver" />
               </div>
 
               </>)}
 
               {!isPersonApplicant && (<>
 {/* Item 2: Estatutos */}
-              <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-900 border border-slate-800 print:border-black print:bg-white">
+              <div {...(({ className: _c, ...rest }) => rest)(pendingProps(!(roadmapConfirmations.confirmedEstatutoSocial || docStatuses.estatuto_res), goTo('documents'), 'Ir a Documentos'))} className={`flex items-center gap-2.5 p-3 rounded-xl bg-slate-900 border border-slate-800 print:border-black print:bg-white ${pendingProps(!(roadmapConfirmations.confirmedEstatutoSocial || docStatuses.estatuto_res), goTo('documents'), 'Ir a Documentos').className}`}>
                 {(roadmapConfirmations.confirmedEstatutoSocial || docStatuses.estatuto_res) ? (
                   <span className="p-1 rounded-md bg-emerald-500/20 text-emerald-400 font-bold shrink-0">✓</span>
                 ) : (
@@ -827,12 +840,13 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
                       : 'Pendiente de confirmación o carga'}
                   </p>
                 </div>
+                <GoHint show={!(roadmapConfirmations.confirmedEstatutoSocial || docStatuses.estatuto_res)} text="Ir a Documentos" />
               </div>
 
               </>)}
 
               {/* Item 3: TGR */}
-              <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-900 border border-slate-800 print:border-black print:bg-white">
+              <div {...(({ className: _c, ...rest }) => rest)(pendingProps(!docStatuses.deuda_tgr, goTo('documents'), 'Ir a Documentos'))} className={`flex items-center gap-2.5 p-3 rounded-xl bg-slate-900 border border-slate-800 print:border-black print:bg-white ${pendingProps(!docStatuses.deuda_tgr, goTo('documents'), 'Ir a Documentos').className}`}>
                 {docStatuses.deuda_tgr ? (
                   <span className="p-1 rounded-md bg-emerald-500/20 text-emerald-400 font-bold shrink-0">✓</span>
                 ) : (
@@ -851,11 +865,12 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
                     {docStatuses.deuda_tgr ? 'Acreditado sin deudas morosas' : 'Pendiente de adjuntar certificado TGR'}
                   </p>
                 </div>
+                <GoHint show={!docStatuses.deuda_tgr} text="Ir a Documentos" />
               </div>
 
               {!isPersonApplicant && (<>
 {/* Item 4: F30 Laboral */}
-              <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-900 border border-slate-800 print:border-black print:bg-white">
+              <div {...(({ className: _c, ...rest }) => rest)(pendingProps(!docStatuses.previsional_f30, goTo('documents'), 'Ir a Documentos'))} className={`flex items-center gap-2.5 p-3 rounded-xl bg-slate-900 border border-slate-800 print:border-black print:bg-white ${pendingProps(!docStatuses.previsional_f30, goTo('documents'), 'Ir a Documentos').className}`}>
                 {docStatuses.previsional_f30 ? (
                   <span className="p-1 rounded-md bg-emerald-500/20 text-emerald-400 font-bold shrink-0">✓</span>
                 ) : (
@@ -874,12 +889,13 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
                     {docStatuses.previsional_f30 ? 'Dirección del Trabajo al día sin multas' : 'Pendiente de certificar'}
                   </p>
                 </div>
+                <GoHint show={!docStatuses.previsional_f30} text="Ir a Documentos" />
               </div>
 
               </>)}
 
               {/* Item 5: Cartas LOI */}
-              <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-900 border border-slate-800 sm:col-span-2 print:border-black print:bg-white">
+              <div {...(({ className: _c, ...rest }) => rest)(pendingProps(signedLoiCount === 0, goTo('documents#doc-generator'), 'Generar una carta'))} className={`flex items-center gap-2.5 p-3 rounded-xl bg-slate-900 border border-slate-800 sm:col-span-2 print:border-black print:bg-white ${pendingProps(signedLoiCount === 0, goTo('documents#doc-generator'), 'Generar una carta').className}`}>
                 {signedLoiCount > 0 ? (
                   <span className="p-1 rounded-md bg-emerald-500/20 text-emerald-400 font-bold shrink-0">✓</span>
                 ) : (
@@ -900,6 +916,7 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
                       : 'Genera cartas LOI en la sección Documentos y márcalas como firmadas'}
                   </p>
                 </div>
+                <GoHint show={signedLoiCount === 0} text="Generar carta" />
               </div>
 
             </div>

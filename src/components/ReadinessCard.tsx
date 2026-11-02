@@ -62,7 +62,7 @@ export const ReadinessCard: React.FC<{
           <p className="text-xs text-slate-300 mt-1">
             {ready
               ? `Tienes lo obligatorio: requisitos, formulario, presupuesto y documentos.${auditPending ? ' Antes de enviar, te recomendamos la evaluación simulada (unos 5 minutos): te dice qué mejorar para subir la nota.' : ' Abre el expediente, copia cada sección al portal y envíala.'}`
-              : 'No tienes que hacerlo todo hoy: puedes avanzar en partes y todo queda guardado. Te guiamos en cada paso.'}
+              : 'Es el trabajo dentro de la plataforma. No incluye lo que depende de otros (cotizaciones, cartas firmadas, grabar el video): pídelo con tiempo. Puedes avanzar en partes; todo queda guardado.'}
           </p>
           {deadlineText && <p className="text-[11px] text-slate-400 mt-1 line-clamp-2">Plazo: {deadlineText}</p>}
         </div>
