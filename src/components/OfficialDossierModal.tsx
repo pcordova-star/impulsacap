@@ -152,7 +152,7 @@ ${missingSections.length > 0 ? `- **Secciones Pendientes:** ${missingSections.ma
 - **Antigüedad tributaria:** ${taxFolder.monthsActive ? `${taxFolder.monthsActive} meses` : 'Sin completar'}
 - **Ventas 12 Meses (F29):** ${taxFolder.annualSalesCLP !== null && taxFolder.annualSalesCLP !== undefined ? `$${taxFolder.annualSalesCLP.toLocaleString('es-CL')} CLP` : 'Sin completar'}
 - **Períodos F29 Procesados:** ${taxFolder.f29Periods || 0} periodos
-- **Veredicto de Admisibilidad SII:** ${taxFolder.admissibilityVerdict?.toUpperCase() || (taxFolder.taxFolderUploaded ? 'Acreditado' : 'Pendiente de carga')}
+- **Revisión tributaria (hecha con tu carpeta, no por el SII):** ${taxFolder.admissibilityVerdict === 'aprobado' ? 'Sin observaciones en lo leído (la admisibilidad la decide el organismo)' : taxFolder.admissibilityVerdict === 'observado' ? 'Con observaciones' : (taxFolder.taxFolderUploaded ? 'Carpeta cargada; sin revisar' : 'Pendiente de carga')}
 - **Archivo de Respaldo:** ${taxFolder.fileName || 'Pendiente de adjuntar'}
 - **Observaciones SII:** ${taxFolder.siiStatusObservations || 'Sin observaciones registradas'}
 
@@ -287,13 +287,13 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
               onClick={handleDownloadMarkdown}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs border border-slate-700 transition-all cursor-pointer"
               title="Descargar en formato Markdown"
-            >
+             aria-label="Descargar en formato Markdown">
               <Download className="w-4 h-4" />
             </button>
             <button
               onClick={onClose}
               className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer"
-            >
+             aria-label="Cerrar">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -314,10 +314,10 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
           <div className="p-4 sm:p-5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-3 print:border-black print:bg-white">
             <div className="flex items-center justify-between text-xs">
               <span className="font-bold text-slate-200 print:text-black">
-                Expediente: {completedCount} de {sectionsStatus.length} secciones completas ({completionPercentage}%)
+                Redacción: {completedCount} de {sectionsStatus.length} secciones escritas ({completionPercentage}%)
               </span>
               <span className={`font-semibold ${completedCount === 10 ? 'text-emerald-400' : 'text-amber-400'} print:text-black`}>
-                {completedCount === sectionsStatus.length ? '✓ Expediente Listo' : `${missingSections.length} por completar`}
+                {completedCount === sectionsStatus.length ? '✓ Redacción completa' : `${missingSections.length} por completar`}
               </span>
             </div>
 
@@ -328,6 +328,8 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
                 style={{ width: `${completionPercentage}%` }}
               />
             </div>
+
+            <p className="text-[11px] text-slate-400 print:text-black">Esto mide solo la redacción. Para enviar también necesitas los requisitos y documentos de tu hoja de ruta; y la postulación cuenta como enviada recién cuando tengas el comprobante del portal.</p>
 
             {/* Missing Sections Pills */}
             {missingSections.length > 0 && (
@@ -534,12 +536,12 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
                 </div>
 
                 <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 print:border-black print:bg-white">
-                  <span className="text-[10px] text-slate-400 block print:text-black">Veredicto Admisibilidad</span>
+                  <span className="text-[10px] text-slate-400 block print:text-black">Revisión tributaria de ImpulsaCap</span>
                   <strong className={`capitalize ${
                     taxFolder.admissibilityVerdict === 'aprobado' ? 'text-emerald-400' : 
                     taxFolder.admissibilityVerdict === 'observado' ? 'text-amber-400' : 'text-slate-300'
                   } print:text-black`}>
-                    {taxFolder.admissibilityVerdict || 'Aprobado'}
+                    {taxFolder.admissibilityVerdict === 'aprobado' ? 'Sin observaciones en lo leído' : taxFolder.admissibilityVerdict === 'observado' ? 'Con observaciones' : taxFolder.admissibilityVerdict || (taxFolder.taxFolderUploaded ? 'Carpeta cargada; sin revisar' : 'Pendiente de carga')}
                   </strong>
                 </div>
 
@@ -585,7 +587,7 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
           <div className="p-5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-4 print:border-black print:bg-white print:text-black">
             <h2 className="text-sm font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-2 print:text-black">
               <Sparkles className="w-4 h-4" />
-              <span>3. Formulación Técnica Oficial ({fund.agency})</span>
+              <span>3. Formulación técnica para {fund.agency}</span>
             </h2>
 
             {/* 3.1 Título del Proyecto */}
@@ -731,7 +733,7 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
                   </tbody>
                 </table>
               </div>
-            ) : renderPendingSectionBanner('Presupuesto Oficial', 'budget')}
+            ) : renderPendingSectionBanner('Presupuesto', 'budget')}
           </div>
 
           {/* Section 5: Checklist Admisibilidad & Documentos (Requirement 5) */}
@@ -954,7 +956,7 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
               </div>
 
               <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 text-xs text-slate-300 print:border-black print:bg-white print:text-black">
-                <span className="font-bold text-white block mb-1 print:text-black">Veredicto Oficial:</span>
+                <span className="font-bold text-white block mb-1 print:text-black">Conclusión de la revisión con IA (orientativa):</span>
                 <span className="inline-block px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold print:border-black print:text-black">
                   {auditResult.verdict}
                 </span>

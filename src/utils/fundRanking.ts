@@ -15,11 +15,17 @@ export interface MatchAnswers {
   projectSummary?: string;
 }
 
+export type CheckState = 'cumple' | 'pendiente' | 'no';
+export interface RequirementCheck { label: string; state: CheckState; detail?: string }
+
 export interface RankedFund {
   fund: ChileanFund;
+  /** Afinidad con el proyecto (0-95). NO es probabilidad de ganar. */
   score: number;
   reasons: string[];
   open: boolean;
+  /** Requisitos revisados uno a uno: cumple, pendiente de confirmar o no cumple */
+  checks: RequirementCheck[];
 }
 
 const norm = (t: string) => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -71,7 +77,21 @@ const KEYWORDS: { re: RegExp; funds: string[]; reason: string }[] = [
   { re: /software|app|plataforma|saas|tecnolog|startup|levantar capital|inversionista/, funds: ['startup_chile_growth'], reason: 'Es una startup tecnológica que ya vende y quiere crecer.' },
 ];
 
-const INNOVATION_RE = /innov|tecnolog|nuevo|software|app|plataforma|prototipo|patente|i\+d|desarroll|digital|inteligencia|sensor|automatiz|sostenib/;
+const INNOVATION_RE = /innov|tecnolog|software|\bapp\b|aplicacion movil|plataforma|prototipo|patente|i\+d|desarroll|digital|inteligencia artificial|sensor|automatiz|nuevo producto|nuevo proceso/;
+/** Frases que niegan la innovación ("sin tecnología", "no es innovador", "negocio tradicional") */
+const NEGATED_RE = /\b(sin|no (es|tiene|tengo|usa|uso|hay|incluye|requiere)|ni|ningun[ao]?)\s+(un[ao]?\s+|componente\s+|base\s+|desarrollo\s+|mayor\s+)?(innovaci\w*|innovador\w*|tecnolog\w*|software|app|digital\w*|i\+d|desarrollo tecnologico|prototipo\w*|investigaci\w*)/g;
+const TRADITIONAL_RE = /tradicional|de toda la vida|negocio de barrio|sin innovar/;
+/** Fondos para startups tecnológicas: sin componente tecnológico no corresponden */
+const TECH_ONLY = new Set(['startup_chile_build', 'startup_chile_ignite', 'startup_chile_growth']);
+const TECH_RE = /software|\bapp\b|aplicaci|plataforma|saas|inteligencia artificial|\bia\b|machine|digital|tecnolog|startup|marketplace|internet|iot|sensor|robot/;
+
+/** Quita las frases negadas para que "sin tecnología" no cuente como tecnología */
+export function stripNegations(text: string): { clean: string; negatedInnovation: boolean } {
+  const t = norm(text);
+  let negated = false;
+  const clean = t.replace(NEGATED_RE, () => { negated = true; return ' '; });
+  return { clean, negatedInnovation: negated || TRADITIONAL_RE.test(t) };
+}
 
 function eligibleType(fund: ChileanFund, companyType: string): boolean {
   if (!companyType) return true;
@@ -98,20 +118,39 @@ export function hardBlockers(fund: ChileanFund, a: MatchAnswers): string[] {
 }
 
 export function rankCatalogFunds(funds: ChileanFund[], a: MatchAnswers, openFundIds: Set<string> = new Set()): { eligible: RankedFund[]; near: RankedFund[] } {
-  const text = norm(a.projectSummary || '');
+  const { clean: text, negatedInnovation } = stripNegations(a.projectSummary || '');
   const innovative = INNOVATION_RE.test(text);
+  const isTech = TECH_RE.test(text);
   const eligible: RankedFund[] = [];
   const near: RankedFund[] = [];
 
   for (const fund of funds) {
     if (!fund.evaluationCriteria || !fund.trlEligible) continue; // solo fondos (no documentos)
     const blockers = hardBlockers(fund, a);
+    // Exclusión por innovación: si dice que no tiene innovación, un fondo que la exige no corresponde
+    if (fund.requiresInnovation && negatedInnovation && !innovative) blockers.push('componente innovador');
+    if (TECH_ONLY.has(fund.id) && negatedInnovation && !isTech) blockers.push('base tecnológica');
     const reasons: string[] = [];
     let score = 60;
 
     const sb = String(a.salesBracket || '');
-    if (sb) reasons.push(`Tus ventas (${SALES_LABEL[sb] || sb}) están dentro del tramo que aceptan las bases.`);
-    if (a.trlStage) reasons.push(`Tu etapa (${TRL_LABEL[String(a.trlStage)] || a.trlStage}) es la que financia este fondo.`);
+    if (sb && !blockers.includes('tramo de ventas')) reasons.push(`Tus ventas (${SALES_LABEL[sb] || sb}) están dentro del tramo que aceptan las bases.`);
+    if (a.trlStage && !blockers.includes('etapa del proyecto')) reasons.push(`Tu etapa (${TRL_LABEL[String(a.trlStage)] || a.trlStage}) es la que financia este fondo.`);
+
+    const checks: RequirementCheck[] = [];
+    const st = (blocked: boolean, known: boolean): CheckState => (blocked ? 'no' : known ? 'cumple' : 'pendiente');
+    checks.push({ label: 'Tipo de postulante', state: st(blockers.includes('tipo de postulante'), Boolean(a.companyType)) });
+    if (fund.salesBracketsEligible?.length) checks.push({ label: 'Tramo de ventas', state: st(blockers.includes('tramo de ventas'), Boolean(sb)) });
+    if (fund.trlEligible?.length) checks.push({ label: 'Etapa del proyecto', state: st(blockers.includes('etapa del proyecto'), Boolean(a.trlStage)) });
+    if (isFemaleOnly(fund)) checks.push({ label: 'Liderado por una mujer', state: st(blockers.includes('exclusivo para mujeres'), typeof a.isFemaleLed === 'boolean') });
+    if (fund.requiresInnovation) {
+      checks.push(blockers.includes('componente innovador')
+        ? { label: 'Componente innovador', state: 'no', detail: 'Las bases excluyen proyectos sin innovación, y tu descripción dice que no la tiene.' }
+        : innovative
+          ? { label: 'Componente innovador', state: 'pendiente', detail: 'Tu descripción lo menciona; lo evalúa el fondo, no se da por cumplido.' }
+          : { label: 'Componente innovador', state: 'pendiente', detail: 'Este fondo exige innovación y tu descripción no muestra cuál es. Confírmalo antes de elegirlo.' });
+    }
+    if (TECH_ONLY.has(fund.id)) checks.push({ label: 'Base tecnológica', state: blockers.includes('base tecnológica') ? 'no' : isTech ? 'pendiente' : 'pendiente', detail: isTech ? undefined : 'Start-Up Chile es para startups tecnológicas: tu descripción no lo muestra.' });
 
     for (const k of KEYWORDS) {
       if (k.re.test(text) && k.funds.includes(fund.id)) {
@@ -128,7 +167,14 @@ export function rankCatalogFunds(funds: ChileanFund[], a: MatchAnswers, openFund
     if (SECTORAL[fund.id] && !SECTORAL[fund.id].test(text)) score -= 20;
     // Un almacén calza más con el fondo hecho para almacenes que con uno general
     if (fund.id === 'sercotec_digitaliza_almacen' && ALMACEN_RE.test(text)) score += 10;
-    if (fund.requiresInnovation && !innovative) score -= 12;
+    if (fund.requiresInnovation && !innovative) score -= 25;
+    if (TECH_ONLY.has(fund.id) && !isTech) score -= 25;
+    // Modo Empleo es para quienes quedaron sin trabajo: si no lo dice, queda por confirmar
+    if (fund.id === 'sercotec_modo_empleo') {
+      const unemployed = KEYWORDS.find(k => k.funds.length === 1 && k.funds[0] === 'sercotec_modo_empleo')!.re.test(text);
+      checks.push({ label: 'Estar sin empleo', state: unemployed ? 'cumple' : 'pendiente', detail: unemployed ? undefined : 'Es para personas que quedaron sin trabajo. Confírmalo en las bases.' });
+      if (!unemployed) score -= 15;
+    }
     if (!fund.requiresInnovation && !innovative) score += 6;
     if (isFemaleOnly(fund) && a.isFemaleLed) { score += 15; reasons.unshift('Es un fondo exclusivo para mujeres emprendedoras.'); }
     else if (a.isFemaleLed && fund.femaleBonusPct) { score += 4; reasons.push(`Suma ${fund.femaleBonusPct}% adicional por liderazgo femenino.`); }
@@ -136,7 +182,9 @@ export function rankCatalogFunds(funds: ChileanFund[], a: MatchAnswers, openFund
     const open = openFundIds.has(fund.id) || fund.callStatus === 'abierta';
     if (open) { score += 15; reasons.push('Tiene una convocatoria abierta ahora.'); }
 
-    const ranked = { fund, score: Math.max(1, Math.min(98, score)), reasons: reasons.slice(0, 3), open };
+    // Sin evidencia de innovación, un fondo que la exige no puede verse como un calce fuerte
+    if (fund.requiresInnovation && !innovative) score = Math.min(score, 44);
+    const ranked: RankedFund = { fund, score: Math.max(1, Math.min(95, score)), reasons: reasons.slice(0, 3), open, checks };
     if (blockers.length === 0) eligible.push(ranked);
     else if (blockers.length === 1) near.push({ ...ranked, score: Math.max(1, ranked.score - 30), reasons: [`No cumples hoy un requisito: ${blockers[0]}.`, ...ranked.reasons].slice(0, 3) });
   }

@@ -67,6 +67,30 @@ interface InstantWowMatcherProps {
   preferredFundId?: string | null;
 }
 
+/** Lo que revisamos de las bases: cumple, por confirmar o no cumple (el % es afinidad, no probabilidad de ganar) */
+const RequirementChecks: React.FC<{ checks: { label: string; state: 'cumple' | 'pendiente' | 'no'; detail?: string }[] }> = ({ checks }) => {
+  const pending = checks.filter(c => c.state === 'pendiente').length;
+  const no = checks.filter(c => c.state === 'no').length;
+  const tone = no ? 'bg-rose-50 border-rose-200' : pending ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200';
+  const head = no ? 'No cumples uno de los requisitos revisados' : pending ? `Cumples lo que revisamos; falta confirmar ${pending === 1 ? '1 punto' : `${pending} puntos`}` : 'Cumples los requisitos que revisamos';
+  return (
+    <div className={`p-4 rounded-2xl border space-y-2 ${tone}`}>
+      <h4 className="text-xs font-black uppercase tracking-wider text-slate-800">{head}</h4>
+      <ul className="space-y-1.5 text-xs sm:text-sm">
+        {checks.map(c => (
+          <li key={c.label} className="flex items-start gap-2">
+            <span className={`shrink-0 mt-0.5 text-[10px] font-black uppercase px-1.5 py-0.5 rounded ${c.state === 'cumple' ? 'bg-emerald-600 text-white' : c.state === 'no' ? 'bg-rose-600 text-white' : 'bg-amber-400 text-slate-900'}`}>
+              {c.state === 'cumple' ? 'Cumple' : c.state === 'no' ? 'No cumple' : 'Por confirmar'}
+            </span>
+            <span className="text-slate-800"><strong>{c.label}</strong>{c.detail ? <span className="text-slate-600"> · {c.detail}</span> : null}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="text-[11px] text-slate-500">Revisamos solo estos requisitos según tus respuestas. El porcentaje mide qué tan bien calza tu proyecto con el foco del fondo; no es la probabilidad de ganar. Las bases de cada convocatoria mandan.</p>
+    </div>
+  );
+};
+
 export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
   onSelectFundToFormulate,
   onNavigateTab,
@@ -193,7 +217,7 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
     await new Promise(r => setTimeout(r, 350));
     setScanStep('Evaluando admisibilidad en bases vigentes CORFO, SERCOTEC y Start-Up Chile...');
     await new Promise(r => setTimeout(r, 350));
-    setScanStep('Calculando subsidio máximo y fechas oficiales de postulación...');
+    setScanStep('Calculando subsidio máximo y fechas publicadas de postulación...');
 
     const promptText = `Etapa: ${ansStage}. Ventas 12 meses: ${ansSales}. Constitución jurídica: ${ansConst}. Liderazgo femenino: ${ansFemale}. Resumen del proyecto: ${ansSummary || 'Emprendimiento de innovación en Chile'}`;
 
@@ -252,6 +276,7 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
         matchScore: r.score,
         whyYouQualify: r.reasons[0] || '',
         reasons: r.reasons,
+        checks: r.checks,
         femaleBonusEligible: Boolean(built.isFemaleLed && r.fund.femaleBonusPct),
         femaleBonusText: built.isFemaleLed && r.fund.femaleBonusPct ? `+${r.fund.femaleBonusPct}% adicional por liderazgo femenino` : undefined
       });
@@ -995,7 +1020,7 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
                         {matchResult.primaryFund.agency}
                       </span>
                       <span className="text-xs font-bold text-emerald-700">
-                        {matchResult.primaryFund.matchScore}% de Calce
+                        {matchResult.primaryFund.matchScore}% de afinidad
                       </span>
                     </div>
                     <h2 className="text-xl sm:text-3xl font-black text-slate-900 leading-tight">
@@ -1032,16 +1057,21 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
                         Estado de Convocatoria
                       </span>
                       <span className="text-sm font-bold text-slate-900 mt-1 block">
-                        {matchResult.primaryFund.whenToApply || matchResult.primaryFund.status || 'Convocatoria Oficial 2026'}
+                        {matchResult.primaryFund.whenToApply || matchResult.primaryFund.status || 'Próxima convocatoria por confirmar'}
                       </span>
-                      <span className="text-[10px] text-slate-500">Datos oficiales de bases</span>
+                      <span className="text-[10px] text-slate-500">Confírmalo en el sitio del organismo</span>
                     </div>
                   </div>
+
+                  {/* Requisitos revisados uno a uno: cumple / por confirmar / no cumple */}
+                  {Array.isArray(matchResult.primaryFund.checks) && matchResult.primaryFund.checks.length > 0 && (
+                    <RequirementChecks checks={matchResult.primaryFund.checks} />
+                  )}
 
                   {/* 2 o 3 Razones concretas de por qué califica según sus respuestas */}
                   <div className="p-4 sm:p-5 rounded-2xl bg-slate-50/80 border border-slate-200 space-y-2.5">
                     <h4 className="text-xs font-black uppercase tracking-wider text-slate-800">
-                      ¿Por qué califica tu proyecto según tus respuestas?
+                      Por qué te lo recomendamos
                     </h4>
                     <ul className="space-y-2 text-xs sm:text-sm text-slate-700">
                       {(matchResult.primaryFund.reasons || [
@@ -1110,7 +1140,7 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
               {matchResult.secondaryFunds && matchResult.secondaryFunds.length > 0 && (
                 <div className="space-y-3">
                   <h3 className="text-xs font-black uppercase tracking-wider text-slate-600 px-1">
-                    Fondos Alternativos Compatibles ({matchResult.secondaryFunds.length})
+                    Otras opciones que cumplen los requisitos revisados ({matchResult.secondaryFunds.length})
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {matchResult.secondaryFunds.slice(0, 2).map((alt: any) => (
@@ -1124,7 +1154,7 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
                               {alt.agency}
                             </span>
                             <span className="text-[11px] font-bold text-slate-500">
-                              {alt.matchScore ? `${alt.matchScore}% Compatibilidad` : 'Alternativa'}
+                              {alt.matchScore ? `${alt.matchScore}% de afinidad` : 'Alternativa'}
                             </span>
                           </div>
                           <h4 className="text-base font-bold text-slate-900">
@@ -1145,10 +1175,13 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
                           <div className="p-2.5 rounded-xl bg-slate-50 text-xs">
                             <span className="text-[10px] text-slate-500 block">Convocatoria:</span>
                             <span className="font-semibold text-slate-800">
-                              {alt.whenToApply || alt.status || 'Convocatoria 2026'}
+                              {alt.whenToApply || alt.status || 'Próxima convocatoria por confirmar'}
                             </span>
                           </div>
 
+                          {Array.isArray(alt.checks) && alt.checks.some((c: any) => c.state !== 'cumple') && (
+                            <p className="text-[11px] font-semibold text-amber-700">Por confirmar: {alt.checks.filter((c: any) => c.state !== 'cumple').map((c: any) => c.label.toLowerCase()).join(', ')}</p>
+                          )}
                           {/* Razones de compatibilidad */}
                           {alt.reasons && (
                             <ul className="text-xs text-slate-600 space-y-1 pt-1">
@@ -1202,7 +1235,7 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
                         authTab === 'register' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
                       }`}
                     >
-                      Registrar Empresa
+                      Crear cuenta
                     </button>
                     <button
                       type="button"
@@ -1241,10 +1274,12 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
                   <form onSubmit={authTab === 'register' ? handleRegisterCompany : handleLoginCompany} className="space-y-3">
                     {authTab === 'register' && (
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">
-                          Nombre o Razón Social de la Empresa
+                        <label htmlFor="wow-reg-name" className="block text-xs font-bold text-slate-700 mb-1">
+                          {constitution === 'SpA, EIRL, SRL o S.A.' ? 'Nombre o razón social de la empresa' : 'Tu nombre o el de tu proyecto'}
                         </label>
                         <input
+                          id="wow-reg-name"
+                          autoComplete={constitution === 'SpA, EIRL, SRL o S.A.' ? 'organization' : 'name'}
                           type="text"
                           required
                           value={regName}
@@ -1256,22 +1291,24 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
                     )}
 
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Correo Electrónico
+                      <label htmlFor="wow-reg-email" className="block text-xs font-bold text-slate-700 mb-1">
+                        Correo electrónico
                       </label>
                       <input
+                        id="wow-reg-email"
+                        autoComplete="email"
                         type="email"
                         required
                         value={regEmail}
                         onChange={e => setRegEmail(e.target.value)}
-                        placeholder="contacto@tuempresa.cl"
+                        placeholder="tucorreo@gmail.com"
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-900 text-xs focus:border-blue-600 focus:outline-hidden placeholder:text-slate-400 placeholder:italic"
                       />
                     </div>
 
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <label className="block text-xs font-bold text-slate-700">
+                        <label htmlFor="wow-reg-password" className="block text-xs font-bold text-slate-700">
                           Contraseña
                         </label>
                         {authTab === 'login' && (
@@ -1287,6 +1324,8 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
                       </div>
                       <div className="relative">
                         <input
+                          id="wow-reg-password"
+                          autoComplete={authTab === 'login' ? 'current-password' : 'new-password'}
                           type={showPassword ? 'text' : 'password'}
                           required
                           value={regPassword}
@@ -1296,6 +1335,7 @@ export const InstantWowMatcher: React.FC<InstantWowMatcherProps> = ({
                         />
                         <button
                           type="button"
+                          aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                           onClick={() => setShowPassword(!showPassword)}
                           className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                         >

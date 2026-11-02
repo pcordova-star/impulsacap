@@ -22,7 +22,7 @@ export const UpcomingCallsBanner: React.FC<{
         <div className="min-w-0">
           <p className="text-xs font-black uppercase tracking-wider text-amber-700">Se vienen convocatorias</p>
           <h2 id="se-vienen" className="text-lg sm:text-xl font-black text-slate-900 leading-tight">
-            {next.label} abriría {daysText(next.days)}
+            {next.label} {next.confirmed ? 'abre' : 'abriría'} {daysText(next.days)}{next.confirmed && next.time ? ` a las ${next.time}` : ''}
           </h2>
           <p className="text-sm text-slate-700 mt-1">{intro || 'Las convocatorias abren por pocas semanas. Quien llega con su postulación preparada le saca ventaja al resto.'}</p>
         </div>
@@ -32,7 +32,7 @@ export const UpcomingCallsBanner: React.FC<{
           <li key={c.id} className="rounded-2xl bg-white border border-amber-200 p-3.5 flex flex-col gap-2">
             <div className="flex items-baseline justify-between gap-2">
               <span className="text-sm font-black text-amber-700">{fmtShortDate(c.date)}</span>
-              <span className="text-[11px] font-bold text-slate-500">{daysText(c.days)}</span>
+              <span className="text-[11px] font-bold text-slate-500">{daysText(c.days)} · {c.confirmed ? 'confirmada' : 'estimada'}</span>
             </div>
             <p className="text-sm font-bold text-slate-900 leading-snug">{c.label}</p>
             <p className="text-xs text-slate-600">{c.detail ? `${c.detail} · ` : ''}{c.amount}</p>

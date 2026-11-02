@@ -591,7 +591,7 @@ export const FUND_RULES: Record<string, FundRules> = {
 
   startup_chile_build: {
     family: 'startup_chile',
-    bases: { title: 'Start-Up Chile: programa BIG (brochure oficial BIG 12)', url: 'https://startupchile.org/content/uploads/brochure-big-12-esp-1.pdf', verifiedAt: VERIFIED, note: 'Cada generación publica sus bases en startupchile.org; revisa requisitos y fechas al abrir.' },
+    bases: { title: 'Start-Up Chile: brochure BIG 13 (2026)', url: 'https://startupchile.org/content/uploads/brochure-big-13-esp-2026-1.pdf', verifiedAt: '2026-11-02', note: 'BIG 13 abre el 3 de noviembre de 2026 a las 13:00. Las bases y el formulario de esta generación mandan: revisa requisitos, video y cierre al abrir.' },
     requirements: [
       { id: 'base_tec', label: 'Emprendimiento de base tecnológica con potencial global, usando Chile como plataforma' },
       { id: 'etapa', label: 'Etapa temprana: idea validada hasta prototipo inicial' },
@@ -610,8 +610,8 @@ export const FUND_RULES: Record<string, FundRules> = {
       { title: 'Pitch', blocks: ['title_pitch'] },
       { title: 'Presupuesto', blocks: ['budget'] }
     ],
-    pitch: { label: 'Pitch del proyecto', seconds: 60, content: 'Problema, solución tecnológica, mercado global y equipo.' },
-    evaluation: { scale: '1 a 5 (referencial)', passMark: null, target: 4.0, rule: 'Start-Up Chile evalúa base tecnológica, innovación, escalabilidad e impacto; no publica una nota de corte. Al menos 50% de los seleccionados en Build son liderados por mujeres.' },
+    pitch: { label: 'Video pitch (hasta 90 s en las bases 2025; confirma en el formulario BIG 13)', seconds: 90, content: 'Problema, solución tecnológica, mercado global y equipo.' },
+    evaluation: { scale: '1 a 5 (referencial)', passMark: null, target: 4.0, rule: 'Start-Up Chile busca base tecnológica, innovación, escalabilidad e impacto. En las bases 2025 de Build la primera etapa usó escala 1 a 7 con tres grupos ponderados 20% / 50% / 30%; las de BIG 13 aún no se publican. Esta revisión es orientativa. Al menos 50% de los seleccionados en Build son liderados por mujeres.' },
     coFinance: { text: 'Subsidio de $15.000.000 (90% del costo total). El equipo aporta 10%.' },
     partners: 'Entidad Patrocinadora asignada por el programa.',
     guarantee: { required: false, text: 'Según las bases de la generación.' },
@@ -622,7 +622,7 @@ export const FUND_RULES: Record<string, FundRules> = {
 
   startup_chile_ignite: {
     family: 'startup_chile',
-    bases: { title: 'Start-Up Chile: programa BIG (brochure oficial BIG 12)', url: 'https://startupchile.org/content/uploads/brochure-big-12-esp-1.pdf', verifiedAt: VERIFIED, note: 'Cada generación publica sus bases en startupchile.org; revisa requisitos y fechas al abrir.' },
+    bases: { title: 'Start-Up Chile: brochure BIG 13 (2026)', url: 'https://startupchile.org/content/uploads/brochure-big-13-esp-2026-1.pdf', verifiedAt: '2026-11-02', note: 'BIG 13 abre el 3 de noviembre de 2026 a las 13:00. Las bases y el formulario de esta generación mandan: revisa requisitos, video y cierre al abrir.' },
     requirements: [
       { id: 'base_tec', label: 'Emprendimiento de base tecnológica con potencial global, usando Chile como plataforma' },
       { id: 'mvp', label: 'Producto funcional (MVP) con validación temprana de clientes' },
@@ -642,13 +642,13 @@ export const FUND_RULES: Record<string, FundRules> = {
       { title: 'Pitch', blocks: ['title_pitch'] },
       { title: 'Presupuesto', blocks: ['budget'] }
     ],
-    pitch: { label: 'Pitch del proyecto', seconds: 60, content: 'Problema, solución tecnológica, tracción, mercado global y equipo.' },
+    pitch: { label: 'Video pitch (duración según el formulario BIG 13)', seconds: 90, content: 'Problema, solución tecnológica, tracción, mercado global y equipo.' },
     evaluation: { scale: '1 a 5 (referencial)', passMark: null, target: 4.0, rule: 'Start-Up Chile evalúa base tecnológica, innovación, escalabilidad e impacto; no publica una nota de corte.' },
     coFinance: { text: 'Subsidio de $30.000.000: Corfo cubre 80% del costo total (90% si la líder es mujer). Extensión posible de $20.000.000.', femalePct: 90 },
     partners: 'Entidad Patrocinadora asignada por el programa.',
     guarantee: { required: false, text: 'Según las bases de la generación.' },
     portal: { name: 'Start-Up Chile', url: 'https://www.startupchile.org' },
-    duration: 'Programa de 4 meses; ejecución del subsidio en 6 meses.',
+    duration: 'Programa de 4 meses; ejecución del subsidio en 6 meses (brochure BIG 13).',
     budget: BUDGETS.startup_chile
   },
 
@@ -731,7 +731,7 @@ export const FUND_RULES: Record<string, FundRules> = {
 
   startup_chile_growth: {
     family: 'startup_chile',
-    bases: { title: 'Start-Up Chile: programa BIG (brochure oficial BIG 12)', url: 'https://startupchile.org/content/uploads/brochure-big-12-esp-1.pdf', verifiedAt: '2026-10-25', note: 'Cada generación publica sus bases en startupchile.org; revisa requisitos, duración y fechas al abrir.' },
+    bases: { title: 'Start-Up Chile: brochure BIG 13 (2026)', url: 'https://startupchile.org/content/uploads/brochure-big-13-esp-2026-1.pdf', verifiedAt: '2026-11-02', note: 'BIG 13 abre el 3 de noviembre de 2026 a las 13:00. Las bases y el formulario de esta generación mandan: revisa requisitos, video y cierre al abrir.' },
     requirements: [
       { id: 'base_tec', label: 'Startup de base tecnológica con alto potencial de crecimiento, usando Chile como plataforma' },
       { id: 'tipo', label: 'Empresa con fines de lucro constituida en Chile', check: { kind: 'companyType', allowed: ['spa', 'srl', 'eirl', 'sa'] } },
@@ -753,13 +753,13 @@ export const FUND_RULES: Record<string, FundRules> = {
       { title: 'Pitch', blocks: ['title_pitch'] },
       { title: 'Presupuesto', blocks: ['budget'] }
     ],
-    pitch: { label: 'Pitch del proyecto', seconds: 60, content: 'Tracción, ventas y crecimiento, mercado global, plan de expansión y equipo.' },
+    pitch: { label: 'Video pitch (duración según el formulario BIG 13)', seconds: 90, content: 'Tracción, ventas y crecimiento, mercado global, plan de expansión y equipo.' },
     evaluation: { scale: '1 a 5 (referencial)', passMark: null, target: 4.0, rule: 'Start-Up Chile evalúa equipo, tracción, escalabilidad global e impacto en Chile; no publica una nota de corte. Se seleccionan pocos proyectos por generación.' },
     coFinance: { text: 'Subsidio de hasta $75.000.000: Corfo cubre 50% del costo total (60% si la líder del equipo es mujer). El resto lo aporta la empresa en dinero.', femalePct: 60 },
     partners: 'Entidad Patrocinadora que firma contrato con la empresa si es seleccionada.',
     guarantee: { required: false, text: 'Según las bases de la generación.' },
     portal: { name: 'Start-Up Chile', url: 'https://www.startupchile.org' },
-    duration: 'Según la generación (en las últimas, entre 6 y 12 meses).',
+    duration: 'Programa de 6 meses; ejecución del subsidio en 8 meses (brochure BIG 13).',
     budget: BUDGETS.startup_chile
   },
 
@@ -1361,7 +1361,7 @@ export function computeRoadmap(input: RoadmapInput): { steps: RoadmapStep[]; com
     { id: 'aporte', label: 'Aporte de tu empresa', done: budgetDone, detail: r.coFinance.text }
   ];
   if (r.guarantee.required) {
-    budgetItems.push({ id: 'garantia', label: 'Garantía', done: Boolean(confirmedGarantia), confirmable: true, detail: r.guarantee.text, go: { label: 'Simular garantía', target: 'guarantees' } });
+    budgetItems.push({ id: 'garantia', label: 'Garantía (se entrega si ganas; conviene planificarla)', done: Boolean(confirmedGarantia), confirmable: true, detail: r.guarantee.text, go: { label: 'Simular garantía', target: 'guarantees' } });
   }
 
   // 5. Evaluación simulada
@@ -1389,7 +1389,7 @@ export function computeRoadmap(input: RoadmapInput): { steps: RoadmapStep[]; com
     mk(1, 'step_requirements', 'Requisitos para postular', 'Lo que exigen las bases de este fondo. Si no cumples uno, no puedes postular.', reqItems, { label: 'Ver requisitos', target: 'my-application' }),
     mk(2, 'step_form', 'Formulario del fondo', `Las secciones del formulario oficial de ${fund.agency}, en orden.`, formItems, { label: 'Ir al formulario', target: 'formulator#section:next' }, true),
     mk(3, 'step_budget', 'Presupuesto y aportes', r.coFinance.text, budgetItems, { label: 'Ir al presupuesto', target: 'formulator#section:budget' }, true),
-    mk(4, 'step_documents', 'Documentos y anexos', 'Lo que se entrega junto al formulario: video o pitch, cartas, certificados y anexos.', docItems, { label: 'Ir a documentos', target: 'documents#doc-generator' }),
+    mk(4, 'step_documents', 'Documentos y anexos', `Obligatorio al postular: lo que se entrega junto al formulario (video o pitch, cartas, certificados y anexos).${r.formalizationDocs.length ? ` Lo que se pide solo si ganas (${r.formalizationDocs.slice(0, 2).join('; ').toLowerCase()}${r.formalizationDocs.length > 2 ? '…' : ''}) NO es necesario ahora.` : ''}`, docItems, { label: 'Ir a documentos', target: 'documents#doc-generator' }),
     mk(5, 'step_audit', 'Evaluación simulada', `Con los criterios y la escala de las bases (${r.evaluation.scale}).`, auditItems, { label: hasAudit ? 'Volver a evaluar' : 'Simular evaluación', target: 'auditor' }, true),
     mk(6, 'step_submit', 'Envío oficial', `Se postula en ${r.portal.name}.`, sendItems, { label: 'Abrir expediente', target: 'dossier' })
   ];
@@ -1486,4 +1486,24 @@ export const FAMILY_QUESTIONS: Partial<Record<FundFamily, Partial<Record<FormBlo
 
 export function questionOverride(fund: ChileanFund, block: FormBlock, key: string): QOverride | undefined {
   return FAMILY_QUESTIONS[getFundRules(fund).family]?.[block]?.[key];
+}
+
+
+/** Meses de ejecución del proyecto según las bases (null si no están publicados) */
+export function executionMonths(fund: ChileanFund): number | null {
+  let d = '';
+  try { d = getFundRules(fund).duration || ''; } catch { return null; }
+  const exec = d.match(/ejecuci[oó]n del subsidio en (\d+) meses/i);
+  if (exec) return Number(exec[1]);
+  const m = d.match(/(\d+) meses/i);
+  return m ? Number(m[1]) : null;
+}
+
+/** Tramos de los 3 hitos según la duración real (12 → 1-3, 4-8, 9-12; 4 → 1, 2-3, 4) */
+export function milestoneRanges(months: number | null): [string, string, string] | null {
+  if (!months || months < 3) return null;
+  const e1 = Math.max(1, Math.round(months * 0.25));
+  const e2 = Math.max(e1 + 1, Math.round(months * 0.66));
+  const r = (a: number, b: number) => (a === b ? `mes ${a}` : `meses ${a} a ${b}`);
+  return [r(1, e1), r(e1 + 1, Math.min(e2, months - 1)), r(Math.min(e2, months - 1) + 1, months)];
 }

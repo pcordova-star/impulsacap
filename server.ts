@@ -22,7 +22,7 @@ import { parseCarpetaTributaria } from './src/utils/carpetaTributaria';
 import { buildTaxDiagnosis, type TaxDiagnosis } from './src/utils/taxDiagnosis';
 import { evaluateChileanGrantMatch, isNonActivityQuery, normalizeText } from './src/utils/grantMatcher';
 import { rankCatalogFunds, rankLiveCalls, type MatchAnswers, type RankedFund } from './src/utils/fundRanking';
-import { getFundRules, FAMILY_BLOCKS } from './src/data/fundStandards';
+import { getFundRules, FAMILY_BLOCKS, executionMonths, milestoneRanges } from './src/data/fundStandards';
 import { readCompanySite, cvToText, AutofillError, type CvFile } from './server/profileAutofill';
 import { calculateDaysRemaining } from './src/utils/convocatorias';
 import { validateRut, formatRut } from './src/utils/rutValidator';
@@ -771,6 +771,7 @@ app.post('/api/gemini/instant-match', guardAi('instant-match'), async (req, res)
         matchScore: r.score,
         whyYouQualify: why || r.reasons[0] || '',
         reasons: (reasons && reasons.length >= 2 ? reasons : r.reasons).slice(0, 3),
+        checks: r.checks,
         femaleBonusEligible: Boolean(answers.isFemaleLed && (r.fund.femaleBonusPct || r.fund.id === 'sercotec_abeja_emprende')),
         femaleBonusText: answers.isFemaleLed && r.fund.femaleBonusPct ? `+${r.fund.femaleBonusPct}% adicional por liderazgo femenino` : undefined
       };
@@ -844,6 +845,12 @@ Responde SOLO este JSON:
         if (r && !order.includes(r)) order.push(r);
       }
       for (const r of pool) if (!order.includes(r)) order.push(r);
+      // El número que se muestra debe calzar con el orden: la IA solo puede subir un poco a un fondo
+      // (+6 al primero, +3 al segundo) y después se ordena por ese puntaje. Así un 72% nunca va sobre un 90%.
+      const bonus = [6, 3];
+      const adjusted = order.map((r, i) => ({ ...r, score: Math.min(95, r.score + (bonus[i] || 0)) }));
+      adjusted.sort((x, y) => y.score - x.score);
+      order.splice(0, order.length, ...adjusted);
       // Si pidió un fondo concreto y lo cumple, va primero
       if (targetFundHint) {
         const i = order.findIndex(r => r.fund.id === targetFundHint);
@@ -1236,6 +1243,10 @@ app.post('/api/gemini/formulate', requireAuth, requireActivePlan, guardAi('formu
     }
 
     const { profile, fund, specificInstructions } = req.body;
+    // Los hitos siguen la duración real del programa (no una plantilla de 12 meses)
+    const catFund = CHILEAN_FUNDS.find(f => f.id === fund?.id);
+    const msRaw = (catFund ? milestoneRanges(executionMonths(catFund)) : null) || ['meses 1 a 3', 'meses 4 a 8', 'meses 9 a 12'];
+    const msRanges = msRaw.map(r => r.charAt(0).toUpperCase() + r.slice(1));
 
     const prompt = `Eres el redactor y formulador de proyectos número 1 de Chile, con un récord de más de 85% de adjudicaciones en CORFO (Semilla Inicia, Semilla Expande, Crea y Valida), SERCOTEC y Start-Up Chile.
 Redacta la formulación técnica oficial para postular al fondo "${fund.name}" de ${fund.agency}.
@@ -1278,21 +1289,21 @@ Responde ÚNICAMENTE en formato JSON con la siguiente estructura completa:
   "businessModel": "Modelo de ingresos, estructura de precios (SaaS, fee, unit economics, LTV/CAC) y estrategia de comercialización 'Go-to-Market'.",
   "workPlanMilestones": [
     {
-      "month": "Mes 1 a 3",
+      "month": "${msRanges[0]}",
       "title": "Hito 1",
       "description": "Actividades técnicas y de validación",
       "deliverable": "Entregable tangible verificable por CORFO",
       "criticalRisk": "Riesgo crítico y plan de mitigación"
     },
     {
-      "month": "Mes 4 a 8",
+      "month": "${msRanges[1]}",
       "title": "Hito 2",
       "description": "Actividades",
       "deliverable": "Entregable",
       "criticalRisk": "Riesgo y mitigación"
     },
     {
-      "month": "Mes 9 a 12",
+      "month": "${msRanges[2]}",
       "title": "Hito 3",
       "description": "Actividades",
       "deliverable": "Entregable",

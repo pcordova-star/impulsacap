@@ -232,7 +232,7 @@ export const FundCatalog: React.FC<FundCatalogProps> = ({
                         const up = upcomingForFund(fund.id, (convocatorias || []).filter((c: any) => c.vigente && c.fundId).map((c: any) => String(c.fundId)));
                         return up ? (
                           <span title={UPCOMING_SOURCE} className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-300">
-                            📅 Abriría el {fmtShortDate(up.date)} ({daysText(up.days)}) · fecha estimada
+                            📅 {up.confirmed ? 'Abre' : 'Abriría'} el {fmtShortDate(up.date)}{up.time ? ` a las ${up.time}` : ''} ({daysText(up.days)}) · {up.confirmed ? 'fecha confirmada' : 'fecha estimada'}
                           </span>
                         ) : (
                           <span className="text-[10px] font-medium px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
@@ -388,8 +388,8 @@ export const FundCatalog: React.FC<FundCatalogProps> = ({
                       Formula tu proyecto con IA y genera el expediente completo para el portal del fondo.
                     </p>
                     <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                      <a
-                        href={getGoogleCalendarUrl(fund)}
+                      {getGoogleCalendarUrl(fund) && <a
+                        href={getGoogleCalendarUrl(fund)!}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-all"
@@ -397,7 +397,7 @@ export const FundCatalog: React.FC<FundCatalogProps> = ({
                       >
                         <CalendarPlus className="w-3.5 h-3.5 text-amber-600" />
                         <span className="hidden sm:inline">Calendario</span>
-                      </a>
+                      </a>}
                       <button
                         onClick={() => onSelectFundToViewDocs(fund)}
                         className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-all cursor-pointer"

@@ -132,7 +132,7 @@ export const BlindAuditor: React.FC<BlindAuditorProps> = ({
       {(showPaywall || !hasActivePlan) && (
         <div className="mb-6 animate-fade-in">
           <PlanPaywallCard
-            highlightText="La auditoría con los criterios oficiales de cada fondo requiere el Plan Trimestral ImpulsaCap. Simula evaluaciones reales y detecta alertas rojas antes de enviar tu postulación."
+            highlightText="La revisión orientativa con IA, basada en los criterios publicados de cada fondo, requiere el Plan Trimestral ImpulsaCap. Detecta puntos débiles antes de enviar tu postulación."
           />
         </div>
       )}
@@ -147,7 +147,7 @@ export const BlindAuditor: React.FC<BlindAuditorProps> = ({
             <span>← Volver al Dashboard (Hoja de Ruta)</span>
           </button>
           <span className="text-[11px] text-slate-400 font-medium hidden sm:inline">
-            Auditoría Ciega Oficial • {selectedFund.name}
+            Revisión orientativa con IA • {selectedFund.name}
           </span>
         </div>
       )}
@@ -158,13 +158,13 @@ export const BlindAuditor: React.FC<BlindAuditorProps> = ({
           <div>
             <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold mb-1">
               <ShieldAlert className="w-3.5 h-3.5" />
-              Simulación con los criterios oficiales del fondo
+              Simulación orientativa con los criterios publicados del fondo
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-white">
-              Auditoría y Scoring de Adjudicación
+              Revisión orientativa de tu postulación
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              Somete tu postulación al filtro implacable de los evaluadores públicos chilenos antes del cierre oficial.
+              Revisa tu postulación como lo haría un evaluador, antes de enviarla. Es una orientación de la IA: la nota real la pone el organismo.
             </p>
           </div>
 
@@ -203,7 +203,7 @@ export const BlindAuditor: React.FC<BlindAuditorProps> = ({
                 ) : (
                   <>
                     <ShieldAlert className="w-4 h-4" />
-                    <span>Ejecutar Auditoría Ciega</span>
+                    <span>Hacer la revisión con IA</span>
                   </>
                 )}
               </button>
@@ -238,7 +238,7 @@ export const BlindAuditor: React.FC<BlindAuditorProps> = ({
               {/* Score Circular Badge */}
               <div className="w-24 h-24 rounded-2xl bg-slate-950 border-2 border-emerald-500 flex flex-col items-center justify-center shrink-0 shadow-lg shadow-emerald-500/20">
                 <span className="text-3xl font-black text-emerald-400">{auditResult.overallScore}</span>
-                <span className="text-[10px] font-bold uppercase text-slate-400">Escala {getFundRules(selectedFund).evaluation.scale.split(' (')[0]}</span>
+                <span className="text-[10px] font-bold uppercase text-slate-400 text-center leading-tight">Escala {getFundRules(selectedFund).evaluation.scale.split(' (')[0]}{/referencial/.test(getFundRules(selectedFund).evaluation.scale) ? ' (ImpulsaCap)' : ''}</span>
               </div>
 
               <div>
@@ -246,7 +246,7 @@ export const BlindAuditor: React.FC<BlindAuditorProps> = ({
                   {auditResult.verdict}
                 </span>
                 <h3 className="text-xl font-black text-white mt-2">
-                  Pronóstico del Comité Evaluador
+                  Revisión orientativa con IA
                 </h3>
                 <p className="text-xs text-slate-300 mt-1 max-w-xl">
                   {auditPasses(selectedFund, auditResult)
@@ -263,11 +263,25 @@ export const BlindAuditor: React.FC<BlindAuditorProps> = ({
             </div>
           </div>
 
+          {/* Pauta usada: escala, fuente y versión. La nota es orientativa, no la del organismo */}
+          {(() => {
+            const rr = getFundRules(selectedFund);
+            const own = /referencial/.test(rr.evaluation.scale);
+            return (
+              <div className="p-4 rounded-xl bg-slate-900 border border-slate-700 text-xs text-slate-300 space-y-1">
+                <p className="font-bold text-white">Pauta usada en esta revisión</p>
+                <p>Escala: {rr.evaluation.scale.split(' (')[0]}{own ? ' (pauta propia de ImpulsaCap: el fondo no publica una escala equivalente o usa otra)' : ', según las bases'}. {rr.evaluation.passMark !== null ? `Nota mínima de las bases: ${rr.evaluation.passMark}.` : 'Las bases no publican nota de corte: la meta es sugerida por ImpulsaCap.'}</p>
+                <p>Fuente: {rr.bases.url ? <a href={rr.bases.url} target="_blank" rel="noopener noreferrer" className="text-cyan-300 underline">{rr.bases.title}</a> : rr.bases.title}{rr.bases.verifiedAt ? ` · revisada el ${rr.bases.verifiedAt.split('-').reverse().join('-')}` : ''}.</p>
+                <p className="text-slate-400">Separa lo obligatorio de lo sugerido: los requisitos administrativos están en tu hoja de ruta; esta nota mide calidad del proyecto, y las sugerencias de redacción son de la IA, no exigencias del organismo.</p>
+              </div>
+            );
+          })()}
+
           {/* Criteria Breakdown */}
           <div className="space-y-3">
             <h3 className="text-sm font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
               <FileCheck2 className="w-4 h-4 text-cyan-400" />
-              Desglose de Calificaciones por Criterio de Rúbrica
+              Nota por criterio (orientativa)
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

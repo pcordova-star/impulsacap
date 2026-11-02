@@ -582,7 +582,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-emerald-800 flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span>Carpeta Tributaria Verificada y Vinculada</span>
+                  <span>Carpeta tributaria cargada y leída</span>
                 </span>
                 <span className="flex items-center gap-3">
                   <span className="text-[10px] font-mono text-emerald-700 font-bold">{profile.taxFolderUploadDate || 'Reciente'}</span>

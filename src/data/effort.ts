@@ -9,7 +9,7 @@ import { getFundRules } from './fundStandards';
 
 /** Lo que conviene hacer, pero no impide enviar la postulación */
 export function isRecommendedItem(stepId: string, itemId: string): boolean {
-  return stepId === 'step_audit' || itemId === 'dossier';
+  return stepId === 'step_audit' || itemId === 'dossier' || itemId === 'garantia';
 }
 
 export function itemMinutes(stepId: string, it: RoadmapItem): number {
@@ -71,7 +71,9 @@ export function fmtMinutes(m: number): string {
 
 /** ¿Puede enviarla ya? Todo lo obligatorio listo (requisitos, formulario, presupuesto y documentos) */
 export function readyToSubmit(steps: RoadmapStep[]): boolean {
-  return steps.filter(s => ['step_requirements', 'step_form', 'step_budget', 'step_documents'].includes(s.id)).every(s => s.done);
+  return steps
+    .filter(s => ['step_requirements', 'step_form', 'step_budget', 'step_documents'].includes(s.id))
+    .every(s => s.items.length > 0 && s.items.every(i => i.done || isRecommendedItem(s.id, i.id)));
 }
 
 export interface PrepItem { id: string; label: string; why: string; how?: string; done?: boolean; link?: string }

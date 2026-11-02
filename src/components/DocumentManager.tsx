@@ -972,7 +972,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
                       }}
                       className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-blue-400 hover:text-blue-300 transition-all cursor-pointer"
                       title="Descargar en Word (.docx)"
-                    >
+                     aria-label="Descargar en Word (.docx)">
                       <Download className="w-4 h-4" />
                     </button>
 
@@ -986,7 +986,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
                       }}
                       className="p-1.5 rounded-lg bg-slate-800 hover:bg-red-950 text-slate-500 hover:text-red-400 transition-all cursor-pointer"
                       title="Eliminar documento"
-                    >
+                     aria-label="Eliminar documento">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>

@@ -43,7 +43,7 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import { validateRut, formatRut } from '../utils/rutValidator';
-import { getGoogleCalendarUrl, downloadIcsFile } from '../utils/calendarExport';
+import { getGoogleCalendarUrl, downloadIcsFile, calendarLabel } from '../utils/calendarExport';
 const OfficialDossierModal = React.lazy(() => 
   import('./OfficialDossierModal').then(m => ({ default: m.OfficialDossierModal }))
 );
@@ -442,7 +442,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
               className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs sm:text-sm shadow-md shadow-blue-600/20 transition-all cursor-pointer active:scale-95"
             >
               <FileText className="w-4 h-4" />
-              <span>Ver Dossier Oficial de Postulación (PDF)</span>
+              <span>Ver el expediente de la postulación (PDF)</span>
             </button>
           </div>
         </div>
@@ -460,7 +460,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
                 Tu plan vence el {new Date(expiresAt).toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' })} ({daysLeft} {daysLeft === 1 ? 'día restante' : 'días restantes'}).
               </h4>
               <p className="text-xs text-slate-600">
-                Renueva para no perder el acceso a las herramientas de formulación, auditoría y dossier oficial.
+                Renueva para no perder el acceso a las herramientas de formulación, revisión con IA y expediente.
               </p>
             </div>
           </div>
@@ -578,8 +578,8 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
           )}
         </div>
 
-        {/* Quick Calendar Reminders Buttons */}
-        <div className="mt-4 pt-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
+        {/* Recordatorios de calendario: solo con una fecha conocida (cierre publicado o apertura anunciada) */}
+        {calendarLabel(selectedFund) && <div className="mt-4 pt-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
           <span className="text-slate-600 font-medium flex items-center gap-1.5">
             <Flame className="w-4 h-4 text-amber-500" />
             <span>Evita quedar fuera de plazo por saturación del sistema fiscal.</span>
@@ -587,13 +587,13 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
 
           <div className="flex items-center gap-2">
             <a
-              href={getGoogleCalendarUrl(selectedFund)}
+              href={getGoogleCalendarUrl(selectedFund)!}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-bold transition-all shadow-xs"
             >
               <CalendarPlus className="w-3.5 h-3.5 text-blue-600" />
-              <span>Agendar en Google Calendar</span>
+              <span>{calendarLabel(selectedFund)} en Google Calendar</span>
             </a>
 
             <button
@@ -605,7 +605,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
               <span>Descargar .ics</span>
             </button>
           </div>
-        </div>
+        </div>}
       </div>
 
       {/* BASES DEL FONDO: lo esencial que cambia de un fondo a otro */}
@@ -712,7 +712,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
                   {step.id === steps.find(x => x.needsPlan)?.id && !hasActivePlan && (
                     <div id="plan-paywall-step" className="my-6">
                       <PlanPaywallCard
-                        highlightText="Desbloquea el Formulador Técnico por Secciones, la Auditoría Ciega oficial y la generación del Dossier Oficial para postular a este fondo."
+                        highlightText="Desbloquea el Formulador Técnico por Secciones, la revisión orientativa con IA y el expediente para postular a este fondo."
                       />
                     </div>
                   )}
@@ -1044,7 +1044,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
                 <span>Expediente Completo Consolidado</span>
               </h4>
               <p className="text-xs text-slate-400">
-                Descarga en un solo PDF todas las memorias técnicas, desglose presupuestario y anexos oficiales.
+                Descarga en un solo PDF todas las memorias técnicas, desglose presupuestario y anexos.
               </p>
             </div>
 
@@ -1054,7 +1054,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs cursor-pointer shadow transition-all"
               >
                 <Download className="w-4 h-4" />
-                <span>Descargar Dossier Oficial (PDF)</span>
+                <span>Descargar el expediente (PDF)</span>
               </button>
 
               <button

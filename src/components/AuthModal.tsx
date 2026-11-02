@@ -72,6 +72,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   // Register form state
   const [regCompanyName, setRegCompanyName] = useState('');
+  // Quién postula: cambia los campos, los ejemplos y el tipo con que se crea el perfil
+  const [regAs, setRegAs] = useState<'spa' | 'persona_natural' | 'sin_iniciar'>('spa');
+  const isPersonReg = regAs !== 'spa';
   const [regRut, setRegRut] = useState('');
   const [regRepName, setRegRepName] = useState('');
   const [regEmail, setRegEmail] = useState('');
@@ -173,7 +176,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       await seedCompanyIfMissing({
         companyName: cleanCompanyName,
         rut: cleanRut,
-        companyType: 'spa',
+        companyType: regAs,
         monthsActive: null,
         salesBracket: '',
         annualSalesCLP: null,
@@ -189,7 +192,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       }, fbUser.uid);
 
       setCurrentUser(companyUser);
-      setSuccessMsg(`¡Empresa ${cleanCompanyName} registrada exitosamente!`);
+      setSuccessMsg(isPersonReg ? `¡Listo, ${cleanCompanyName}! Tu cuenta quedó creada.` : `¡Empresa ${cleanCompanyName} registrada!`);
       setTimeout(() => {
         onAuthSuccess(companyUser);
         onClose();
@@ -299,11 +302,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-fade-in overflow-y-auto">
-      <div className="relative w-full max-w-lg rounded-3xl bg-white border border-slate-200 p-6 sm:p-8 shadow-2xl space-y-5 my-8">
+    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 bg-slate-900/50 backdrop-blur-xs animate-fade-in overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
+      <div className="relative w-full max-w-lg rounded-3xl bg-white border border-slate-200 p-5 sm:p-8 shadow-2xl space-y-5 my-2 sm:my-8">
         
         {/* Close Button */}
         <button
+          type="button"
+          aria-label="Cerrar"
           onClick={onClose}
           className="absolute top-5 right-5 p-1.5 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
         >
@@ -316,8 +321,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <Lock className="w-3.5 h-3.5 text-blue-600" />
             <span>Acceso Privado y Confidencial</span>
           </div>
-          <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-            {customTitle || (mode === 'login' ? 'Iniciar Sesión en ImpulsaCap' : 'Registrar Empresa en ImpulsaCap')}
+          <h2 id="auth-modal-title" className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight pr-8">
+            {customTitle || (mode === 'login' ? 'Iniciar sesión en ImpulsaCap' : 'Crear tu cuenta en ImpulsaCap')}
           </h2>
           <p className="text-xs text-slate-600 leading-relaxed">
             {mode === 'login' 
@@ -385,7 +390,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            Registrar Empresa
+            Crear cuenta
           </button>
         </div>
 
@@ -414,13 +419,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         {mode === 'login' && (
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Correo Electrónico de la Empresa
+              <label htmlFor="auth-login-email" className="block text-xs font-semibold text-slate-700 mb-1">
+                Correo electrónico
               </label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
                 <input
+                  id="auth-login-email"
                   type="email"
+                  autoComplete="email"
                   required
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
@@ -432,7 +439,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-semibold text-slate-700">
+                <label htmlFor="auth-login-password" className="text-xs font-semibold text-slate-700">
                   Contraseña
                 </label>
                 <button
@@ -447,7 +454,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <div className="relative">
                 <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
                 <input
+                  id="auth-login-password"
                   type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
                   required
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
@@ -456,6 +465,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 />
                 <button
                   type="button"
+                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
@@ -478,74 +488,99 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         {/* Mode: REGISTER */}
         {mode === 'register' && (
           <form onSubmit={handleRegister} className="space-y-3.5">
+            <fieldset>
+              <legend className="block text-xs font-semibold text-slate-700 mb-1.5">¿Cómo vas a postular?</legend>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {([
+                  ['spa', 'Con una empresa', 'SpA, EIRL, Ltda. u otra'],
+                  ['persona_natural', 'Como persona', 'Con inicio de actividades'],
+                  ['sin_iniciar', 'Solo tengo una idea', 'Sin inicio de actividades']
+                ] as const).map(([v, t, d]) => (
+                  <label key={v} className={`cursor-pointer rounded-xl border p-2.5 text-xs ${regAs === v ? 'border-emerald-500 bg-emerald-50' : 'border-slate-300 bg-white hover:bg-slate-50'}`}>
+                    <input type="radio" name="reg-as" value={v} checked={regAs === v} onChange={() => setRegAs(v)} className="sr-only" />
+                    <span className="block font-bold text-slate-900">{t}</span>
+                    <span className="block text-slate-500">{d}</span>
+                  </label>
+                ))}
+              </div>
+              {regAs === 'sin_iniciar' && <p className="mt-1.5 text-[11px] text-slate-500">Puedes postular a varios fondos como persona; si ganas, te formalizas después. Usa tu RUT personal.</p>}
+            </fieldset>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Nombre o Razón Social
+                <label htmlFor="auth-reg-name" className="block text-xs font-semibold text-slate-700 mb-1">
+                  {isPersonReg ? 'Tu nombre o el de tu proyecto' : 'Nombre o razón social'}
                 </label>
                 <div className="relative">
                   <Building2 className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                   <input
+                    id="auth-reg-name"
                     type="text"
                     required
+                    autoComplete={isPersonReg ? 'name' : 'organization'}
                     value={regCompanyName}
                     onChange={(e) => setRegCompanyName(e.target.value)}
-                    placeholder="Ej: AgroTech Chile SpA"
+                    placeholder={isPersonReg ? 'Ej: María Soto / Arreglos Costura Fina' : 'Ej: AgroTech Chile SpA'}
                     className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs placeholder:text-slate-400 placeholder:italic focus:bg-white focus:border-emerald-500 focus:outline-hidden"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  RUT de la Empresa
+                <label htmlFor="auth-reg-rut" className="block text-xs font-semibold text-slate-700 mb-1">
+                  {isPersonReg ? 'Tu RUT' : 'RUT de la empresa'}
                 </label>
                 <div className="relative">
                   <User className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                   <input
+                    id="auth-reg-rut"
                     type="text"
                     required
+                    aria-describedby="auth-reg-rut-status"
                     value={regRut}
                     onChange={(e) => setRegRut(formatRutInput(e.target.value))}
                     inputMode="text"
                     autoComplete="off"
-                    placeholder="77.654.321-0"
+                    placeholder={isPersonReg ? '12.345.678-5' : '77.654.321-0'}
                     className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs placeholder:text-slate-400 placeholder:italic focus:bg-white focus:border-emerald-500 focus:outline-hidden font-mono"
                   />
                 </div>
                 {rutStatus(regRut) === 'invalido' && (
-                  <p className="mt-1 text-[11px] text-rose-600">Revisa el RUT: el dígito verificador no corresponde.</p>
+                  <p id="auth-reg-rut-status" role="alert" className="mt-1 text-[11px] text-rose-600">Revisa el RUT: el dígito verificador no corresponde.</p>
                 )}
                 {rutStatus(regRut) === 'valido' && (
-                  <p className="mt-1 text-[11px] text-emerald-700">RUT válido</p>
+                  <p id="auth-reg-rut-status" className="mt-1 text-[11px] text-emerald-700">RUT válido</p>
                 )}
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Correo Electrónico (Acceso)
+                <label htmlFor="auth-reg-email" className="block text-xs font-semibold text-slate-700 mb-1">
+                  Correo electrónico (para entrar)
                 </label>
                 <div className="relative">
                   <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                   <input
+                    id="auth-reg-email"
                     type="email"
+                    autoComplete="email"
                     required
                     value={regEmail}
                     onChange={(e) => setRegEmail(e.target.value)}
-                    placeholder="contacto@agro-tech.cl"
+                    placeholder="tucorreo@gmail.com"
                     className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs placeholder:text-slate-400 placeholder:italic focus:bg-white focus:border-emerald-500 focus:outline-hidden"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Contraseña (min. 6 caracteres)
+                <label htmlFor="auth-reg-password" className="block text-xs font-semibold text-slate-700 mb-1">
+                  Contraseña (mín. 6 caracteres)
                 </label>
                 <div className="relative">
                   <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                   <input
+                    id="auth-reg-password"
                     type={showPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
                     required
                     minLength={6}
                     value={regPassword}
@@ -555,6 +590,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   />
                   <button
                     type="button"
+                    aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
                   >
@@ -564,10 +600,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Representante Legal (Opcional)
+                <label htmlFor="auth-reg-rep" className="block text-xs font-semibold text-slate-700 mb-1">
+                  {isPersonReg ? 'Nombre de contacto (opcional)' : 'Representante legal (opcional)'}
                 </label>
                 <input
+                  id="auth-reg-rep"
                   type="text"
                   value={regRepName}
                   onChange={(e) => setRegRepName(e.target.value)}
@@ -577,13 +614,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Teléfono / WhatsApp (+56)
+                <label htmlFor="auth-reg-phone" className="block text-xs font-semibold text-slate-700 mb-1">
+                  Teléfono / WhatsApp (+56, opcional)
                 </label>
                 <div className="relative">
                   <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                   <input
+                    id="auth-reg-phone"
                     type="tel"
+                    autoComplete="tel"
                     value={regPhone}
                     onChange={(e) => setRegPhone(formatPhoneCLInput(e.target.value))}
                     inputMode="tel"

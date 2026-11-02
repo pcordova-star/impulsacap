@@ -215,7 +215,7 @@ export const NewApplicationModal: React.FC<NewApplicationModalProps> = ({
           <button
             onClick={onClose}
             className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer"
-          >
+           aria-label="Cerrar">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -420,7 +420,7 @@ export const NewApplicationModal: React.FC<NewApplicationModalProps> = ({
       {/* WARNING MODAL: Requisitos & Inadmisibilidad (Requirement 8) */}
       {warningFund && (
         <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-3xl border border-amber-300 shadow-2xl w-full max-w-lg p-6 space-y-4">
+          <div className="bg-white rounded-3xl border border-amber-300 shadow-2xl w-full max-w-lg p-6 space-y-4 max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center gap-3 text-amber-700">
               <div className="p-2.5 rounded-2xl bg-amber-100 shrink-0">
                 <AlertTriangle className="w-6 h-6" />
@@ -469,7 +469,7 @@ export const NewApplicationModal: React.FC<NewApplicationModalProps> = ({
       {/* CONFLICT MODAL: Existing application for this fund (Requirement 9) */}
       {existingAppConflict && (
         <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-3xl border border-blue-200 shadow-2xl w-full max-w-md p-6 space-y-4 text-center">
+          <div className="bg-white rounded-3xl border border-blue-200 shadow-2xl w-full max-w-md p-6 space-y-4 text-center max-h-[90dvh] overflow-y-auto">
             <div className="w-12 h-12 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center mx-auto">
               <Info className="w-6 h-6" />
             </div>
@@ -507,7 +507,7 @@ export const NewApplicationModal: React.FC<NewApplicationModalProps> = ({
       {/* PLAN LIMIT MODAL (Requirement 11) */}
       {showLimitNotice && (
         <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-lg p-6 space-y-4">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-lg p-6 space-y-4 max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center gap-3 text-slate-900">
               <div className="p-2.5 rounded-2xl bg-amber-100 text-amber-700 shrink-0">
                 <Archive className="w-6 h-6" />

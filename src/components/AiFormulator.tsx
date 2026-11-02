@@ -9,7 +9,7 @@ import { notifySaved } from '../utils/guideEvents';
 import { askFeedback } from '../utils/feedbackEvents';
 import { SectionHelper } from './SectionHelpers';
 import { ChileanFund, CompanyProfile, FormulationOutput, ProjectProfile, FormBlock } from '../types/funds';
-import { getFundRules, blockLabel, budgetAccountsFor, coFinancePctFor, maxSubsidyFor, questionOverride, evaluateRequirement } from '../data/fundStandards';
+import { getFundRules, blockLabel, budgetAccountsFor, coFinancePctFor, maxSubsidyFor, questionOverride, evaluateRequirement, executionMonths, milestoneRanges } from '../data/fundStandards';
 import { validateRut } from '../utils/rutValidator';
 import { ExpedienteData } from '../types/expediente';
 import { apiFetch } from '../utils/apiFetch';
@@ -73,7 +73,7 @@ const SECTIONS: SectionDefinition[] = [
     id: 'title_pitch',
     stepNumber: 1,
     title: 'Título y Pitch',
-    badge: 'Identificación Oficial',
+    badge: 'Identificación',
     questions: [
       {
         key: 'projectTitle',
@@ -248,7 +248,7 @@ const SECTIONS: SectionDefinition[] = [
   {
     id: 'budget',
     stepNumber: 8,
-    title: 'Presupuesto Oficial',
+    title: 'Presupuesto',
     badge: 'Criterio Co-financiamiento',
     questions: [] // Handled via dedicated Budget Accounts UI
   }
@@ -415,7 +415,22 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
           : q)
       : sec.questions;
     // Si el fondo cambia el enunciado, la ayuda genérica (pensada para Corfo) ya no corresponde: se quita salvo que el fondo traiga la suya
-    const adapted = questions.map(q => { const o = questionOverride(currentFund, sec.id as FormBlock, q.key); return o ? { ...q, helpText: '', ...o } : q; });
+    const adaptedRaw = questions.map(q => { const o = questionOverride(currentFund, sec.id as FormBlock, q.key); return o ? { ...q, helpText: '', ...o } : q; });
+    // Los meses de cada hito salen de la duración de ESTE programa (no de una plantilla de 12 meses)
+    const ranges = sec.id === 'workplan' && fundRules.family !== 'sercotec' ? milestoneRanges(executionMonths(currentFund)) : null;
+    const adapted = ranges
+      ? adaptedRaw.map(q => {
+          const i = ['milestone1', 'milestone2', 'milestone3'].indexOf(q.key);
+          if (i < 0) return q;
+          const range = ranges[i];
+          const cap = range.charAt(0).toUpperCase() + range.slice(1);
+          const label = /\(\s*mes(?:es)?\s*\d+\s*(?:-|a)\s*\d+\s*\)/i.test(q.label)
+            ? q.label.replace(/\(\s*mes(?:es)?\s*\d+\s*(?:-|a)\s*\d+\s*\)/i, `(${cap})`)
+            : `${q.label.replace(/:\s*$/, '')} (${range}):`;
+          const placeholder = q.placeholder ? q.placeholder.replace(/^Ej: Mes \d+:/, `Ej: ${cap.replace(/^Meses \d+ a /, 'Mes ')}:`) : q.placeholder;
+          return { ...q, label, placeholder };
+        })
+      : adaptedRaw;
     return { ...sec, questions: adapted, title: lbl.title, badge: official?.evaluates ? `Evalúa ${official.evaluates}` : (official?.title || sec.badge), hint: lbl.hint } as SectionDefinition;
   }), [currentFund, fundRules]);
   const currentSection = sectionsView[currentSectionIndex];
@@ -784,7 +799,7 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
       const desc = workplanAns[key]?.trim();
       if (!desc) return;
       const label = workplanQs.find(q => q.key === key)?.label || '';
-      const months = label.match(/mes(?:es)?\s*\d+\s*(?:-|a)\s*\d+/i)?.[0] || '';
+      const months = label.match(/mes(?:es)?\s*\d+(?:\s*(?:-|a)\s*\d+)?/i)?.[0] || '';
       const sercotecTitles = ['Actividades clave', 'Alianzas', 'Uso del subsidio en los primeros meses'];
       const fromLabel = label.includes(':') ? label.split(':')[0].replace(/\([^)]*\)/g, '').trim() : '';
       realMilestones.push({
@@ -1246,7 +1261,7 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
                 <div className="flex items-center gap-2">
                   <Edit3 className="w-4 h-4 text-cyan-400" />
                   <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
-                    Redacción Técnica Oficial (Editable)
+                    Texto final de la sección (editable)
                   </h3>
                 </div>
 
@@ -1270,8 +1285,10 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
                 )}
               </div>
 
+              <p className="text-[11px] text-slate-400 -mt-1">Este es el texto que va al expediente y que copias al portal. Tus respuestas de arriba solo sirven para redactarlo: si las cambias, vuelve a generar o edita aquí.</p>
               <textarea
                 rows={6}
+                aria-label={`Texto final de la sección ${currentSection.title || ''}`}
                 value={generatedTexts[currentSection.id] || ''}
                 onChange={(e) => handleTextEdit(e.target.value)}
                 placeholder="El texto técnico redactado para esta sección aparecerá aquí al hacer clic en 'Generar sección con IA', o puedes escribir directamente tu borrador..."
@@ -1379,7 +1396,7 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
                 <strong className="block text-sm">{completarCount}</strong> datos [COMPLETAR] pendientes
               </li>
               <li className={`p-3 rounded-xl border ${isBudgetValid ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200' : 'bg-amber-500/10 border-amber-500/30 text-amber-200'}`}>
-                <strong className="block text-sm">{isBudgetValid ? 'Presupuesto listo' : 'Presupuesto pendiente'}</strong> {isBudgetValid ? 'dentro de los topes' : 'revisa el paso 8'}
+                <strong className="block text-sm">{isBudgetValid ? 'Sumas y topes correctos' : 'Presupuesto pendiente'}</strong> {isBudgetValid ? 'falta que confirmes que cada gasto es aceptable y tiene cotización' : 'revisa el paso 8'}
               </li>
             </ul>
             {!allGood && (

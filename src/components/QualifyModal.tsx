@@ -66,21 +66,28 @@ export const QualifyModal: React.FC<{
           else if (/Mi empresa/i.test(ev.note)) missing.push(q.label);
         }
       }
-    } else if (conv.quienes_pueden_postular) {
-      checks.push({ label: `Quiénes pueden postular: ${conv.quienes_pueden_postular}`, status: 'unknown', note: 'Revísalo en las bases: este concurso aún no tiene sus requisitos cargados en ImpulsaCap.' });
+    } else {
+      // Sin requisitos cargados: coincidir en región o perfil NO demuestra que calces
+      if (conv.quienes_pueden_postular) checks.push({ label: `Quiénes pueden postular: ${conv.quienes_pueden_postular}`, status: 'unknown', note: 'Compáralo con tu empresa en las bases.' });
+      if (/agr[ií]cola|agropecuari|campesin|productor(es)? agr|riego|ganad|pesca|acuicul/i.test(text)) checks.push({ label: 'Rubro: es para el sector agropecuario o pesquero', status: 'unknown', note: 'Confirma que tu empresa sea de ese rubro.' });
+      if (/grupal|grupos? de|asociativ|cooperativ|gtt|consorcio|alianza/i.test(text)) checks.push({ label: 'Se postula en grupo o con socios', status: 'unknown', note: 'Revisa cuántos integrantes pide y qué rol puedes tener.' });
+      checks.push({ label: 'Rubro, tipo de proyecto, gastos y demás requisitos', status: 'unknown', note: 'Este concurso aún no tiene sus requisitos cargados en ImpulsaCap: revísalos en las bases antes de postular.' });
     }
 
     const fails = checks.filter(c => c.status === 'fail');
     const unknown = checks.filter(c => c.status === 'unknown');
     const verdict: 'no_aplica' | 'no' | 'si' | 'casi' = notGrant ? 'no_aplica' : fails.length ? 'no' : unknown.length ? 'casi' : 'si';
-    return { checks, fails, unknown, missing: Array.from(new Set(missing)), verdict, fund };
+    const okRegionOnly = checks.filter(c => c.status === 'ok').every(c => /^Alcance|^Es para/.test(c.label));
+    return { checks, fails, unknown, missing: Array.from(new Set(missing)), verdict, fund, okRegionOnly };
   }, [conv, profile]);
 
   const head = {
     no_aplica: { title: 'Esto no es un fondo para postular un proyecto', text: 'Es un trámite, crédito, garantía o un concurso para instituciones. ImpulsaCap te ayuda con subsidios para tu proyecto: revisa los fondos que calzan contigo.', tone: 'text-slate-700' },
     no: { title: 'Según tus datos, no calzas con esta convocatoria', text: 'Hay al menos un requisito que no cumples. Si tus datos están mal, corrígelos en Mi empresa; si están bien, te conviene otra convocatoria.', tone: 'text-rose-700' },
-    casi: { title: 'Calzas en lo que podemos revisar', text: 'Hay requisitos que no podemos comprobar con tus datos. Revísalos antes de postular.', tone: 'text-amber-700' },
-    si: { title: '¡Calzas con esta convocatoria!', text: 'Tus datos cumplen los requisitos que revisamos. Puedes empezar tu postulación.', tone: 'text-emerald-700' }
+    casi: result.okRegionOnly
+      ? { title: 'Tu región coincide; faltan estas comprobaciones', text: `Solo pudimos confirmar la región. Faltan ${result.unknown.length === 1 ? '1 requisito' : `${result.unknown.length} requisitos`} que debes revisar en las bases antes de decidir.`, tone: 'text-amber-700' }
+      : { title: 'Cumples lo que revisamos; faltan comprobaciones', text: `Hay ${result.unknown.length === 1 ? '1 requisito' : `${result.unknown.length} requisitos`} que no podemos comprobar con tus datos. Revísalos antes de postular.`, tone: 'text-amber-700' },
+    si: { title: 'Cumples los requisitos que revisamos', text: 'Tus datos cumplen todos los requisitos de las bases que revisamos. La admisibilidad final la decide el organismo.', tone: 'text-emerald-700' }
   }[result.verdict];
 
   const Icon = ({ s }: { s: Check['status'] }) => s === 'ok'
@@ -124,7 +131,7 @@ export const QualifyModal: React.FC<{
         <div className="flex flex-col gap-2 pt-1">
           {(result.verdict === 'si' || result.verdict === 'casi') && (
             <button type="button" onClick={() => onPostular(conv)} className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 text-sm cursor-pointer">
-              Postular a esta convocatoria <ArrowRight className="w-4 h-4" />
+              {result.verdict === 'casi' ? 'Preparar mi postulación (revisaré lo que falta)' : 'Postular a esta convocatoria'} <ArrowRight className="w-4 h-4" />
             </button>
           )}
           {result.missing.length > 0 && result.verdict !== 'no_aplica' && (

@@ -210,7 +210,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                   <button
                     onClick={onLogout}
-                    title="Cerrar sesión de la empresa"
+                    title="Cerrar sesión" aria-label="Cerrar sesión"
                     className="p-2 rounded-xl bg-slate-50 hover:bg-rose-50 border border-slate-200 text-slate-500 hover:text-rose-600 transition-colors cursor-pointer"
                   >
                     <LogOut className="w-3.5 h-3.5" />

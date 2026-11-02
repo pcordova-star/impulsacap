@@ -127,7 +127,7 @@ export const PlanPaywallCard: React.FC<PlanPaywallCardProps> = ({
             Plan Trimestral ImpulsaCap: 3 meses de acceso completo
           </h3>
           <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-2xl">
-            {highlightText || 'Desbloquea el Formulador Técnico con IA, la Auditoría Ciega oficial y la generación de documentos para postular a todos los fondos concursables de Chile.'}
+            {highlightText || 'Desbloquea el Formulador Técnico con IA, la revisión orientativa con IA y la generación de documentos para postular a todos los fondos concursables de Chile.'}
           </p>
         </div>
 
@@ -152,7 +152,7 @@ export const PlanPaywallCard: React.FC<PlanPaywallCardProps> = ({
             {
               icon: FileText,
               title: 'Generador de Documentos y Dossier',
-              desc: 'Cartas LOI, justificaciones de bonos de género y exportación oficial'
+              desc: 'Cartas LOI, justificaciones de bonos de género y exportación'
             },
             {
               icon: Coins,

@@ -38,18 +38,18 @@ export const GuaranteesCalculator: React.FC<GuaranteesCalculatorProps> = ({ fund
           <div>
             <h3 className="text-base font-bold text-white flex items-center gap-2">
               <span>Simulador de Garantías y Anticipo de Fondos</span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 font-bold">
-                100% Operativo
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20 font-bold">
+                Simulación con supuestos
               </span>
             </h3>
             <p className="text-xs text-slate-400">
-              Cómo cobrar el subsidio sin congelar tu capital de trabajo ante {fund.agency}
+              Simulación con supuestos: sirve para planificar si ganas. Los montos son hipotéticos y las condiciones dependen del instrumento y de la aseguradora o el banco.
             </p>
           </div>
         </div>
 
         <div className="text-right">
-          <span className="text-[10px] text-slate-400 block font-semibold">Subsidio Adjudicado</span>
+          <span className="text-[10px] text-slate-400 block font-semibold">Monto hipotético (si ganas)</span>
           <span className="text-lg font-black text-cyan-400 font-mono">{fund.subsidyFormatted}</span>
         </div>
       </div>
@@ -117,7 +117,7 @@ export const GuaranteesCalculator: React.FC<GuaranteesCalculatorProps> = ({ fund
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4" />
-              <span>Opción Inteligente: Póliza de Fianza</span>
+              <span>Póliza de garantía (seguro)</span>
             </span>
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
               No inmoviliza caja
@@ -139,7 +139,7 @@ export const GuaranteesCalculator: React.FC<GuaranteesCalculatorProps> = ({ fund
             </div>
           </div>
           <p className="mt-3 text-[11px] text-slate-400 bg-slate-900 p-2.5 rounded-xl border border-slate-800">
-            💡 Las aseguradoras chilenas (Mapfre, Unnio, Magallanes) emiten pólizas electrónicas a la orden de CORFO/SERCOTEC en 48 horas con el RUT de tu empresa.
+            Varias aseguradoras emiten pólizas de garantía a favor de Corfo o Sercotec. Plazos, requisitos y prima cambian según la aseguradora y tu empresa: cotiza con 2 o 3 y confirma en las bases que el instrumento la acepta.
           </p>
         </div>
 
@@ -152,10 +152,10 @@ export const GuaranteesCalculator: React.FC<GuaranteesCalculatorProps> = ({ fund
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
               <AlertTriangle className="w-4 h-4" />
-              <span>Opción Tradicional: Boleta Bancaria</span>
+              <span>Boleta de garantía bancaria</span>
             </span>
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20">
-              Alto costo de caja
+              Puede inmovilizar caja
             </span>
           </div>
 
@@ -166,17 +166,17 @@ export const GuaranteesCalculator: React.FC<GuaranteesCalculatorProps> = ({ fund
             </div>
             <div className="flex justify-between py-1 border-b border-slate-800/80">
               <span className="text-slate-400">Comisión bancaria de emisión:</span>
-              <strong className="text-slate-300 font-mono">~$180.000 CLP</strong>
+              <strong className="text-slate-300">Según tu banco (cotízala)</strong>
             </div>
             <div className="flex justify-between py-1">
-              <span className="text-slate-400">Capital congelado en depósito a plazo:</span>
+              <span className="text-slate-400">Capital que podría quedar inmovilizado (supuesto):</span>
               <strong className="text-amber-400 font-mono font-bold">
                 ${boletaFrozenCapitalCLP.toLocaleString('es-CL')} CLP (100%)
               </strong>
             </div>
           </div>
           <p className="mt-3 text-[11px] text-amber-300/80 bg-slate-900 p-2.5 rounded-xl border border-slate-800">
-            ⚠️ El banco te obligará a dejar en garantía el 100% del dinero en un depósito a plazo fijo hasta que CORFO apruebe el finiquito de cuentas (12 a 18 meses).
+            Muchos bancos piden respaldar la boleta con un depósito o una línea de crédito por el mismo monto hasta que se devuelva la garantía, al cierre del proyecto. Confirma las condiciones con tu banco.
           </p>
         </div>
       </div>
@@ -191,7 +191,7 @@ export const GuaranteesCalculator: React.FC<GuaranteesCalculatorProps> = ({ fund
           <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
             <span className="text-[10px] font-bold text-cyan-400 block mb-1">1. Registro de Compras (SII)</span>
             <p className="text-[11px] text-slate-300">
-              Descarga tus facturas y boletas del sistema electrónico del SII. Solo se rinde el monto neto (sin IVA).
+              Descarga tus facturas y boletas del sistema electrónico del SII. En general se rinde el monto neto (sin IVA) si recuperas el IVA: confírmalo en las bases.
             </p>
           </div>
           <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
