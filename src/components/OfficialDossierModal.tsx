@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ChileanFund, FormBlock } from '../types/funds';
 import { ExpedienteData } from '../types/expediente';
 import { validateRut } from '../utils/rutValidator';
-import { getFundRules, blockStatus, coFinancePctFor, cleanMilestone, blockLabel } from '../data/fundStandards';
+import { getFundRules, blockStatus, coFinancePctFor, cleanMilestone, blockLabel, auditPasses } from '../data/fundStandards';
 import { sectionText } from '../utils/formulationText';
 import { isLetterDoc } from '../data/docTypes';
 import { 
@@ -990,7 +990,7 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
               <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 text-xs text-slate-300 print:border-black print:bg-white print:text-black">
                 <span className="font-bold text-white block mb-1 print:text-black">Conclusión de la revisión con IA (orientativa):</span>
                 <span className="inline-block px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold print:border-black print:text-black">
-                  {auditResult.verdict}
+                  {auditPasses(fund, auditResult) ? 'Alcanza la nota sugerida' : 'Aún no alcanza la nota'}
                 </span>
                 <p className="mt-2 text-[11px] text-slate-400 print:text-black">
                   Revisión hecha por la IA de ImpulsaCap con los criterios publicados del fondo. No es una evaluación de {fund.agency}: la nota real la pone el organismo.

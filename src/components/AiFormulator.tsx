@@ -614,6 +614,12 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
     setTimeout(() => document.getElementById('formulator-questions')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120);
   };
 
+  // Presupuesto revisado: cada cuenta usada con detalle, precios con respaldo y confirmada contra las bases
+  const budgetReviewed = useMemo(() => {
+    const used = Object.values(budgetAccounts).filter(a => (a.corfoContributionCLP || 0) + (a.companyPecuniaryCLP || 0) > 0);
+    return used.length > 0 && used.every(a => a.eligibilityConfirmed && (a.lines || []).length > 0 && (a.lines || []).every(l => l.support === 'cotizacion' || l.support === 'precio_publicado'));
+  }, [budgetAccounts]);
+
   // Helper to handle budget inputs
   const handleBudgetAccountChange = (accKey: string, field: BudgetField, val: any) => {
     setBudgetAccounts(prev => {
@@ -1401,12 +1407,12 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
                 <strong className="block text-sm">{completarCount}</strong> datos [COMPLETAR] pendientes
               </li>
               <li className={`p-3 rounded-xl border ${isBudgetValid ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200' : 'bg-amber-500/10 border-amber-500/30 text-amber-200'}`}>
-                <strong className="block text-sm">{isBudgetValid ? 'Sumas y topes correctos' : 'Presupuesto pendiente'}</strong> {isBudgetValid ? 'falta que confirmes que cada gasto es aceptable y tiene cotización' : 'revisa el paso 8'}
+                <strong className="block text-sm">{isBudgetValid ? (budgetReviewed ? 'Presupuesto revisado' : 'Sumas y topes correctos') : 'Presupuesto pendiente'}</strong> {isBudgetValid ? (budgetReviewed ? 'cada gasto con detalle, respaldo y revisado contra las bases' : 'falta que confirmes que cada gasto es aceptable y tiene cotización') : 'revisa el paso 8'}
               </li>
             </ul>
             {!allGood && (
               <p className="text-xs text-slate-300">
-                Te recomendamos completar lo pendiente antes de la auditoría: la evaluación simulada será más baja si faltan secciones o datos.
+                Te recomendamos completar lo pendiente antes de la revisión con IA: la nota orientativa será más baja si faltan secciones o datos.
               </p>
             )}
             <div className="flex flex-wrap gap-2">
@@ -1431,7 +1437,7 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
                 onClick={() => onNavigateTab?.('auditor')}
                 className={`px-4 py-2.5 rounded-xl text-xs font-bold cursor-pointer inline-flex items-center gap-1.5 ${allGood ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950' : 'border border-slate-600 text-slate-200 hover:bg-slate-800'}`}
               >
-                Siguiente paso: auditoría simulada <ArrowRight className="w-4 h-4" />
+                Siguiente paso: revisión con IA <ArrowRight className="w-4 h-4" />
               </button>
             </div>
           </div>

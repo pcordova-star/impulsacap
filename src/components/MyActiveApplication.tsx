@@ -1118,8 +1118,8 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
               annualSalesCLP: profile.annualSalesCLP,
               salesBracket: profile.salesBracket,
               f29Periods: profile.taxFolderF29Periods || 0,
-              siiStatusObservations: profile.taxFolderSummary,
-              admissibilityVerdict: profile.taxFolderUploaded ? 'aprobado' : null,
+              siiStatusObservations: [profile.taxFolderSummary, ...(profile.taxFolderIssues || []).map(x => `Por resolver: ${x}`)].filter(Boolean).join(' · '),
+              admissibilityVerdict: profile.taxFolderUploaded ? ((profile.taxFolderIssues || []).length ? 'observado' : 'aprobado') : null,
               taxFolderUploaded: Boolean(profile.taxFolderUploaded)
             },
             roadmapConfirmations: {

@@ -173,7 +173,15 @@ export const BudgetWizard: React.FC<{
   const noDetail = usedGuides.filter(g => !(accounts[g.key]?.lines || []).length);
   const unbacked = usedGuides.filter(g => (accounts[g.key]?.lines || []).some(l => !backed(l)));
   const mismatched = usedGuides.filter(g => { const ls = accounts[g.key]?.lines || []; const a = accounts[g.key]!; return ls.length > 0 && linesTotal(ls) !== (a.corfoContributionCLP || 0) + (a.companyPecuniaryCLP || 0); });
-  const eligibilityOk = usedGuides.length > 0 && !notReviewed.length && !noDetail.length && !unbacked.length && !mismatched.length;
+  // Topes por cuenta ("Máximo 30% del subsidio"): lo que se pide al fondo en esa cuenta no puede pasarlo
+  const capBreaches = GUIDES.map(g => {
+    const pct = Number(g.cap?.match(/m[aá]x(?:imo)?\.?\s*(\d+(?:,\d+)?)\s*%\s*del subsidio/i)?.[1]?.replace(',', '.') || 0);
+    const a = accounts[g.key];
+    if (!pct || !a || !totals.sub) return null;
+    const limit = Math.floor(totals.sub * pct / 100);
+    return (a.corfoContributionCLP || 0) > limit ? { g, pct, limit, asked: a.corfoContributionCLP || 0 } : null;
+  }).filter(Boolean) as { g: AccountGuide; pct: number; limit: number; asked: number }[];
+  const eligibilityOk = capBreaches.length === 0 && usedGuides.length > 0 && !notReviewed.length && !noDetail.length && !unbacked.length && !mismatched.length;
   const missingTexts = GUIDES.filter(g => {
     const a = accounts[g.key];
     return a && (a.corfoContributionCLP || a.companyPecuniaryCLP) && (!a.item?.trim() || !a.justification?.trim());
@@ -393,7 +401,10 @@ export const BudgetWizard: React.FC<{
               <Wand2 className="w-4 h-4" /> Ajustar automáticamente
             </button>
           )}
-          {valid && <p className="text-emerald-200"><strong>Sumas y topes correctos:</strong> el fondo pone el {totals.pct.toFixed(1)}% y tu empresa {clp(totals.emp)}, dentro de lo que permite {fundName}.</p>}
+          {capBreaches.map(c => (
+            <p key={c.g.key} className="text-rose-200">En <strong>{c.g.plainName.toLowerCase()}</strong> pides {clp(c.asked)} al fondo, pero el tope es {c.pct}% del subsidio ({clp(c.limit)}). Pasa la diferencia a otra cuenta o al aporte de tu empresa.</p>
+          ))}
+          {valid && capBreaches.length === 0 && <p className="text-emerald-200"><strong>Sumas y topes correctos:</strong> el fondo pone el {totals.pct.toFixed(1)}% y tu empresa {clp(totals.emp)}, dentro de lo que permite {fundName}.</p>}
           {valid && (
             <div className={`mt-1 p-3 rounded-xl border ${eligibilityOk ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-100' : 'bg-amber-500/10 border-amber-500/30 text-amber-100'}`}>
               <p className="font-bold">{eligibilityOk ? 'Gastos revisados y con respaldo' : 'Que las sumas cuadren no basta: falta revisar los gastos'}</p>

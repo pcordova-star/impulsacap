@@ -244,7 +244,7 @@ export const BlindAuditor: React.FC<BlindAuditorProps> = ({
 
               <div>
                 <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                  {auditResult.verdict}
+                  {auditPasses(selectedFund, auditResult) ? 'Alcanza la nota sugerida' : 'Aún no alcanza la nota'}
                 </span>
                 <h3 className="text-xl font-black text-white mt-2">
                   Revisión orientativa con IA

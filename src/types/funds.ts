@@ -206,6 +206,8 @@ export interface CompanyProfile {
   taxFolderF29Periods?: number;
   /** Meses desde el último mes con ventas en la carpeta (0 = el último mes cerrado); null si no hay ventas en 24 meses */
   taxFolderMonthsSinceLastSale?: number | null;
+  /** Alertas de la carpeta que conviene resolver antes de postular (F29 faltantes, anotaciones) */
+  taxFolderIssues?: string[];
   representativeName?: string;
   representativeRut?: string;
   representativeEmail?: string;

@@ -295,6 +295,7 @@ export const SiiUploaderModal: React.FC<SiiUploaderModalProps> = ({
       taxFolderUploadDate: new Date().toLocaleDateString('es-CL'),
       taxFolderSummary: `Datos confirmados por la empresa: RUT ${formattedRut || 'S/I'} | ${editCompanyName.trim() || 'Empresa'} | Ventas $${salesNum.toLocaleString('es-CL')} CLP en ${periodsNum} periodos F29.`,
       taxFolderF29Periods: periodsNum,
+      taxFolderIssues: diag ? diag.alerts.filter((a: any) => a.level === 'critico').map((a: any) => String(a.title)) : [],
       // Cuándo fue la última venta (para requisitos de "ventas en los últimos 18 o 24 meses")
       ...(diag ? (() => {
         const months = diag.sales.monthly.filter((m: any) => !m.pending);
