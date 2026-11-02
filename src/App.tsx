@@ -27,6 +27,7 @@ import { QualifyModal } from './components/QualifyModal';
 import { showToast } from './utils/toast';
 import { splitTarget, goToTarget, setReturnContext, request as requestNav } from './utils/navFocus';
 import { fundFromConvocatoria } from './utils/convocatoriaFund';
+import { upcomingForFund, fmtShortDate, daysText } from './data/upcomingCalls';
 import { ReturnBar } from './components/ReturnBar';
 import { captureRefFromUrl, previewCode, clearStoredRef, notifyReferralChanged } from './utils/referral';
 import { trackPageview } from './utils/pageviews';
@@ -1197,6 +1198,19 @@ export default function App() {
                 {g.cierre && (<><dt className="text-slate-500">Cierre</dt><dd className="font-semibold text-slate-900">{g.cierre}</dd></>)}
                 <dt className="text-slate-500">Financia</dt><dd className="font-semibold text-slate-900">{g.fund.subsidyFormatted}</dd>
               </dl>
+              {/* ¿Está abierta hoy? Sin convocatoria abierta, se prepara para cuando abra (y se dice cuándo, si se sabe) */}
+              {!g.cierre && (() => {
+                const open = convocatorias.some((c: any) => c.vigente && c.fundId === g.fund.id);
+                if (open) return null;
+                const up = upcomingForFund(g.fund.id, convocatorias.filter((c: any) => c.vigente && c.fundId).map((c: any) => String(c.fundId)));
+                return (
+                  <p className="mt-3 rounded-xl bg-amber-50 border border-amber-200 p-3 text-sm text-amber-900">
+                    <strong>Hoy no hay una convocatoria abierta de este fondo.</strong>{' '}
+                    {up ? <>{up.confirmed ? 'Abre' : 'Abriría'} el {fmtShortDate(up.date)} ({daysText(up.days)}{up.confirmed ? '' : ', fecha estimada'}). </> : <>{g.fund.callSchedule ? `${g.fund.callSchedule}. ` : ''}</>}
+                    Puedes prepararla ahora y enviarla cuando abra; te avisamos por correo.
+                  </p>
+                );
+              })()}
               {otherRegion && (
                 <div className="mt-3 rounded-xl bg-rose-50 border border-rose-200 p-3 text-sm text-rose-900">
                   <p className="font-bold">Esta convocatoria es solo para {g.alcance}.</p>

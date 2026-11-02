@@ -576,11 +576,17 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
               return (
                 <React.Fragment key={step.id}>
                   {step.id === steps.find(x => x.needsPlan)?.id && !hasActivePlan && (
-                    <div id="plan-paywall-step" className="my-6">
-                      <PlanPaywallCard
-                        highlightText="Desbloquea el Formulador Técnico por Secciones, la revisión orientativa con IA y el expediente para postular a este fondo."
-                      />
-                    </div>
+                    <details id="plan-paywall-step" className="my-4 rounded-2xl bg-slate-900 border border-amber-500/40 p-4 group">
+                      <summary className="cursor-pointer list-none flex flex-wrap items-center justify-between gap-2 text-sm">
+                        <span className="text-amber-200"><strong className="text-white">Los pasos 2, 3 y 5 usan la IA del Plan Trimestral.</strong> Los pasos 1, 4 y 6 son gratis: puedes avanzarlos ahora.</span>
+                        <span className="text-xs font-bold text-amber-300 group-open:hidden">Ver el plan</span>
+                      </summary>
+                      <div className="mt-3">
+                        <PlanPaywallCard
+                          highlightText="Desbloquea el Formulador Técnico por Secciones, la revisión orientativa con IA y el expediente para postular a este fondo."
+                        />
+                      </div>
+                    </details>
                   )}
                   <div
                   className={`relative rounded-3xl transition-all border ${
@@ -680,7 +686,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              document.getElementById('plan-paywall-step')?.scrollIntoView({ behavior: 'smooth' });
+                              { const el = document.getElementById('plan-paywall-step') as HTMLDetailsElement | null; if (el) { el.open = true; el.scrollIntoView({ behavior: 'smooth' }); } }
                             }}
                             className="px-4 py-2 rounded-xl text-xs font-bold bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-300 cursor-pointer flex items-center gap-1.5 transition-all shadow-sm"
                           >

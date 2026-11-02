@@ -117,6 +117,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
   const [projectName, setProjectName] = useState<string>(
     formulation?.projectTitle || (profile.projectSummary ? profile.projectSummary.slice(0, 60) : '')
   );
+  const [showRefDocs, setShowRefDocs] = useState(false);
   const [legalRepName, setLegalRepName] = useState<string>(profile.representativeName || currentUser?.representativeName || '');
   const [legalRepRut, setLegalRepRut] = useState<string>(profile.representativeRut || currentUser?.representativeRut || '');
   const [city, setCity] = useState<string>(profile.city || '');
@@ -221,6 +222,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
 
     if (!hasActivePlan) {
       setShowPaywall(true);
+      setTimeout(() => document.getElementById('docs-paywall')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
       return;
     }
 
@@ -444,10 +446,11 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
   return (
     <div className="space-y-8 animate-fade-in max-w-5xl mx-auto">
       {/* Paywall Banner shown whenever user attempts to generate without active plan */}
-      {(showPaywall || (!hasActivePlan && !planLoading)) && (
-        <div className="animate-fade-in">
+      {/* El plan se ofrece cuando intenta generar una carta: la lista de documentos es gratis y va primero */}
+      {showPaywall && (
+        <div id="docs-paywall" className="animate-fade-in scroll-mt-40">
           <PlanPaywallCard
-            highlightText="El Generador de Documentos Oficiales (Cartas LOI, Compromisos y Memorias) requiere el Plan Trimestral ImpulsaCap. Redacta y descarga cartas en formato Word (.docx) con plena validez para CORFO y SERCOTEC."
+            highlightText="El generador de cartas (interés de clientes, compromisos de aporte y memorias) requiere el Plan Trimestral ImpulsaCap. Redacta y descarga cartas en Word (.docx) para que las revise y firme quien corresponda."
           />
         </div>
       )}
@@ -1009,7 +1012,13 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
           </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {fundDocs && (
+          <p className="text-xs text-slate-400">
+            Esto es una guía general, no lo que pide este fondo para postular (eso está arriba). Algunos de estos certificados se piden solo si ganas{profile?.companyType === 'sin_iniciar' || profile?.companyType === 'persona_natural' ? ', y varios son solo para empresas' : ''}.{' '}
+            <button type="button" onClick={() => setShowRefDocs(v => !v)} className="font-bold text-cyan-300 underline cursor-pointer">{showRefDocs ? 'Ocultar la guía' : 'Ver la guía'}</button>
+          </p>
+        )}
+        {(!fundDocs || showRefDocs) && <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {REQUIRED_DOCUMENTS_GUIDE.map((docItem) => {
             const isDone = docStatuses[docItem.id as keyof DocChecklistStatuses] || false;
             return (
@@ -1083,7 +1092,7 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
               </div>
             );
           })}
-        </div>
+        </div>}
       </div>
     </div>
   );

@@ -58,6 +58,9 @@ export function matchConvocatoriaToFundId(titulo: string, url?: string): string 
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
 
+  // Concursos para instituciones (patrocinadoras, administradoras, operadores): nombran el fondo pero no son el fondo
+  if (/patrocinador|administrador|entidad(es)? gestora|agente operador|nomina de entidades|seleccion (del )?ejecutor|incubadora/.test(text)) return null;
+
   if (text.includes('digitaliza tu almacen') || (text.includes('almacen') && text.includes('sercotec'))) return 'sercotec_digitaliza_almacen';
   if (text.includes('innova region')) return 'corfo_innova_region';
   if (text.includes('consolida y expande')) return 'corfo_consolida_expande';

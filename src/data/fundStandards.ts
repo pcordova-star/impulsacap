@@ -1321,6 +1321,11 @@ export function computeRoadmap(input: RoadmapInput): { steps: RoadmapStep[]; com
   const docItems: RoadmapItem[] = r.applicationDocs.filter(d => d.link !== 'formulator').map(d => {
     const id = `doc_${d.id}`;
     const confirmed = Boolean(checks[id]);
+    // Documentos solo para empresas: si postula como persona, no aplican (no se le pide marcar algo que no tiene)
+    const isPerson = profile.companyType === 'persona_natural' || profile.companyType === 'sin_iniciar';
+    if (isPerson && /^si (postulas como |es )?empresa/i.test(d.label)) {
+      return { id, label: d.label, done: true, detail: 'No aplica: postulas como persona.' };
+    }
     if (d.link === 'taxFolder') {
       const ok = Boolean(profile.taxFolderUploaded) || confirmed;
       return { id, label: d.label, done: ok, detail: ok ? 'Carpeta cargada' : d.detail || 'Descárgala en sii.cl y súbela', go: { label: ok ? 'Ver carpeta' : 'Subir carpeta tributaria', target: 'sii' } };

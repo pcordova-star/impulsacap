@@ -5,6 +5,7 @@ import { request as requestNav } from '../utils/navFocus';
 import { PLAN_PRICE, PLAN_PRICE_TEXT } from '../data/pricing';
 import { usePlan } from '../hooks/usePlan';
 import { resolveFund, fundFromConvocatoria } from '../utils/convocatoriaFund';
+import { rankCatalogFunds } from '../utils/fundRanking';
 import { computeJourney, fundFit } from '../data/journey';
 import { NewsTeaser } from './NewsView';
 import { regionFit } from '../utils/region';
@@ -225,9 +226,22 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
 
   // Recommended funds for empty state (Requirement 5)
   const recommendedFunds = useMemo(() => {
-    // Solo fondos cuyos requisitos de bases comprobables se cumplen con los datos de la empresa
-    const withFit = funds.map(f => ({ f, st: fundFit(f, profile).status })).filter(x => x.st !== 'no_cumple');
-    return [...withFit.filter(x => x.st === 'cumple'), ...withFit.filter(x => x.st === 'por_confirmar')].map(x => x.f).slice(0, 3);
+    // Sin tipo de postulante ni ventas no se puede decir que algo "calza": no se recomienda nada
+    if (!profile?.companyType || !profile?.salesBracket) return [];
+    // Mismo calce que el diagnóstico: primero las exclusiones (tipo, ventas, etapa, innovación) y después la afinidad
+    const pp: any = (profile as any).projectProfile || {};
+    const { eligible } = rankCatalogFunds(funds, {
+      companyType: profile.companyType,
+      salesBracket: profile.salesBracket,
+      trlStage: profile.trlStage,
+      isFemaleLed: profile.isFemaleLed,
+      region: profile.region,
+      projectSummary: [pp.whatItDoes, pp.problemAndTarget, pp.currentSolutionAndDiff, profile.projectSummary].filter(Boolean).join('. ')
+    });
+    return eligible
+      .filter(r => r.score >= 45 && fundFit(r.fund, profile).status !== 'no_cumple')
+      .slice(0, 3)
+      .map(r => r.fund);
   }, [profile, funds]);
 
   const handleArchive = async (appId: string) => {
@@ -599,6 +613,7 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
         {activeApplications.length === 0 && recommendedFunds.length > 0 && (
           <div className="rounded-3xl bg-white border border-slate-200 p-5 space-y-3">
             <p className="text-sm font-bold text-slate-900">Fondos que calzan con tu empresa</p>
+            <p className="text-xs text-slate-500">{profile?.trlStage ? 'Según tu tipo de postulante, ventas, etapa y proyecto.' : 'Según tu tipo de postulante, ventas y proyecto. Indica la etapa de tu proyecto en Mi empresa para afinar la lista.'} Antes de elegir, revisa sus requisitos.</p>
             <div className="grid gap-3 md:grid-cols-3">
               {recommendedFunds.map(fund => (
                 <div key={fund.id} className="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 flex flex-col justify-between gap-3">

@@ -98,10 +98,12 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
   const [companyName, setCompanyName] = useState(profile.companyName || currentUser?.companyName || '');
   const [rut, setRut] = useState(profile.rut || currentUser?.rut || '');
   const [companyType, setCompanyType] = useState<CompanyType>(profile.companyType || 'spa');
+  const isPersonType = companyType === 'persona_natural' || companyType === 'sin_iniciar';
   const [sector, setSector] = useState(profile.sector || '');
   const [region, setRegion] = useState(toOfficialRegion(profile.region) || profile.region || '');
   // Sin suponer nada: si no lo indica, queda vacío (antes partía en "Sin ventas" y eso cambiaba qué fondos calzaban)
   const [salesBracket, setSalesBracket] = useState<SalesBracket | ''>(profile.salesBracket || '');
+  const [trlStage, setTrlStage] = useState<string>(String(profile.trlStage || ''));
   const [isFemaleLed, setIsFemaleLed] = useState<boolean>(profile.isFemaleLed || false);
   const [femaleEquityPct, setFemaleEquityPct] = useState<number>(profile.femaleEquityPct || 0);
 
@@ -185,6 +187,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
     if (profile.sector) setSector(profile.sector);
     if (profile.region) setRegion(profile.region);
     setSalesBracket(profile.salesBracket || '');
+    setTrlStage(String(profile.trlStage || ''));
     setIsFemaleLed(Boolean(profile.isFemaleLed));
     setFemaleEquityPct(profile.femaleEquityPct || 0);
     if (profile.representativeName) setRepresentativeName(profile.representativeName);
@@ -213,7 +216,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
     if (!dirtyRef.current) return;
     const t = setTimeout(() => { saveRef.current(); }, 1200);
     return () => clearTimeout(t);
-  }, [companyName, rut, companyType, sector, region, salesBracket, isFemaleLed, femaleEquityPct, representativeName, representativeRut, representativeEmail, representativePhone, currentProjectProfile]);
+  }, [companyName, rut, companyType, sector, region, salesBracket, trlStage, isFemaleLed, femaleEquityPct, representativeName, representativeRut, representativeEmail, representativePhone, currentProjectProfile]);
   // Al salir de la pantalla con cambios pendientes, se guardan igual
   useEffect(() => () => { if (dirtyRef.current) saveRef.current(); }, []);
 
@@ -233,6 +236,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
       sector: sector.trim(),
       region: region.trim(),
       salesBracket,
+      trlStage: (trlStage || profile.trlStage || '') as any,
       isFemaleLed,
       femaleEquityPct: isFemaleLed ? (femaleEquityPct || 100) : 0,
       representativeName: representativeName.trim(),
@@ -442,7 +446,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
                 rows={3}
                 value={whatItDoes}
                 onChange={(e) => setWhatItDoes(e.target.value)}
-                placeholder="Ej: Desarrollamos una plataforma SaaS con algoritmos de IA y sensores IoT para optimizar el riego y fertilización en viñedos y frutales..."
+                placeholder="Ej: Hacemos pan y queques sin gluten en Talca y los vendemos a cafeterías y por Instagram."
                 className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 placeholder:text-slate-400 placeholder:italic focus:bg-white focus:border-cyan-600 focus:outline-hidden leading-relaxed"
               />
             </div>
@@ -456,7 +460,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
                 rows={3}
                 value={problemAndTarget}
                 onChange={(e) => setProblemAndTarget(e.target.value)}
-                placeholder="Ej: Los productores agrícolas y viticultores pierden hasta un 35% de su producción por heladas imprevistas y sobre-riego, afectando a más de 4.000 pymes agrícolas en Chile..."
+                placeholder="Ej: Las personas celíacas de Talca casi no encuentran pan fresco sin gluten; hoy lo compran congelado y caro. Clientes: cafeterías y familias con celíacos."
                 className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 placeholder:text-slate-400 placeholder:italic focus:bg-white focus:border-cyan-600 focus:outline-hidden leading-relaxed"
               />
             </div>
@@ -470,7 +474,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
                 rows={3}
                 value={currentSolutionAndDiff}
                 onChange={(e) => setCurrentSolutionAndDiff(e.target.value)}
-                placeholder="Ej: Hoy usan estaciones meteorológicas importadas de alto costo ($15.000 USD) o planillas Excel manuales. Nuestra solución cuesta un 80% menos y entrega alertas predictivas en tiempo real..."
+                placeholder="Ej: Hoy compran pan congelado del supermercado. El nuestro es fresco, se entrega en el día y cuesta parecido."
                 className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 placeholder:text-slate-400 placeholder:italic focus:bg-white focus:border-cyan-600 focus:outline-hidden leading-relaxed"
               />
             </div>
@@ -484,7 +488,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
                 rows={3}
                 value={currentProgress}
                 onChange={(e) => setCurrentProgress(e.target.value)}
-                placeholder="Ej: Contamos con prototipo funcional TRL 4 validado en laboratorio, 2 pilotos en terreno en el Valle de Colchagua y 3 cartas de interés comercial (LOI) firmadas por viñas locales..."
+                placeholder="Ej: Probamos la receta con 20 clientes, 2 cafeterías nos compran cada semana y una nos firmaría una carta de interés. Si aún no tienes nada, escríbelo así."
                 className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 placeholder:text-slate-400 placeholder:italic focus:bg-white focus:border-cyan-600 focus:outline-hidden leading-relaxed"
               />
             </div>
@@ -498,7 +502,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
                 rows={3}
                 value={teamDetails}
                 onChange={(e) => setTeamDetails(e.target.value)}
-                placeholder="Ej: Rodrigo Muñoz (CEO, Ing. Agrónomo U. de Chile, 8 años en gestión de predios), Camila Sepúlveda (CTO, Master en Ciencias de la Computación, 5 años en IoT)..."
+                placeholder="Ej: Ana Pérez (dueña, 10 años como panadera), Luis Soto (ventas y reparto, medio tiempo)."
                 className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 placeholder:text-slate-400 placeholder:italic focus:bg-white focus:border-cyan-600 focus:outline-hidden leading-relaxed"
               />
               <TeamCvImport value={teamDetails} projectSummary={whatItDoes} onApply={(v) => { markDirty(); setTeamDetails(v); }} />
@@ -513,7 +517,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
                 rows={2}
                 value={businessModel}
                 onChange={(e) => setBusinessModel(e.target.value)}
-                placeholder="Ej: Modelo B2B SaaS con suscripción mensual de $180.000 CLP por hectárea monitoreada más arriendo de hardware IoT por $50.000 CLP mensuales..."
+                placeholder="Ej: Vendemos cada pan a $2.500 a las cafeterías y a $3.000 por Instagram, con despacho los viernes."
                 className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 placeholder:text-slate-400 placeholder:italic focus:bg-white focus:border-cyan-600 focus:outline-hidden leading-relaxed"
               />
             </div>
@@ -527,7 +531,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
                 rows={2}
                 value={fundingPurpose}
                 onChange={(e) => setFundingPurpose(e.target.value)}
-                placeholder="Ej: El subsidio de CORFO ($15M) se destinará en un 55% a contratación de desarrolladores de software, 30% en adquisición de sensores para validación y 15% en prospección comercial..."
+                placeholder="Ej: Comprar un horno más grande, arrendar una cocina certificada y hacer publicidad para llegar a 10 cafeterías."
                 className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 placeholder:text-slate-400 placeholder:italic focus:bg-white focus:border-cyan-600 focus:outline-hidden leading-relaxed"
               />
             </div>
@@ -688,12 +692,13 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
             {/* Razón Social */}
             <div className="space-y-1">
-              <label className="font-semibold text-slate-700 block">Razón Social</label>
+              <label htmlFor="mc-name" className="font-semibold text-slate-700 block">{isPersonType ? 'Tu nombre o el de tu proyecto' : 'Razón social'}</label>
               <input
+                id="mc-name"
                 type="text"
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
-                placeholder="Ej: Innovaciones Tecnológicas SpA"
+                placeholder={isPersonType ? 'Ej: María Soto / Arreglos Costura Fina' : 'Ej: Panadería Los Robles SpA'}
                 className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 focus:bg-white focus:border-blue-500 focus:outline-hidden font-semibold"
               />
             </div>
@@ -701,7 +706,7 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
             {/* RUT */}
             <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <label className="font-semibold text-slate-700">RUT Empresa</label>
+                <label htmlFor="mc-rut" className="font-semibold text-slate-700">{isPersonType ? 'Tu RUT' : 'RUT de la empresa'}</label>
                 {rut && (
                   <span className={`text-[10px] font-bold ${isCompanyRutValid ? 'text-emerald-600' : 'text-amber-600'}`}>
                     {isCompanyRutValid ? '✓ Válido Módulo 11' : '⚠ RUT inválido'}
@@ -709,10 +714,11 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
                 )}
               </div>
               <input
+                id="mc-rut"
                 type="text"
                 value={rut}
                 onChange={(e) => setRut(formatRutInput(e.target.value))}
-                placeholder="77.123.456-K"
+                placeholder={isPersonType ? '12.345.678-5' : '77.123.456-K'}
                 className={`w-full px-3.5 py-2 rounded-xl bg-slate-50 border text-slate-900 font-mono font-semibold focus:bg-white focus:outline-hidden ${
                   rut && isCompanyRutValid ? 'border-emerald-400' : 'border-slate-300 focus:border-blue-500'
                 }`}
@@ -721,8 +727,9 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
 
             {/* Tipo de Sociedad */}
             <div className="space-y-1">
-              <label className="font-semibold text-slate-700 block">Tipo de Sociedad</label>
+              <label htmlFor="mc-type" className="font-semibold text-slate-700 block">¿Cómo postulas?</label>
               <select
+                id="mc-type"
                 value={companyType}
                 onChange={(e) => setCompanyType(e.target.value as any)}
                 className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 focus:bg-white focus:border-blue-500 focus:outline-hidden font-medium cursor-pointer"
@@ -731,9 +738,28 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
                 <option value="srl">Sociedad de Resp. Ltda. (SRL)</option>
                 <option value="eirl">Empresa Individual (EIRL)</option>
                 <option value="sa">Sociedad Anónima (S.A.)</option>
-                <option value="persona_natural">Persona Natural con Giro 1ª Categoría</option>
-                <option value="sin_iniciar">Sin Inicio de Actividades ante el SII</option>
+                <option value="persona_natural">Persona con inicio de actividades (1ª categoría)</option>
+                <option value="sin_iniciar">Persona sin inicio de actividades (solo una idea)</option>
               </select>
+            </div>
+
+            {/* Etapa del proyecto: define a qué fondos puedes postular */}
+            <div className="space-y-1">
+              <label htmlFor="mc-stage" className="font-semibold text-slate-700 block">¿En qué etapa está tu proyecto?</label>
+              <select
+                id="mc-stage"
+                value={trlStage}
+                onChange={(e) => { setTrlStage(e.target.value); markDirty(); }}
+                className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 focus:bg-white focus:border-blue-500 focus:outline-hidden font-medium cursor-pointer"
+              >
+                <option value="" disabled>Elige la etapa</option>
+                <option value="idea_concepto">Idea: aún no tengo un prototipo</option>
+                <option value="prototipo_lab">Prototipo: tengo una primera versión probada</option>
+                <option value="mvp_validado">Producto listo: lo probé con clientes, aún no vendo</option>
+                <option value="primeras_ventas">Ya vendo</option>
+                <option value="escalamiento_global">Vendo y quiero crecer a otros mercados</option>
+              </select>
+              <p className="text-[11px] text-slate-500">Cada fondo financia una etapa distinta: con esto no te recomendamos fondos que no son para ti.</p>
             </div>
 
             {/* Tramo de Ventas */}
