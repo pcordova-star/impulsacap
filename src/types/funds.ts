@@ -80,7 +80,7 @@ export interface FundRequirement {
     | { kind: 'taxFolder' }
     | { kind: 'firstCategory'; required: boolean }
     | { kind: 'age'; minMonths?: number; maxMonths?: number }
-    | { kind: 'sales'; minCLP?: number; maxCLP?: number; minUF?: number; maxUF?: number; noSales?: boolean }
+    | { kind: 'sales'; minCLP?: number; maxCLP?: number; minUF?: number; maxUF?: number; noSales?: boolean; /** Ventana en meses (por defecto, los últimos 12) */ withinMonths?: number }
     | { kind: 'companyType'; allowed: CompanyType[] }
     | { kind: 'female' };
 }
@@ -204,6 +204,8 @@ export interface CompanyProfile {
   taxFolderUploadDate?: string;
   taxFolderSummary?: string;
   taxFolderF29Periods?: number;
+  /** Meses desde el último mes con ventas en la carpeta (0 = el último mes cerrado); null si no hay ventas en 24 meses */
+  taxFolderMonthsSinceLastSale?: number | null;
   representativeName?: string;
   representativeRut?: string;
   representativeEmail?: string;

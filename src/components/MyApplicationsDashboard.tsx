@@ -236,6 +236,7 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
       trlStage: profile.trlStage,
       isFemaleLed: profile.isFemaleLed,
       region: profile.region,
+      salesCheckedElsewhere: Boolean((profile as any).taxFolderUploaded),
       projectSummary: [pp.whatItDoes, pp.problemAndTarget, pp.currentSolutionAndDiff, profile.projectSummary].filter(Boolean).join('. ')
     });
     return eligible
@@ -314,7 +315,7 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
   // Convocatorias sugeridas: abiertas, de tu región, sin postulación, y que sean fondos (no créditos ni garantías)
   const suggestedCalls = useMemo(() => {
     // Fuera: créditos y garantías, y concursos que no son para empresas (administradoras de fondos, patrocinadores, entidades)
-    const NOT_GRANT = /(garant[ií]a|cr[eé]dito|cobertura|certificaci[oó]n|fogain|fogape|cobex|reprogramaci|seguro|pr[eé]stamo|administradora|patrocinador|entidad(es)? gestora|operador|agente operador|becas?)/i;
+    const NOT_GRANT = /(garant[ií]a|cr[eé]dito|cobertura|certificaci[oó]n|fogain|fogape|cobex|reprogramaci|seguro|pr[eé]stamo|administradora|patrocinador|entidad(es)? gestora|operador|agente operador|becas?|selecci[oó]n (del )?ejecutor|ejecutor|ley de incentivo|incentivo tributario|art[ií]culo \d|n[oó]mina de)/i;
     return newCallAlerts.length >= 0
       ? convocatorias
           .filter(c => c.vigente && !NOT_GRANT.test(c.titulo || '') && !dismissedAlerts.includes(`new_call_${c.id}`))

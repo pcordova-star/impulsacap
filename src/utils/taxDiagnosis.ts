@@ -81,6 +81,25 @@ export const REGION_NAMES: Record<string, string> = {
   '15': 'Arica y Parinacota', '16': 'Ñuble'
 };
 
+/** Región a partir del domicilio de la carpeta (cuando no hay F22 con código de región) */
+const RM_COMUNAS = ['santiago', 'providencia', 'las condes', 'vitacura', 'lo barnechea', 'nunoa', 'la reina', 'penalolen', 'macul', 'la florida', 'puente alto', 'san miguel', 'san joaquin', 'la cisterna', 'el bosque', 'la granja', 'la pintana', 'san ramon', 'lo espejo', 'pedro aguirre cerda', 'estacion central', 'cerrillos', 'maipu', 'quinta normal', 'lo prado', 'pudahuel', 'cerro navia', 'renca', 'quilicura', 'huechuraba', 'conchali', 'independencia', 'recoleta', 'colina', 'lampa', 'tiltil', 'san bernardo', 'buin', 'paine', 'calera de tango', 'talagante', 'penaflor', 'padre hurtado', 'isla de maipo', 'el monte', 'melipilla', 'curacavi', 'pirque', 'san jose de maipo'];
+const CITY_REGION: Record<string, string> = {
+  arica: 'Arica y Parinacota', iquique: 'Tarapacá', 'alto hospicio': 'Tarapacá', antofagasta: 'Antofagasta', calama: 'Antofagasta', copiapo: 'Atacama',
+  'la serena': 'Coquimbo', coquimbo: 'Coquimbo', ovalle: 'Coquimbo', valparaiso: 'Valparaíso', 'vina del mar': 'Valparaíso', quilpue: 'Valparaíso', 'villa alemana': 'Valparaíso', 'san antonio': 'Valparaíso', 'los andes': 'Valparaíso', quillota: 'Valparaíso',
+  rancagua: "O'Higgins", 'san fernando': "O'Higgins", talca: 'Maule', curico: 'Maule', linares: 'Maule', chillan: 'Ñuble', concepcion: 'Biobío', talcahuano: 'Biobío', 'los angeles': 'Biobío', 'san pedro de la paz': 'Biobío',
+  temuco: 'La Araucanía', 'padre las casas': 'La Araucanía', valdivia: 'Los Ríos', osorno: 'Los Lagos', 'puerto montt': 'Los Lagos', 'puerto varas': 'Los Lagos', castro: 'Los Lagos', coyhaique: 'Aysén', 'punta arenas': 'Magallanes'
+};
+export function regionFromAddress(address: string | null | undefined): string | null {
+  if (!address) return null;
+  const t = address.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const parts = t.split(',').map(x => x.trim()).filter(Boolean);
+  for (const part of [...parts].reverse()) {
+    if (RM_COMUNAS.includes(part)) return 'Metropolitana';
+    if (CITY_REGION[part]) return CITY_REGION[part];
+  }
+  return null;
+}
+
 const clp = (n: number) => `$${Math.round(n).toLocaleString('es-CL')}`;
 const periodLabel = (p: string) => {
   const [y, m] = p.split('-').map(Number);
@@ -382,7 +401,7 @@ export function buildTaxDiagnosis(
     alerts.push({ level: 'critico', title: 'Tienes anotaciones vigentes en el SII', detail: `La carpeta registra ${cte.observations.length} anotación(es). Muchos fondos exigen no tener observaciones tributarias: revísalas con tu contador antes de postular.` });
   }
   if (f29Missing.length > 0) {
-    alerts.push({ level: 'critico', title: `Faltan ${f29Missing.length} declaraciones F29`, detail: `No aparecen declarados: ${f29Missing.map(periodLabel).join(', ')}. La mayoría de los fondos pide estar al día con el SII.` });
+    alerts.push({ level: 'critico', title: f29Missing.length === 1 ? 'Falta 1 declaración F29' : `Faltan ${f29Missing.length} declaraciones F29`, detail: `No aparecen declarados: ${f29Missing.map(periodLabel).join(', ')}. La mayoría de los fondos pide estar al día con el SII.` });
   }
   if (f29Late.length > 0) {
     alerts.push({ level: 'atencion', title: `${f29Late.length} F29 presentados fuera de plazo`, detail: `Presentados después del día 20 del mes siguiente: ${f29Late.slice(-6).map(periodLabel).join(', ')}${f29Late.length > 6 ? ' y otros' : ''}. Hoy están declarados, pero conviene mantener las declaraciones al día.` });
@@ -391,7 +410,9 @@ export function buildTaxDiagnosis(
     alerts.push({ level: 'atencion', title: `Renta (F22) declarada con recargos en ${f22Late.length} ${f22Late.length === 1 ? 'año' : 'años'}`, detail: `Años tributarios ${f22Late.join(', ')} con intereses y multas por declaración fuera de plazo. Ya están presentados.` });
   }
   if (last12Periods.length > 0 && last12Total === 0) {
-    alerts.push({ level: 'atencion', title: 'Sin ventas en los últimos 12 meses', detail: 'Los fondos para empresas en crecimiento piden ventas recientes. Los de etapa inicial, como Semilla Inicia, sí aceptan empresas sin ventas.' });
+    alerts.push({ level: 'atencion', title: 'Sin ventas en los últimos 12 meses', detail: ageMonths !== null && ageMonths > 18
+      ? 'Los fondos para empresas en crecimiento piden ventas recientes. Algunos, como Crea y Valida, aceptan ventas en los últimos 24 meses. Semilla Inicia acepta empresas sin ventas, pero solo con hasta 18 meses de inicio de actividades.'
+      : 'Los fondos para empresas en crecimiento piden ventas recientes. Los de etapa inicial, como Semilla Inicia, sí aceptan empresas sin ventas.' });
   }
   if (pending) {
     alerts.push({ level: 'info', title: `El F29 de ${periodLabel(pending)} aún está en plazo`, detail: 'A la fecha de la carpeta todavía no vencía, así que no lo contamos como faltante.' });
@@ -429,7 +450,7 @@ export function buildTaxDiagnosis(
       firstCategory,
       activities: cte.activities,
       address: cte.address,
-      region: regionCode ? REGION_NAMES[String(Number(regionCode))] || null : null,
+      region: (regionCode ? REGION_NAMES[String(Number(regionCode))] || null : null) || regionFromAddress(cte.address),
       legalRepresentatives: cte.legalRepresentatives,
       partners: cte.partners
     },

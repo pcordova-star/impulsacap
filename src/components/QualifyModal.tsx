@@ -8,7 +8,7 @@ import { validateRut } from '../utils/rutValidator';
 import { regionFit } from '../utils/region';
 
 /** Instrumentos del monitor que no son un fondo para postular un proyecto de la empresa */
-export const NOT_A_GRANT = /(garant[ií]a|cr[eé]dito|cobertura|certificaci[oó]n de acuerdos|solicitud previa|ley de incentivo|art[ií]culo \d|\blir\b|fogain|fogape|cobex|reprogramaci|seguro|pr[eé]stamo|administradora|patrocinador|entidad(es)? gestora|agente operador)/i;
+export const NOT_A_GRANT = /(garant[ií]a|cr[eé]dito|cobertura|certificaci[oó]n de acuerdos|solicitud previa|ley de incentivo|art[ií]culo \d|\blir\b|fogain|fogape|cobex|reprogramaci|seguro|pr[eé]stamo|administradora|patrocinador|entidad(es)? gestora|agente operador|selecci[oó]n (del )?ejecutor|n[oó]mina de entidades)/i;
 
 type Check = { label: string; status: 'ok' | 'fail' | 'unknown'; note?: string };
 

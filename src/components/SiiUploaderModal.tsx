@@ -277,9 +277,9 @@ export const SiiUploaderModal: React.FC<SiiUploaderModalProps> = ({
     const formattedRut = cleanRutVal && validateRut(cleanRutVal) ? formatRut(cleanRutVal) : cleanRutVal;
 
     const diag: TaxDiagnosis | undefined = parsedData?.diagnosis;
-    const regionName = diag?.company.region
-      ? (diag.company.region === 'Metropolitana' ? 'Región Metropolitana' : `Región de ${diag.company.region}`)
-      : undefined;
+    // Mismos nombres que el selector de región de Mi empresa ("Región del Biobío", "Región de O'Higgins"…)
+    const REGION_OPTION: Record<string, string> = { Metropolitana: 'Región Metropolitana', Maule: 'Región del Maule', 'Biobío': 'Región del Biobío' };
+    const regionName = diag?.company.region ? (REGION_OPTION[diag.company.region] || `Región de ${diag.company.region}`) : undefined;
     const firstRep = diag?.company.legalRepresentatives[0];
     onApplyProfile({
       ...(regionName ? { region: regionName } : {}),
@@ -294,7 +294,13 @@ export const SiiUploaderModal: React.FC<SiiUploaderModalProps> = ({
       taxFolderFileName: fileName,
       taxFolderUploadDate: new Date().toLocaleDateString('es-CL'),
       taxFolderSummary: `Datos confirmados por la empresa: RUT ${formattedRut || 'S/I'} | ${editCompanyName.trim() || 'Empresa'} | Ventas $${salesNum.toLocaleString('es-CL')} CLP en ${periodsNum} periodos F29.`,
-      taxFolderF29Periods: periodsNum
+      taxFolderF29Periods: periodsNum,
+      // Cuándo fue la última venta (para requisitos de "ventas en los últimos 18 o 24 meses")
+      ...(diag ? (() => {
+        const months = diag.sales.monthly.filter((m: any) => !m.pending);
+        const lastIdx = [...months].reverse().findIndex((m: any) => (m.revenue || 0) > 0);
+        return { taxFolderMonthsSinceLastSale: lastIdx < 0 ? null : lastIdx };
+      })() : {})
     });
 
     try {

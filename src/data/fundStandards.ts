@@ -522,7 +522,7 @@ export const FUND_RULES: Record<string, FundRules> = {
       { id: 'tipo', label: 'Empresa (persona jurídica) constituida en Chile', detail: 'Universidades, IP y CFT no pueden ser beneficiarias.', check: { kind: 'companyType', allowed: ['spa', 'srl', 'eirl', 'sa'] } },
       { id: 'primera_categoria', label: 'Inicio de actividades en primera categoría, vigente', check: { kind: 'firstCategory', required: true } },
       { id: 'antiguedad', label: 'Al menos 24 meses desde el inicio de actividades', check: { kind: 'age', minMonths: 24 } },
-      { id: 'ventas', label: 'Ventas en los 24 meses anteriores a la postulación', check: { kind: 'sales', minCLP: 1 } },
+      { id: 'ventas', label: 'Ventas en los 24 meses anteriores a la postulación', check: { kind: 'sales', minCLP: 1, withinMonths: 24 } },
       { id: 'perfil', label: 'Haber enviado el Perfil de Proyecto (fase 1) dentro del plazo' },
       { id: 'prototipo', label: 'Partir desde un prototipo (etapa CREA) y llegar a validación a escala productiva o comercial (etapa VALIDA)' }
     ],
@@ -561,7 +561,7 @@ export const FUND_RULES: Record<string, FundRules> = {
       { id: 'tipo', label: 'Persona natural mayor de 18 años o empresa constituida en Chile', check: { kind: 'companyType', allowed: ['persona_natural', 'spa', 'srl', 'eirl', 'sa'] } },
       { id: 'primera_categoria', label: 'Inicio de actividades en primera categoría, vigente', check: { kind: 'firstCategory', required: true } },
       { id: 'antiguedad', label: 'Al menos 24 meses desde el inicio de actividades', check: { kind: 'age', minMonths: 24 } },
-      { id: 'ventas', label: 'Ventas en los últimos 24 meses', check: { kind: 'sales', minCLP: 1 } },
+      { id: 'ventas', label: 'Ventas en los últimos 24 meses', check: { kind: 'sales', minCLP: 1, withinMonths: 24 } },
       { id: 'no_beneficiario', label: 'No haber sido beneficiario de un proyecto de I+D o innovación de InnovaChile en los últimos 5 años' },
       { id: 'colaboradora', label: 'Contratar 1 o 2 entidades colaboradoras con capacidades de I+D', detail: 'Universidades, centros de investigación o empresas de servicios tecnológicos.' },
       req.pensionRegistry()
@@ -659,7 +659,7 @@ export const FUND_RULES: Record<string, FundRules> = {
       { id: 'tipo', label: 'Empresa constituida en Chile o persona natural mayor de 18 años', detail: 'Universidades, IP y CFT no pueden ser beneficiarias.', check: { kind: 'companyType', allowed: ['persona_natural', 'spa', 'srl', 'eirl', 'sa'] } },
       { id: 'primera_categoria', label: 'Inicio de actividades en primera categoría, vigente', check: { kind: 'firstCategory', required: true } },
       { id: 'antiguedad', label: 'Al menos 18 meses desde el inicio de actividades', check: { kind: 'age', minMonths: 18 } },
-      { id: 'ventas', label: 'Ventas dentro de los 18 meses anteriores a postular', check: { kind: 'sales', minCLP: 1 } },
+      { id: 'ventas', label: 'Ventas dentro de los 18 meses anteriores a postular', check: { kind: 'sales', minCLP: 1, withinMonths: 18 } },
       { id: 'domicilio', label: 'Domicilio tributario en la región de la convocatoria (tuyo o de un asociado)' },
       { id: 'trl', label: 'La solución ya superó la prueba de concepto (TRL 3)' },
       { id: 'foco', label: 'El proyecto calza con los focos temáticos de la convocatoria de tu región' }
@@ -697,7 +697,7 @@ export const FUND_RULES: Record<string, FundRules> = {
       { id: 'tipo', label: 'Empresa constituida en Chile o persona natural mayor de 18 años', detail: 'Instituciones de educación superior no pueden ser beneficiarias.', check: { kind: 'companyType', allowed: ['persona_natural', 'spa', 'srl', 'eirl', 'sa'] } },
       { id: 'primera_categoria', label: 'Inicio de actividades en primera categoría, vigente', check: { kind: 'firstCategory', required: true } },
       { id: 'antiguedad', label: 'Al menos 18 meses desde el inicio de actividades', check: { kind: 'age', minMonths: 18 } },
-      { id: 'ventas', label: 'Ventas dentro de los 18 meses anteriores a postular', check: { kind: 'sales', minCLP: 1 } },
+      { id: 'ventas', label: 'Ventas dentro de los 18 meses anteriores a postular', check: { kind: 'sales', minCLP: 1, withinMonths: 18 } },
       { id: 'validado', label: 'Producto, servicio o proceso innovador que requirió I+D y ya está validado técnica o comercialmente' },
       { id: 'no_repetir', label: 'El producto no ha sido cofinanciado antes por este instrumento (salvo para escalar a mercados internacionales)' }
     ],
@@ -1200,6 +1200,14 @@ export function evaluateRequirement(r: FundRequirement, profile: Partial<Company
         if (type === 'sin_iniciar' || type === 'persona_natural') return { status: 'ok' };
         if (sales === null) return profile.salesBracket === 'sin_ventas' ? { status: 'ok' } : { status: 'unknown', note: 'Sube tu carpeta tributaria para revisarlo' };
         return sales <= 0 ? { status: 'ok' } : { status: 'fail', note: `Registras ventas por ${clp(sales)}; las empresas deben postular sin ventas` };
+      }
+      // Requisito de "ventas en los últimos 18 o 24 meses": con la carpeta se mira cuándo fue la última venta
+      if (c.withinMonths && c.withinMonths > 12 && c.minCLP && c.minCLP <= 1 && profile.taxFolderUploaded && profile.taxFolderMonthsSinceLastSale !== undefined) {
+        const since = profile.taxFolderMonthsSinceLastSale;
+        if (since === null) return { status: 'fail', note: `Sin ventas en los últimos 24 meses según tu carpeta` };
+        return since < c.withinMonths
+          ? { status: 'ok', note: since < 12 ? 'Registras ventas en los últimos 12 meses' : `Tu última venta fue hace ${since + 1} meses (dentro de los ${c.withinMonths})` }
+          : { status: 'fail', note: `Tu última venta fue hace ${since + 1} meses; pide ventas en los últimos ${c.withinMonths}` };
       }
       if (sales === null) {
         if (profile.salesBracket === 'sin_ventas' && (c.minCLP || c.minUF)) return { status: 'fail', note: 'Declaraste que aún no vendes' };

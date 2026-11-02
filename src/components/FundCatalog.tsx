@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { upcomingForFund, fmtShortDate, daysText, UPCOMING_SOURCE } from '../data/upcomingCalls';
 import { ChileanFund, Agency, getFundVisibleStatus, CompanyProfile } from '../types/funds';
 import { fundFit } from '../data/journey';
+import { rankCatalogFunds } from '../utils/fundRanking';
 import { Convocatoria } from '../types/convocatoria';
 import { CHILEAN_FUNDS } from '../data/chileanFunds';
 import { 
@@ -43,7 +44,7 @@ export const FundCatalog: React.FC<FundCatalogProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   // Abrimos de entrada el primer fondo que calza con la empresa (no siempre el mismo)
   const [expandedFundId, setExpandedFundId] = useState<string | null>(() =>
-    profile ? (funds.find(f => fundFit(f, profile).status === 'cumple')?.id ?? null) : null);
+    null);
 
   const agencies: { id: string; label: string }[] = [
     { id: 'ALL', label: 'Todos los Organismos' },
@@ -73,8 +74,31 @@ export const FundCatalog: React.FC<FundCatalogProps> = ({
     return matchesSearch && matchesAgency && matchesCategory;
   });
   const fitOf = (f: ChileanFund) => (profile ? fundFit(f, profile) : null);
-  const FIT_ORDER = { cumple: 0, por_confirmar: 1, no_cumple: 2 } as const;
-  if (profile) filteredFunds.sort((a, b) => FIT_ORDER[fitOf(a)!.status] - FIT_ORDER[fitOf(b)!.status]);
+  // Afinidad con el proyecto (mismo calce que el diagnóstico): exclusiones primero, después el foco del fondo
+  const affinity = React.useMemo(() => {
+    if (!profile) return new Map<string, number>();
+    const pp: any = (profile as any).projectProfile || {};
+    const { eligible } = rankCatalogFunds(funds, {
+      companyType: profile.companyType, salesBracket: profile.salesBracket, trlStage: profile.trlStage,
+      isFemaleLed: profile.isFemaleLed, region: profile.region,
+      salesCheckedElsewhere: Boolean((profile as any).taxFolderUploaded),
+      projectSummary: [pp.whatItDoes, pp.problemAndTarget, pp.currentSolutionAndDiff, profile.projectSummary, profile.sector].filter(Boolean).join('. ')
+    });
+    return new Map(eligible.map(r => [r.fund.id, r.score]));
+  }, [funds, profile]);
+  /** Estado que se muestra: "calza" solo si cumple lo comprobable, no quedan requisitos por confirmar y el fondo es afín al proyecto */
+  const badgeOf = (f: ChileanFund) => {
+    const fit = fitOf(f);
+    if (!fit) return null;
+    if (fit.status === 'no_cumple') return { tone: 'no' as const, text: `No cumples: ${fit.fails[0].label}`, rank: 3 };
+    const score = affinity.get(f.id);
+    if (score === undefined) return { tone: 'no' as const, text: 'No es para tu etapa o tipo de proyecto', rank: 3 };
+    if (score < 45) return { tone: 'low' as const, text: 'Poca afinidad con tu proyecto', rank: 2 };
+    if (fit.status === 'cumple' && !fit.declarative) return { tone: 'ok' as const, text: '✓ Calza con tus datos', rank: 0 };
+    if (fit.status === 'cumple') return { tone: 'check' as const, text: `Cumples lo que revisamos · confirma ${fit.declarative} requisito${fit.declarative === 1 ? '' : 's'}`, rank: 1 };
+    return { tone: 'check' as const, text: 'Completa tus datos para confirmar', rank: 1 };
+  };
+  if (profile) filteredFunds.sort((a, b) => (badgeOf(a)!.rank - badgeOf(b)!.rank) || ((affinity.get(b.id) || 0) - (affinity.get(a.id) || 0)));
 
   return (
     <div className="space-y-6 animate-fade-in max-w-6xl mx-auto">
@@ -203,7 +227,7 @@ export const FundCatalog: React.FC<FundCatalogProps> = ({
                 <div className="flex items-start gap-3.5">
                   <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 flex flex-col items-center justify-center shrink-0">
                     <span className="text-[10px] font-black uppercase text-slate-500">{fund.agency}</span>
-                    <span className="text-xs font-bold text-blue-700">{fund.maxCoFinancePct}%</span>
+                    <span className="text-xs font-bold text-blue-700" title="Parte del proyecto que puede financiar el fondo">hasta {fund.maxCoFinancePct}% del costo</span>
                   </div>
 
                   <div>
@@ -215,11 +239,14 @@ export const FundCatalog: React.FC<FundCatalogProps> = ({
                         {fund.category}
                       </span>
 
-                      {fit && (
-                        <span title={fit.fails.map(f => f.label).join(' · ')} className={`max-w-[18rem] truncate text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${fit.status === 'cumple' ? 'bg-emerald-600 text-white border-emerald-600' : fit.status === 'no_cumple' ? 'bg-red-50 text-red-700 border-red-300' : 'bg-amber-50 text-amber-800 border-amber-300'}`}>
-                          {fit.status === 'cumple' ? '✓ Calza con tus datos' : fit.status === 'no_cumple' ? `No cumples: ${fit.fails[0].label}` : 'Completa tus datos para confirmar'}
-                        </span>
-                      )}
+                      {fit && (() => {
+                        const b = badgeOf(fund)!;
+                        return (
+                          <span title={fit.fails.map(f => f.label).join(' · ')} className={`max-w-[18rem] truncate text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${b.tone === 'ok' ? 'bg-emerald-600 text-white border-emerald-600' : b.tone === 'no' ? 'bg-red-50 text-red-700 border-red-300' : b.tone === 'low' ? 'bg-slate-100 text-slate-600 border-slate-300' : 'bg-amber-50 text-amber-800 border-amber-300'}`}>
+                            {b.text}
+                          </span>
+                        );
+                      })()}
                       {/* Open Call Indicator (Requirement 1) */}
                       {hasOpenCall ? (
                         <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 flex items-center gap-1.5 shadow-2xs">

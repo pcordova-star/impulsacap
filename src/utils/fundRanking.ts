@@ -13,6 +13,8 @@ export interface MatchAnswers {
   isFemaleLed?: boolean;
   region?: string;
   projectSummary?: string;
+  /** Con carpeta tributaria, las ventas se revisan con sus datos reales (fundFit), no con el tramo */
+  salesCheckedElsewhere?: boolean;
 }
 
 export type CheckState = 'cumple' | 'pendiente' | 'no';
@@ -110,7 +112,7 @@ export function isFemaleOnly(fund: ChileanFund): boolean {
 export function hardBlockers(fund: ChileanFund, a: MatchAnswers): string[] {
   const out: string[] = [];
   if (!eligibleType(fund, String(a.companyType || ''))) out.push('tipo de postulante');
-  const sb = salesBracketsFor(String(a.salesBracket || ''));
+  const sb = a.salesCheckedElsewhere ? [] : salesBracketsFor(String(a.salesBracket || ''));
   if (sb.length && fund.salesBracketsEligible?.length && !sb.some(b => (fund.salesBracketsEligible as string[]).includes(b))) out.push('tramo de ventas');
   if (a.trlStage && fund.trlEligible?.length && !(fund.trlEligible as string[]).includes(String(a.trlStage))) out.push('etapa del proyecto');
   if (isFemaleOnly(fund) && a.isFemaleLed === false) out.push('exclusivo para mujeres');
