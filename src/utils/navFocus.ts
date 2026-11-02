@@ -18,7 +18,7 @@ export function splitTarget(tab: string): { base: string; target: string | null 
 }
 
 // --- Pedidos a componentes que aún no están montados (se consumen al montar) ---
-type Key = 'formulatorSection' | 'docType' | 'roadmapView';
+type Key = 'formulatorSection' | 'docType' | 'roadmapView' | 'advisorQuestion';
 const pending: Partial<Record<Key, string>> = {};
 const listeners = new Map<Key, Set<(v: string) => void>>();
 

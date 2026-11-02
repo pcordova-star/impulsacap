@@ -3,6 +3,7 @@ import { ChileanFund, FormBlock } from '../types/funds';
 import { ExpedienteData } from '../types/expediente';
 import { validateRut } from '../utils/rutValidator';
 import { getFundRules, blockStatus, coFinancePctFor, cleanMilestone, blockLabel, auditPasses } from '../data/fundStandards';
+import { EvaluationGuide } from './EvaluationGuide';
 import { sectionText } from '../utils/formulationText';
 import { isLetterDoc } from '../data/docTypes';
 import { 
@@ -1013,6 +1014,7 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
                   Revisión hecha por la IA de ImpulsaCap con los criterios publicados del fondo. No es una evaluación de {fund.agency}: la nota real la pone el organismo.
                 </p>
               </div>
+              <EvaluationGuide fund={fund} compact />
             </div>
           )}
 

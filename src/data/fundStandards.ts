@@ -1476,6 +1476,11 @@ export const FAMILY_QUESTIONS: Partial<Record<FundFamily, Partial<Record<FormBlo
     team: { dedication: { label: 'Horas semanales de cada integrante en el proyecto', helpText: 'Corfo evalúa el compromiso del equipo (10%): indica horas reales por persona.' } }
   },
   corfo_innovacion: {
+    // "Impacto y escalabilidad": se pregunta por el impacto, no por el modelo de cobro
+    model: {
+      revenue: { label: '¿Qué cambia para tu empresa y tus clientes si el proyecto resulta? (ventas, costos, productividad, empleos)', placeholder: 'Ej: Las empresas de arriendo evitan 2 días de detención por máquina al año; nosotros sumamos una línea de servicio nueva', helpText: 'Se evalúa el impacto (10%): cifras aproximadas ayudan; si no las tienes, quedará [COMPLETAR].' },
+      salesStrategy: { label: '¿Cómo vas a escalar la solución después del proyecto? (más clientes, otras regiones, otros rubros, venta o licencia)', placeholder: 'Ej: Primero empresas de arriendo de Santiago, luego constructoras de otras regiones' }
+    },
     workplan: {
       milestone1: { label: 'Etapa 1 / primeros meses: actividades de desarrollo, entregable y riesgo' },
       milestone2: { label: 'Etapa 2: validación técnica o pilotaje, entregable y riesgo' },

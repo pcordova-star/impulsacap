@@ -1,12 +1,14 @@
 import { guideFor } from '../data/requirementGuides';
+import { askConfirm } from '../utils/confirmDialog';
 import { ReadinessCard } from './ReadinessCard';
+import { EvaluationGuide } from './EvaluationGuide';
 import { stepMinutes, fmtMinutes, isRecommendedItem } from '../data/effort';
 import { getFundRules, computeRoadmap, coFinancePctFor } from '../data/fundStandards';
 import { computeJourney } from '../data/journey';
 import { FundIntroCard } from './FundIntroCard';
 import { SimilarWinners } from './SimilarWinners';
 import { isSemillaInicia } from '../data/semillaWinners';
-import { consume, onRequest } from '../utils/navFocus';
+import { consume, onRequest, request } from '../utils/navFocus';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   CompanyProfile, 
@@ -93,7 +95,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
   const [archiving, setArchiving] = useState<boolean>(false);
 
   const handleArchivePostulation = async () => {
-    if (!window.confirm(`¿Deseas archivar la postulación al fondo "${selectedFund.name}" para liberar uno de tus 3 cupos simultáneos?`)) return;
+    if (!(await askConfirm(`¿Archivar la postulación a "${selectedFund.name}"? Se libera uno de tus 3 cupos y puedes reactivarla después.`, { confirmLabel: 'Archivar' }))) return;
     setArchiving(true);
     try {
       const res = await apiFetch('/api/postulaciones/archivar', {
@@ -842,6 +844,20 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
                                     </p>
                                   </div>
                                 </button>
+                                {/* Requisito que solo la persona puede confirmar: si no está segura, no tiene que marcarlo a ciegas */}
+                                {!item.done && step.id === 'step_requirements' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const pp: any = (profile as any).projectProfile || {};
+                                      request('advisorQuestion', `No estoy seguro de cumplir este requisito de ${selectedFund.name}: "${item.label}". Mi proyecto: ${pp.whatItDoes || profile.projectSummary || '(sin descripción)'}. ¿Lo cumplo? ¿Qué me pedirían para demostrarlo?`);
+                                      onNavigateTab('advisor');
+                                    }}
+                                    className="mt-1 text-[11px] font-semibold text-amber-300 hover:text-amber-200 underline underline-offset-2 cursor-pointer"
+                                  >
+                                    No estoy seguro: preguntarle al asesor
+                                  </button>
+                                )}
                                 {guideBlock}
                                 </div>
                               );
@@ -1071,13 +1087,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
         </summary>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 text-sm text-slate-700">
           <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3"><p className="text-xs font-bold text-slate-500 mb-1">Financiamiento y aportes</p><p>{fundRules.coFinance.text}</p>{fundRules.coFinance.minCashText && <p className="text-xs text-slate-500 mt-1">{fundRules.coFinance.minCashText}</p>}</div>
-          <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3"><p className="text-xs font-bold text-slate-500 mb-1">Cómo se evalúa ({fundRules.evaluation.scale})</p><p>{fundRules.evaluation.rule}</p>
-            {fundRules.evaluation.stages && (
-              <ul className="mt-1 text-xs text-slate-600 space-y-0.5">
-                {fundRules.evaluation.stages.map(st => <li key={st.name}>• {st.name}{st.weight ? ` (${st.weight}%)` : ''}{st.detail ? `: ${st.detail}` : ''}</li>)}
-              </ul>
-            )}
-          </div>
+          <div className="sm:col-span-2"><EvaluationGuide fund={selectedFund} dark={false} /></div>
           {fundRules.partners && <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3"><p className="text-xs font-bold text-slate-500 mb-1">Con quién se postula</p><p>{fundRules.partners}</p></div>}
           <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3"><p className="text-xs font-bold text-slate-500 mb-1">Duración y garantía</p><p>{fundRules.duration}</p><p className="text-xs text-slate-600 mt-1">{fundRules.guarantee.text}</p></div>
           {fundRules.formalizationDocs.length > 0 && (

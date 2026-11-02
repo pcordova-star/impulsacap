@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { askConfirm } from '../utils/confirmDialog';
 import { Trophy, Hourglass, RotateCcw, Sparkles, Upload, ArrowRight, CheckCircle2, Circle, Lightbulb, Search, Info } from 'lucide-react';
 import type { ChileanFund, CompanyProfile } from '../types/funds';
 import type { ApplicationItem, ApplicationResult, ExecutionData, ImprovementPlan, ReapplyContext } from '../types/application';
@@ -33,7 +34,7 @@ export const ResultPanel: React.FC<Props> = ({ application, fund, profile, onUpd
 
   const undo = (
     <p className="text-center">
-      <button type="button" onClick={() => { if (confirm('¿Quitar el resultado marcado? Tus gastos, hitos y plan de mejora quedan guardados por si lo vuelves a marcar.')) onSetResult(null); }} className="text-xs text-slate-500 hover:text-slate-800 underline underline-offset-2 cursor-pointer">
+      <button type="button" onClick={async () => { if (await askConfirm('¿Quitar el resultado marcado? Tus gastos, hitos y plan de mejora quedan guardados por si lo vuelves a marcar.')) onSetResult(null); }} className="text-xs text-slate-500 hover:text-slate-800 underline underline-offset-2 cursor-pointer">
         Me equivoqué al marcar el resultado
       </button>
     </p>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'react';
+import { ConfirmHost } from './components/ConfirmHost';
 import { remainingMinutes, fmtMinutes, prepChecklist } from './data/effort';
 import { computeRoadmap } from './data/fundStandards';
 import { validateRut } from './utils/rutValidator';
@@ -1316,6 +1317,7 @@ export default function App() {
       />
       <ToastCenter />
       <QuickFeedback />
+      <ConfirmHost />
 
       {/* Acceso anticipado (lanzamiento sin pago en línea) */}
       <EarlyAccessModal onStart={() => { if (activeTab !== 'postulation') setActiveTab('my-applications'); }} />

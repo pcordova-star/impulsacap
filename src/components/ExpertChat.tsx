@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { CompanyProfile, ChileanFund } from '../types/funds';
 import { apiFetch } from '../utils/apiFetch';
+import { consume, onRequest } from '../utils/navFocus';
 import { usePlan } from '../hooks/usePlan';
 import { PlanPaywallCard } from './PlanPaywallCard';
 import { 
@@ -82,6 +83,12 @@ export const ExpertChat: React.FC<ExpertChatProps> = ({ profile, currentFund }) 
   ]);
 
   const [input, setInput] = useState('');
+  // Pregunta sugerida desde otra pantalla (p. ej. "no estoy seguro de cumplir este requisito"): queda escrita, lista para enviar
+  useEffect(() => {
+    const q = consume('advisorQuestion');
+    if (q) setInput(q);
+    return onRequest('advisorQuestion', v => setInput(v));
+  }, []);
   const [loading, setLoading] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
   const [failedText, setFailedText] = useState<string | null>(null);

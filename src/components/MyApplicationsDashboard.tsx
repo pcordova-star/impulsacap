@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { askConfirm } from '../utils/confirmDialog';
 import { remainingMinutes, readyToSubmit, fmtMinutes } from '../data/effort';
 import { UpcomingCallsBanner } from './UpcomingCallsBanner';
 import { request as requestNav } from '../utils/navFocus';
@@ -246,7 +247,7 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
   }, [profile, funds]);
 
   const handleArchive = async (appId: string) => {
-    if (confirm('¿Estás seguro de archivar esta postulación? Se liberará un cupo de tu plan y podrás reactivarla cuando tengas espacio.')) {
+    if (await askConfirm('¿Archivar esta postulación? Se libera un cupo de tu plan y puedes reactivarla cuando tengas espacio.', { confirmLabel: 'Archivar' })) {
       setActionLoading(appId);
       try {
         await onArchiveApplication(appId);
@@ -462,7 +463,7 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
                         <h3 className="text-lg font-black text-slate-900 leading-tight">{fund.name}</h3>
                         {app.result?.awardedAmountCLP ? <p className="text-xs text-slate-500">Adjudicado: <strong className="text-emerald-700">{clp(app.result.awardedAmountCLP)}</strong></p> : null}
                       </div>
-                      <button title="Archivar (ocultar del panel)" aria-label="Archivar" onClick={() => { if (confirm('¿Archivar este proyecto? Sus datos quedan guardados y puedes reactivarlo después.')) onArchiveApplication(app.id); }} className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer shrink-0"><Archive className="w-4 h-4" /></button>
+                      <button title="Archivar (ocultar del panel)" aria-label="Archivar" onClick={async () => { if (await askConfirm('¿Archivar este proyecto? Sus datos quedan guardados y puedes reactivarlo después.')) onArchiveApplication(app.id); }} className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer shrink-0"><Archive className="w-4 h-4" /></button>
                     </div>
                     <div>
                       <div className="h-2 rounded-full bg-slate-100 overflow-hidden"><div className={`h-full rounded-full ${t.pct > 100 ? 'bg-rose-500' : 'bg-emerald-500'}`} style={{ width: `${Math.min(100, t.pct)}%` }} /></div>
@@ -485,7 +486,7 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
                       <span className="inline-flex px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-bold">No adjudicada</span>
                       <h3 className="text-lg font-black text-slate-900 leading-tight">{fund.name}</h3>
                     </div>
-                    <button title="Archivar (ocultar del panel)" aria-label="Archivar" onClick={() => { if (confirm('¿Archivar esta postulación? Sus datos quedan guardados.')) onArchiveApplication(app.id); }} className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer shrink-0"><Archive className="w-4 h-4" /></button>
+                    <button title="Archivar (ocultar del panel)" aria-label="Archivar" onClick={async () => { if (await askConfirm('¿Archivar esta postulación? Sus datos quedan guardados.')) onArchiveApplication(app.id); }} className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer shrink-0"><Archive className="w-4 h-4" /></button>
                   </div>
                   <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <p className="text-sm text-slate-900 min-w-0">

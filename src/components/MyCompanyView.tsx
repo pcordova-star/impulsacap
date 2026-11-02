@@ -1,4 +1,5 @@
 import { ReferralCodeField } from './ReferralCodeField';
+import { askConfirm } from '../utils/confirmDialog';
 import React, { useState, useEffect, useMemo } from 'react';
 import { ProfileAutofill, TeamCvImport } from './ProfileAutofill';
 import { REGIONES_OFICIALES, toOfficialRegion } from '../utils/region';
@@ -592,8 +593,8 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
                   <span className="text-[10px] font-mono text-emerald-700 font-bold">{profile.taxFolderUploadDate || 'Reciente'}</span>
                   <button
                     type="button"
-                    onClick={() => {
-                      if (!window.confirm('¿Quitar la carpeta cargada? Se borran las ventas, la antigüedad y los períodos leídos de ese archivo. Tu nombre, RUT y región quedan como están (puedes corregirlos abajo).')) return;
+                    onClick={async () => {
+                      if (!(await askConfirm('¿Quitar la carpeta cargada? Se borran las ventas, la antigüedad y los períodos leídos de ese archivo. Tu nombre, RUT y región quedan como están (puedes corregirlos abajo).', { confirmLabel: 'Quitar', danger: true }))) return;
                       onUpdateProfile({
                         ...profile,
                         taxFolderUploaded: false,

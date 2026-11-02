@@ -5,6 +5,7 @@ import { usePlan } from '../hooks/usePlan';
 import { PlanPaywallCard } from './PlanPaywallCard';
 import { CHILEAN_FUNDS } from '../data/chileanFunds';
 import { getFundRules, auditThreshold, auditPasses } from '../data/fundStandards';
+import { EvaluationGuide } from './EvaluationGuide';
 import { formulationToText } from '../utils/formulationText';
 import { 
   ShieldAlert, 
@@ -264,19 +265,8 @@ export const BlindAuditor: React.FC<BlindAuditorProps> = ({
             </div>
           </div>
 
-          {/* Pauta usada: escala, fuente y versión. La nota es orientativa, no la del organismo */}
-          {(() => {
-            const rr = getFundRules(selectedFund);
-            const own = /referencial/.test(rr.evaluation.scale);
-            return (
-              <div className="p-4 rounded-xl bg-slate-900 border border-slate-700 text-xs text-slate-300 space-y-1">
-                <p className="font-bold text-white">Pauta usada en esta revisión</p>
-                <p>Escala: {rr.evaluation.scale.split(' (')[0]}{own ? ' (pauta propia de ImpulsaCap: el fondo no publica una escala equivalente o usa otra)' : ', según las bases'}. {rr.evaluation.passMark !== null ? `Nota mínima de las bases: ${rr.evaluation.passMark}.` : 'Las bases no publican nota de corte: la meta es sugerida por ImpulsaCap.'}</p>
-                <p>Fuente: {rr.bases.url ? <a href={rr.bases.url} target="_blank" rel="noopener noreferrer" className="text-cyan-300 underline">{rr.bases.title}</a> : rr.bases.title}{rr.bases.verifiedAt ? ` · revisada el ${rr.bases.verifiedAt.split('-').reverse().join('-')}` : ''}.</p>
-                <p className="text-slate-400">Separa lo obligatorio de lo sugerido: los requisitos administrativos están en tu hoja de ruta; esta nota mide calidad del proyecto, y las sugerencias de redacción son de la IA, no exigencias del organismo.</p>
-              </div>
-            );
-          })()}
+          {/* Pauta usada: fuente, versión, escala, etapas y ponderaciones (la misma de la hoja de ruta y el expediente) */}
+          <EvaluationGuide fund={selectedFund} />
 
           {/* Criteria Breakdown */}
           <div className="space-y-3">

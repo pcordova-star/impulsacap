@@ -1,5 +1,5 @@
 import { splitTarget, goToTarget, setReturnContext, request as requestNav } from '../utils/navFocus';
-import { remainingMinutes, readyToSubmit, fmtMinutes } from '../data/effort';
+import { remainingMinutes, readyToSubmit, fmtMinutes, isRecommendedItem } from '../data/effort';
 import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { showToast } from '../utils/toast';
 import { askFeedback } from '../utils/feedbackEvents';
@@ -213,6 +213,16 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
     { id: 'advisor', label: 'Asesor', icon: MessageSquareCode },
   ];
 
+
+  // Un solo hilo conductor: la pestaña donde está el próximo paso obligatorio pendiente se marca como "Siguiente"
+  const STEP_TAB: Record<string, PostulationSubTab> = { step_requirements: 'roadmap', step_form: 'formulator', step_budget: 'formulator', step_documents: 'documents', step_audit: 'auditor', step_submit: 'expediente' };
+  const nextTab: PostulationSubTab | null = (() => {
+    if (outcome) return null;
+    for (const st of progress.steps) {
+      if (st.items.some(i => !i.done && !i.optional && !isRecommendedItem(st.id, i.id))) return STEP_TAB[st.id] || null;
+    }
+    return 'expediente';
+  })();
   return (
     <div className="space-y-4 animate-fade-in max-w-7xl mx-auto">
       {/* 1. ENCABEZADO: completo arriba; al bajar queda fijo y compacto (solo pestañas) */}
@@ -306,6 +316,9 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
                 >
                   <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-400'}`} />
                   <span>{tab.label}</span>
+                  {nextTab === tab.id && !isActive && (
+                    <span className="ml-0.5 px-1.5 py-0.5 rounded-md bg-emerald-500 text-white text-[9px] font-black uppercase tracking-wide">Siguiente</span>
+                  )}
                 </button>
               );
             })}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { askConfirm } from '../utils/confirmDialog';
 import { consume, onRequest } from '../utils/navFocus';
 import { REQUIRED_DOCUMENTS_GUIDE, CHILEAN_FUNDS } from '../data/chileanFunds';
 import { DOC_TYPES, docTypeDef, isLetterDoc } from '../data/docTypes';
@@ -982,8 +983,8 @@ export const DocumentManager: React.FC<DocumentManagerProps> = ({
                     {/* Delete */}
                     <button
                       type="button"
-                      onClick={() => {
-                        if (window.confirm('¿Estás seguro de eliminar este documento?')) {
+                      onClick={async () => {
+                        if (await askConfirm('¿Eliminar este documento?', { confirmLabel: 'Eliminar', danger: true })) {
                           handleDeleteDoc(docItem.id);
                         }
                       }}

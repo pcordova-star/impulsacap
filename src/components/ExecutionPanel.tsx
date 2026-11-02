@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { askConfirm } from '../utils/confirmDialog';
 import { CheckCircle2, Circle, CalendarDays, Wallet, FileText, Plus, Trash2, AlertTriangle, Download, Sparkles, Copy, Info, PartyPopper, ArrowRight } from 'lucide-react';
 import type { ChileanFund, CompanyProfile } from '../types/funds';
 import type { ApplicationItem, ExecutionData, ExecutionExpense, ExpenseDocType, ExecutionMilestone } from '../types/application';
@@ -342,7 +343,7 @@ export const ExecutionPanel: React.FC<Props> = ({ application, execution: ex, fu
                       <button type="button" onClick={() => onChange({ ...ex, expenses: ex.expenses.map(x => (x.id === e.id ? { ...x, paid: !x.paid } : x)) })} className={`px-2 py-1 rounded-lg text-[11px] font-bold border cursor-pointer ${e.paid ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>{e.paid ? 'Pagado' : 'Falta pagar'}</button>
                       <button type="button" onClick={() => onChange({ ...ex, expenses: ex.expenses.map(x => (x.id === e.id ? { ...x, rendered: !x.rendered } : x)) })} className={`px-2 py-1 rounded-lg text-[11px] font-bold border cursor-pointer ${e.rendered ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-slate-50 border-slate-200 text-slate-600'}`}>{e.rendered ? 'Rendido' : 'Sin rendir'}</button>
                       <button type="button" onClick={() => { setDraft({ ...e }); setEditingId(e.id); setShowExpenseForm(true); }} className="px-2 py-1 rounded-lg text-[11px] font-bold text-blue-700 hover:bg-blue-50 cursor-pointer">Editar</button>
-                      <button type="button" aria-label="Eliminar gasto" onClick={() => { if (confirm('¿Eliminar este gasto?')) onChange({ ...ex, expenses: ex.expenses.filter(x => x.id !== e.id) }); }} className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"><Trash2 className="w-4 h-4" /></button>
+                      <button type="button" aria-label="Eliminar gasto" onClick={async () => { if (await askConfirm('¿Eliminar este gasto?', { confirmLabel: 'Eliminar', danger: true })) onChange({ ...ex, expenses: ex.expenses.filter(x => x.id !== e.id) }); }} className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"><Trash2 className="w-4 h-4" /></button>
                     </div>
                   </li>
                 );
@@ -379,7 +380,7 @@ export const ExecutionPanel: React.FC<Props> = ({ application, execution: ex, fu
               <p className="text-sm font-bold text-slate-900">Informe {r.kind === 'final' ? 'final' : 'de avance'} · {new Date(r.createdAt).toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
               <div className="flex items-center gap-1.5">
                 <button type="button" onClick={() => { navigator.clipboard?.writeText(r.text).then(() => { setCopiedId(r.id); setTimeout(() => setCopiedId(null), 2000); }).catch(() => {}); }} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-[11px] font-bold text-slate-700 cursor-pointer"><Copy className="w-3.5 h-3.5" /> {copiedId === r.id ? 'Copiado' : 'Copiar'}</button>
-                <button type="button" aria-label="Eliminar informe" onClick={() => { if (confirm('¿Eliminar este borrador?')) onChange({ ...ex, reports: (ex.reports || []).filter(x => x.id !== r.id) }); }} className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"><Trash2 className="w-4 h-4" /></button>
+                <button type="button" aria-label="Eliminar informe" onClick={async () => { if (await askConfirm('¿Eliminar este borrador?', { confirmLabel: 'Eliminar', danger: true })) onChange({ ...ex, reports: (ex.reports || []).filter(x => x.id !== r.id) }); }} className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"><Trash2 className="w-4 h-4" /></button>
               </div>
             </div>
             {/\[COMPLETAR/i.test(r.text) && <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2">Tiene datos por completar marcados con [COMPLETAR]: reemplázalos antes de entregarlo.</p>}

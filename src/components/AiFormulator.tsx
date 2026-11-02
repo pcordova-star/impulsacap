@@ -1,4 +1,5 @@
 import { TeamCvImport } from './ProfileAutofill';
+import { askConfirm } from '../utils/confirmDialog';
 import { CompletarPanel } from './CompletarPanel';
 import { SimilarWinners } from './SimilarWinners';
 import { isSemillaInicia } from '../data/semillaWinners';
@@ -665,9 +666,9 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
   // Generate specific section with AI
   const handleGenerateSection = async () => {
     if (!hasMinimumAnswers || !profileReadyForAi) return;
-    if (failedRequirements.length > 0 && !window.confirm(`Según tus datos no cumples ${failedRequirements.length === 1 ? 'un requisito' : 'algunos requisitos'} de este fondo:\n\n- ${failedRequirements.join('\n- ')}\n\nSi es así, la postulación no será admisible. ¿Quieres redactar igual?`)) return;
+    if (failedRequirements.length > 0 && !(await askConfirm(`Según tus datos no cumples ${failedRequirements.length === 1 ? 'un requisito' : 'algunos requisitos'} de este fondo:\n\n- ${failedRequirements.join('\n- ')}\n\nSi es así, la postulación no será admisible. ¿Quieres redactar igual?`, { confirmLabel: 'Redactar igual' }))) return;
     // Volver a generar reemplaza el texto: se pide confirmación para no perder correcciones hechas a mano
-    if ((generatedTexts[currentSection.id] || '').trim() && !window.confirm('Esto reemplaza el texto actual de la sección, incluidas las correcciones que hayas hecho a mano. ¿Continuar?')) return;
+    if ((generatedTexts[currentSection.id] || '').trim() && !(await askConfirm('Esto reemplaza el texto actual de la sección, incluidas las correcciones que hayas hecho a mano. ¿Continuar?', { confirmLabel: 'Reemplazar' }))) return;
     setLoading(true);
     setError(null);
 
