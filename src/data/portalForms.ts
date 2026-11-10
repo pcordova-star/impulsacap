@@ -131,7 +131,7 @@ const SUC_BIG13: PortalForm = {
         { id: 'rnd', n: '16', portalLabel: 'Does the development of your product/service involve a Research & Development (R&D) phase?', es: '¿Tu desarrollo incluye una fase de I+D? (el desarrollo de software cuenta)', kind: 'choice', options: YES_NO },
         { id: 'rnd_start', n: '17', portalLabel: 'When did you start the R&D phase?', es: 'Fecha en que empezaste a desarrollar el producto (formato dd/mm/aaaa).', kind: 'fact' },
         { id: 'ip', n: '18', portalLabel: 'Does your venture have any intellectual property (IP)?', es: '¿Tienes propiedad intelectual? (marcas o patentes registradas, secretos industriales, acuerdos de confidencialidad)', kind: 'fact' },
-        { id: 'mvp', n: '13', portalLabel: 'Do you have at least a Minimum Viable Product (MVP) or prototype?', es: '¿Tienes al menos un producto mínimo viable o prototipo?', kind: 'choice', options: YES_NO },
+        { id: 'mvp', n: '19', portalLabel: 'Do you have at least a Minimum Viable Product (MVP) or prototype?', es: '¿Tienes al menos un producto mínimo viable o prototipo?', kind: 'choice', options: YES_NO },
         { id: 'mvp_video', n: '20', portalLabel: 'MVP or Prototype Video (120 seconds)', es: 'Si tienes MVP: un SEGUNDO video, de máximo 120 segundos, mostrando el producto funcionando (enlace público de YouTube o Vimeo, mismo idioma de la postulación).', kind: 'doc' }
       ]
     },
