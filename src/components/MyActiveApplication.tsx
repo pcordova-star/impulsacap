@@ -406,7 +406,7 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
 
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-50 text-slate-700 text-xs font-medium border border-slate-200">
                 <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                <span>RUT: <strong className={`font-mono ${activeRut ? 'text-blue-700' : 'text-slate-400 italic'}`}>{activeRut ? (validateRut(activeRut) ? formatRut(activeRut) : activeRut) : 'Sin completar'}</strong></span>
+                <span>RUT: <strong className={`font-mono ${activeRut ? 'text-blue-700' : 'text-slate-400 italic'}`}>{activeRut ? (validateRut(activeRut) ? formatRut(activeRut) : activeRut) : (profile.rutInProgress ? 'En trámite' : 'Sin completar')}</strong></span>
               </span>
             </div>
 
@@ -1107,6 +1107,9 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
           {fundRules.formalizationDocs.length > 0 && (
             <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3 sm:col-span-2"><p className="text-xs font-bold text-slate-500 mb-1">Si ganas, te pedirán</p>
               <ul className="text-xs text-slate-600 grid sm:grid-cols-2 gap-x-4 gap-y-0.5">{fundRules.formalizationDocs.map(d => <li key={d}>• {d}</li>)}</ul>
+              {(fundRules.formalizationDocs.some(d => /constituci|antecedentes legales/i.test(d)) || !validateRut(profile.rut || '')) && profile.companyType !== 'sin_iniciar' && (
+                <button type="button" onClick={() => onNavigateTab('company-guide')} className="mt-2 text-xs font-bold text-blue-700 hover:underline cursor-pointer">¿Aún no tienes empresa? Guía: créala en un día →</button>
+              )}
             </div>
           )}
           {fundRules.notes && fundRules.notes.map(n => <p key={n} className="sm:col-span-2 text-xs rounded-xl bg-amber-50 border border-amber-200 text-amber-900 p-2.5">{n}</p>)}

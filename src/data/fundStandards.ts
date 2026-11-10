@@ -1174,7 +1174,7 @@ export function evaluateRequirement(r: FundRequirement, profile: Partial<Company
   const hasFolder = Boolean(profile.taxFolderUploaded);
   switch (c.kind) {
     case 'rut':
-      return rutValid ? { status: 'ok' } : { status: 'unknown', note: 'Ingresa un RUT válido en Mi empresa' };
+      return rutValid ? { status: 'ok' } : { status: 'unknown', note: (profile as any).rutInProgress ? 'Empresa en constitución: agrega el RUT en Mi empresa cuando el Registro lo entregue' : 'Ingresa un RUT válido en Mi empresa' };
     case 'taxFolder':
       return hasFolder ? { status: 'ok' } : { status: 'unknown', note: 'Sube tu carpeta tributaria' };
     case 'companyType':

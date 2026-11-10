@@ -1,3 +1,4 @@
+import { CompanyCreationGuide } from './components/CompanyCreationGuide';
 import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'react';
 import { ConfirmHost } from './components/ConfirmHost';
 import { remainingMinutes, fmtMinutes, prepChecklist } from './data/effort';
@@ -216,6 +217,8 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<CompanyUser | null>(null);
   // Sube cuando termina de cargar el perfil desde la nube (para sincronizar el nombre de la barra)
   const [profileHydratedTick, setProfileHydratedTick] = useState(0);
+  // Guía "Crea tu empresa en un día"
+  const [showCompanyGuide, setShowCompanyGuide] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
   const [authModalMessage, setAuthModalMessage] = useState<string>('');
@@ -744,6 +747,7 @@ export default function App() {
       return;
     }
     if (rawTab === 'sii') { setShowSiiModal(true); return; }
+    if (rawTab === 'company-guide') { setShowCompanyGuide(true); return; }
     if (rawTab.startsWith('open-app:')) {
       setActiveApplicationId(rawTab.slice('open-app:'.length));
       setActiveTab('postulation');
@@ -1138,6 +1142,7 @@ export default function App() {
               }}
               onOpenSiiModal={() => setShowSiiModal(true)}
               onLogout={handleLogout}
+              onNavigateTab={handleNavigateTab}
             />
           ) : (
             <AuthGateView
@@ -1349,6 +1354,17 @@ export default function App() {
       />
 
       {/* Sii Tax Folder Uploader Modal */}
+      <CompanyCreationGuide
+        open={showCompanyGuide}
+        onClose={() => setShowCompanyGuide(false)}
+        profile={profile}
+        onMarkInProgress={() => {
+          saveToastRef.current = 'Empresa en constitución';
+          setProfile(p => ({ ...p, rutInProgress: true }));
+          if (currentUser?.id) setProfileSavedAt(new Date().toISOString(), currentUser.id);
+        }}
+        onHaveRut={() => handleNavigateTab('my-company#company-identity')}
+      />
       <SiiUploaderModal
         isOpen={showSiiModal}
         onClose={() => setShowSiiModal(false)}

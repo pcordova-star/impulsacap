@@ -208,7 +208,7 @@ const SECTIONS: SectionDefinition[] = [
         key: 'milestone1',
         label: 'Hito 1 (Meses 1-3): Objetivo, entregable verificable y riesgo crítico:',
         placeholder: 'Ej: Mes 3: Prototipo funcional probado en laboratorio. Entregable: Informe técnico y métricas de calibración. Riesgo: Demora en insumos importados.',
-        helpText: 'Objetivo técnico inicial que Corfo o Sercotec exigen para aprobar el primer hito de avance.'
+        helpText: 'Primer objetivo del proyecto, con un entregable que se pueda verificar al cierre del hito.'
       },
       {
         key: 'milestone2',
@@ -234,7 +234,7 @@ const SECTIONS: SectionDefinition[] = [
         key: 'members',
         label: 'Nombre, rol y experiencia relevante de cada integrante clave:',
         placeholder: 'Ej: Ana Pérez (dueña, 10 años como panadera), Luis Soto (ventas y reparto)...',
-        helpText: 'Corfo exige demostrar complementariedad técnica y comercial en el equipo fundador.'
+        helpText: 'Los evaluadores buscan un equipo que se complemente en lo técnico y lo comercial.'
       },
       {
         key: 'dedication',
@@ -988,7 +988,7 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
             <span className="text-cyan-400">{currentFund.name}</span>
           </h1>
           <p className="text-xs text-slate-400">
-            Postulación por: <strong className="text-slate-200">{profile.companyName || 'Empresa'}</strong> • RUT: {profile.rut || 'Pendiente'}
+            Postulación por: <strong className="text-slate-200">{profile.companyName || 'Empresa'}</strong> • RUT: {profile.rut || (profile.rutInProgress ? 'En trámite' : 'Pendiente')}
           </p>
         </div>
 

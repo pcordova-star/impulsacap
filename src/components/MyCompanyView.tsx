@@ -724,6 +724,18 @@ export const MyCompanyView: React.FC<MyCompanyViewProps> = ({
                   rut && isCompanyRutValid ? 'border-emerald-400' : 'border-slate-300 focus:border-blue-500'
                 }`}
               />
+              {!isPersonType && !isCompanyRutValid && (
+                <div className="mt-1.5 rounded-xl bg-blue-50 border border-blue-200 p-2.5 space-y-1.5">
+                  <p className="text-[11px] text-blue-900">¿Aún no tienes empresa o la estás creando? Te guiamos para crearla gratis en un día y puedes seguir postulando mientras llega el RUT.</p>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                    {onNavigateTab && <button type="button" onClick={() => onNavigateTab('company-guide')} className="text-[11px] font-bold text-blue-700 hover:underline cursor-pointer">Guía: crea tu empresa en un día →</button>}
+                    <label className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 cursor-pointer select-none">
+                      <input type="checkbox" className="accent-blue-600" checked={Boolean(profile.rutInProgress)} onChange={e => onUpdateProfile({ ...profile, rutInProgress: e.target.checked })} />
+                      Mi empresa está en constitución (RUT en trámite)
+                    </label>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Tipo de Sociedad */}

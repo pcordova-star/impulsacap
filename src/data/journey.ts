@@ -61,7 +61,7 @@ const WHY: Record<string, string> = {
 
 export function isCompanyReady(profile: Partial<CompanyProfile>) {
   const isPerson = profile.companyType === 'sin_iniciar';
-  const rutOk = validateRut(profile.rut || '');
+  const rutOk = validateRut(profile.rut || '') || Boolean(profile.rutInProgress);
   return Boolean(profile.companyName?.trim() && profile.companyName !== 'Mi Empresa' && (rutOk || isPerson) && profile.region);
 }
 
@@ -73,7 +73,7 @@ export function computeJourney(input: {
 }): Journey {
   const { profile, fund, application, hasActivePlan } = input;
   const isPerson = profile.companyType === 'sin_iniciar';
-  const rutOk = validateRut(profile.rut || '');
+  const rutOk = validateRut(profile.rut || '') || Boolean(profile.rutInProgress);
   const projectPct = calculateProjectProfileCompletion(profile.projectProfile);
   const companyReady = isCompanyReady(profile);
 
@@ -84,7 +84,8 @@ export function computeJourney(input: {
       why: 'Los fondos piden quién postula: nombre, RUT, tipo de empresa y región. Con eso revisamos si cumples las bases de cada fondo.',
       done: companyReady,
       next: !profile.companyName?.trim() || profile.companyName === 'Mi Empresa' ? 'Nombre o razón social' : !(rutOk || isPerson) ? 'RUT válido' : !profile.region ? 'Región' : undefined,
-      action: { label: 'Completar datos de la empresa', target: 'my-company#company-identity' }
+      action: { label: 'Completar datos de la empresa', target: 'my-company#company-identity' },
+      ...(!rutOk && !isPerson && profile.companyName?.trim() ? { alt: { label: 'Aún no tengo empresa o está en trámite', target: 'company-guide' } } : {})
     },
     {
       id: 'proyecto', phase: 'empresa', phaseLabel: 'Prepara tu empresa · paso 2 de 3',

@@ -198,6 +198,8 @@ export interface CompanyProfile {
   coreTech: string;
   customerValidationCount: number;
   taxFolderUploaded?: boolean;
+  /** Empresa en constitución: el RUT llega después de firmar en el Registro de Empresas */
+  rutInProgress?: boolean;
   /** Eligió seguir sin carpeta tributaria por ahora (se le pedirá si el fondo la exige) */
   taxFolderDeferred?: boolean;
   taxFolderFileName?: string;
