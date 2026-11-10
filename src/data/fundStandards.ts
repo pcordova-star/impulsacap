@@ -1392,9 +1392,20 @@ export function computeRoadmap(input: RoadmapInput): { steps: RoadmapStep[]; com
   const hasAudit = Boolean(auditResult && (auditResult.overallScore || 0) > 0);
   const passes = auditPasses(fund, auditResult);
   const auditItems: RoadmapItem[] = [
-    { id: 'audit', label: 'Evaluación simulada con los criterios del fondo', done: hasAudit, detail: hasAudit ? `Nota: ${Number(auditResult.overallScore).toFixed(2).replace('.', ',')} (${r.evaluation.scale})` : 'Aún no la ejecutas', go: { label: hasAudit ? 'Ver auditoría' : 'Simular evaluación', target: 'auditor' } },
-    { id: 'audit_pass', label: th.label, done: passes, warn: hasAudit && !passes, detail: r.evaluation.rule },
-    { id: 'red_flags', label: 'Sin alertas críticas', done: hasAudit && (auditResult?.redFlags?.length || 0) === 0, detail: hasAudit ? `${auditResult?.redFlags?.length || 0} alertas detectadas` : 'Pendiente' }
+    { id: 'audit', label: 'Evaluación simulada con los criterios del fondo', done: hasAudit, detail: hasAudit ? `Nota: ${Number(auditResult.overallScore).toFixed(2).replace('.', ',')} (${r.evaluation.scale})` : 'Aún no la ejecutas', go: { label: hasAudit ? 'Ver la revisión' : 'Hacer la revisión con IA', target: 'auditor' } },
+    // Con la evaluación hecha, el paso queda listo: subir la nota y revisar alertas es opcional y NO impide enviar.
+    // Solo se marca en rojo si las bases tienen nota de corte real y no se alcanza.
+    {
+      id: 'audit_pass',
+      label: passes ? `Alcanzas ${r.evaluation.passMark !== null ? 'la nota mínima' : 'la meta sugerida'} (${th.value.toFixed(1).replace('.', ',')})` : `Opcional: subir la nota a ${th.value.toFixed(1).replace('.', ',')}${hasAudit ? ` (hoy tienes ${Number(auditResult.overallScore).toFixed(2).replace('.', ',')})` : ''}`,
+      done: passes,
+      optional: true,
+      warn: hasAudit && !passes && r.evaluation.passMark !== null,
+      detail: r.evaluation.passMark !== null
+        ? `Las bases piden al menos ${r.evaluation.passMark.toFixed(1).replace('.', ',')}${r.evaluation.minEach ? ` y ${r.evaluation.minEach.toFixed(1).replace('.', ',')} en cada criterio` : ''}. Es una nota orientativa: mejora los puntos que te marca la revisión antes de enviar.`
+        : 'No hay nota de corte: se adjudica por ranking. Puedes enviar ya o mejorar primero lo que te marca la revisión.'
+    },
+    { id: 'red_flags', label: hasAudit && (auditResult?.redFlags?.length || 0) > 0 ? `Opcional: revisar ${(auditResult?.redFlags?.length || 0)} alertas de la revisión` : 'Sin alertas críticas', done: hasAudit && (auditResult?.redFlags?.length || 0) === 0, optional: true, detail: hasAudit ? 'Están en la revisión, con el enlace a la sección que conviene mejorar.' : 'Pendiente', go: hasAudit ? { label: 'Ver alertas', target: 'auditor' } : undefined }
   ];
 
   // 6. Envío
@@ -1413,7 +1424,7 @@ export function computeRoadmap(input: RoadmapInput): { steps: RoadmapStep[]; com
     mk(2, 'step_form', 'Formulario del fondo', `Las secciones del formulario oficial de ${fund.agency}, en orden.`, formItems, { label: 'Ir al formulario', target: 'formulator#section:next' }, true),
     mk(3, 'step_budget', 'Presupuesto y aportes', r.coFinance.text, budgetItems, { label: 'Ir al presupuesto', target: 'formulator#section:budget' }, true),
     mk(4, 'step_documents', 'Documentos y anexos', `Obligatorio al postular: lo que se entrega junto al formulario (video o pitch, cartas, certificados y anexos).${r.formalizationDocs.length ? ` Lo que se pide solo si ganas (${r.formalizationDocs.slice(0, 2).join('; ').toLowerCase()}${r.formalizationDocs.length > 2 ? '…' : ''}) NO es necesario ahora.` : ''}`, docItems, { label: 'Ir a documentos', target: 'documents#doc-generator' }),
-    mk(5, 'step_audit', 'Evaluación simulada', `Con los criterios y la escala de las bases (${r.evaluation.scale}).`, auditItems, { label: hasAudit ? 'Volver a evaluar' : 'Simular evaluación', target: 'auditor' }, true),
+    mk(5, 'step_audit', 'Evaluación simulada', hasAudit ? 'Ya hiciste la revisión: puedes pasar al envío (paso 6). Si quieres subir la nota, mejora lo que te marcó y vuelve a evaluar.' : `Recomendada antes de enviar: una revisión orientativa con los criterios de las bases (${r.evaluation.scale.split(' (')[0]}).`, auditItems, { label: hasAudit ? 'Volver a evaluar' : 'Hacer la revisión con IA', target: 'auditor' }, true),
     mk(6, 'step_submit', 'Envío oficial', `Se postula en ${r.portal.name}.`, sendItems, { label: 'Abrir expediente', target: 'dossier' })
   ];
   const completed = steps.filter(s => s.done).length;
