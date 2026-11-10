@@ -23,7 +23,7 @@ interface Summary {
   activePlans: { uid: string; email: string; companyName: string; expiresAt: string; daysLeft: number; serviceStarted: boolean; freePass?: boolean }[];
   users: { uid: string; email: string; companyName: string; displayName: string; createdAt: string | null; lastSignInAt: string | null; provider: string; hasActivePlan: boolean; applications: number }[];
   fundsTop: { fundName: string; count: number }[];
-  system: { lastConvocatoriasSyncAt: string | null; convocatoriasVigentes: number | null; emailConfigured: boolean; mercadoPagoConfigured: boolean; flowConfigured?: boolean; paymentProvider?: string; authListAvailable?: boolean };
+  system: { lastConvocatoriasSyncAt: string | null; convocatoriasVigentes: number | null; emailConfigured: boolean; mercadoPagoConfigured: boolean; flowConfigured?: boolean; paymentProvider?: string; authListAvailable?: boolean; supportNoticeTo?: string | null; lastEmailError?: string | null };
 }
 
 const clp = (n: number) => `$${Math.round(n).toLocaleString('es-CL')}`;
@@ -191,6 +191,7 @@ interface Ticket {
   id: string; ticketId: string; createdAt: string; status: 'abierto' | 'resuelto';
   email: string; name?: string; message: string; page?: string; hasPlan?: boolean;
   conversation?: { role: 'user' | 'bot'; text: string }[];
+  adminNotified?: boolean; userNotified?: boolean; adminNotifyError?: string | null; userNotifyError?: string | null;
 }
 
 interface Intent {
@@ -385,6 +386,18 @@ const SupportInbox: React.FC = () => {
   }, []);
   useEffect(() => { loadTickets(); }, [loadTickets]);
 
+  const resend = async (t: Ticket) => {
+    setBusy(t.id);
+    try {
+      const res = await apiFetch(`/api/admin/soporte/${t.id}/reenviar`, { method: 'POST' });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || 'No se pudo reenviar');
+      setTickets(prev => (prev || []).map(x => x.id === t.id ? { ...x, adminNotified: true, adminNotifyError: null } : x));
+    } catch (e: any) {
+      setError(`No se pudo reenviar el aviso: ${e.message}`);
+    } finally { setBusy(null); }
+  };
+
   const setStatus = async (t: Ticket, status: 'abierto' | 'resuelto') => {
     setBusy(t.id);
     try {
@@ -430,6 +443,14 @@ const SupportInbox: React.FC = () => {
                 {t.status === 'resuelto' ? 'Resuelta' : 'Abierta'}
               </span>
             </div>
+            {/* ¿Llegaron los correos? Si el aviso al equipo falló, se dice por qué y se puede reintentar */}
+            <p className="text-[11px] text-slate-500">
+              Aviso a ti: {t.adminNotified ? <span className="text-emerald-700 font-semibold">enviado</span> : <span className="text-rose-700 font-semibold">no salió{t.adminNotifyError ? ` (${t.adminNotifyError})` : ''}</span>}
+              {' · '}Confirmación al cliente: {t.userNotified ? <span className="text-emerald-700 font-semibold">enviada</span> : <span className="text-rose-700 font-semibold">no salió{t.userNotifyError ? ` (${t.userNotifyError})` : ''}</span>}
+              {t.adminNotified === false && (
+                <button type="button" disabled={busy === t.id} onClick={() => resend(t)} className="ml-2 font-bold text-blue-700 underline cursor-pointer disabled:opacity-60">Reenviarme el aviso</button>
+              )}
+            </p>
             <p className="text-sm text-slate-800 whitespace-pre-line">{t.message}</p>
             {t.conversation && t.conversation.length > 0 && (
               <details className="text-xs text-slate-600">
@@ -1282,6 +1303,9 @@ export const AdminDashboard: React.FC = () => {
         </button>
       </header>
 
+      {/* Lo primero que hay que ver: personas esperando respuesta */}
+      <SupportInbox />
+
       <Card title="Estado del sistema">
         <ul className="grid gap-3 sm:grid-cols-2 text-sm">
           <li className="space-y-0.5">
@@ -1295,6 +1319,8 @@ export const AdminDashboard: React.FC = () => {
           <li className="space-y-0.5">
             <p className="text-slate-500">Correos (Resend)</p>
             <Status ok={data.system.emailConfigured} okText="Configurado" badText="Falta RESEND_API_KEY" />
+            <p className="text-xs text-slate-500">Avisos de soporte llegan a: {data.system.supportNoticeTo ? <strong className="text-slate-700">{data.system.supportNoticeTo}</strong> : <strong className="text-rose-700">nadie (configura ADMIN_EMAIL)</strong>}</p>
+            {data.system.lastEmailError && <p className="text-xs text-rose-700">Último error de envío: {data.system.lastEmailError}</p>}
             <EmailTools />
           </li>
           <li className="space-y-0.5">
@@ -1430,8 +1456,6 @@ export const AdminDashboard: React.FC = () => {
       <SellersPanel />
 
       <EarlyAccessPanel />
-
-      <SupportInbox />
 
     </div>
   );

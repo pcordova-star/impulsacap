@@ -43,6 +43,7 @@ import {
   sendEmailDetailed,
   setEmailEventSink,
   getAdminEmail,
+  getLastEmailError,
   isEmailConfigured,
   formatDateCL,
   welcomeEmail,
@@ -2076,12 +2077,18 @@ app.post('/api/soporte/ticket', ticketLimiter, async (req, res) => {
     });
 
     const data = { ticketId, email, name, message, page, conversation, hasPlan };
-    const adminEmail = getAdminEmail();
-    const [adminSent, userSent] = await Promise.all([
-      adminEmail ? sendEmail({ to: adminEmail, ...supportTicketAdminEmail(data), replyTo: email, idempotencyKey: `ticket-admin-${ref.id}` }) : Promise.resolve(false),
-      sendEmail({ to: email, ...supportTicketUserEmail(data), idempotencyKey: `ticket-user-${ref.id}` })
+    // Aviso al equipo: ADMIN_EMAIL o, si no está, los correos del panel de administración
+    const adminEmail = getAdminEmail() || (process.env.ADMIN_DASHBOARD_EMAILS || '').split(/[,;\s]+/).map(x => x.trim()).find(x => x.includes('@')) || null;
+    const [adminRes, userRes] = await Promise.all([
+      adminEmail ? sendEmailDetailed({ to: adminEmail, ...supportTicketAdminEmail(data), replyTo: email, idempotencyKey: `ticket-admin-${ref.id}` }) : Promise.resolve({ ok: false, error: 'No hay ADMIN_EMAIL ni ADMIN_DASHBOARD_EMAILS configurados' }),
+      sendEmailDetailed({ to: email, ...supportTicketUserEmail(data), idempotencyKey: `ticket-user-${ref.id}` })
     ]);
-    await ref.set({ adminNotified: adminSent, userNotified: userSent }, { merge: true });
+    const adminSent = adminRes.ok, userSent = userRes.ok;
+    await ref.set({
+      adminNotified: adminSent, userNotified: userSent,
+      adminNotifyError: adminSent ? null : String(adminRes.error || 'Error desconocido').slice(0, 200),
+      userNotifyError: userSent ? null : String(userRes.error || 'Error desconocido').slice(0, 200)
+    }, { merge: true });
     console.log(`[soporte] Solicitud #${ticketId} de ${email} (admin ${adminSent ? 'avisado' : 'NO avisado'})`);
     return res.json({ ok: true, ticketId });
   } catch (err: any) {
@@ -4160,6 +4167,23 @@ app.get('/api/admin/soporte', requireAuth, requireAdminUser, async (req, res) =>
   }
 });
 
+// Reintentar el aviso por correo de una solicitud cuyo correo al equipo no salió
+app.post('/api/admin/soporte/:id/reenviar', requireAuth, requireAdminUser, async (req, res) => {
+  try {
+    if (!(await ensureFirestoreAdmin())) return res.status(503).json({ error: 'Firestore Admin no está autorizado.' });
+    const ref = adminDb.collection('support_tickets').doc(String(req.params.id));
+    const t: any = (await ref.get()).data();
+    if (!t) return res.status(404).json({ error: 'Solicitud no encontrada' });
+    const to = String((req as any).user?.email || getAdminEmail() || '');
+    const r = await sendEmailDetailed({ to, ...supportTicketAdminEmail({ ticketId: t.ticketId, email: t.email, name: t.name, message: t.message, page: t.page, conversation: t.conversation || [], hasPlan: t.hasPlan }), replyTo: t.email, idempotencyKey: `ticket-admin-retry-${ref.id}-${Date.now()}` });
+    await ref.set({ adminNotified: r.ok, adminNotifyError: r.ok ? null : String(r.error || 'Error desconocido').slice(0, 200) }, { merge: true });
+    return r.ok ? res.json({ ok: true }) : res.status(502).json({ error: r.error || 'No se pudo enviar' });
+  } catch (err: any) {
+    console.error('Error in /api/admin/soporte/reenviar:', err?.message);
+    return res.status(500).json({ error: 'No se pudo reenviar el aviso.' });
+  }
+});
+
 app.post('/api/admin/soporte/:id/estado', requireAuth, requireAdminUser, async (req, res) => {
   try {
     const status = String(req.body?.status || '');
@@ -4275,12 +4299,13 @@ app.get('/api/admin/resumen', requireAuth, requireAdminUser, async (req, res) =>
     if (!isFirestoreAdminAuthorized) {
       return res.status(503).json({ error: 'Firestore Admin no está autorizado en el servidor.' });
     }
-    const summary = await buildAdminSummary(adminDb, adminAuth, {
+    const summary: any = await buildAdminSummary(adminDb, adminAuth, {
       emailConfigured: isEmailConfigured(),
       mercadoPagoConfigured: Boolean(mpAccessToken),
       flowConfigured: flowConfig().configured,
       paymentProvider: paymentProvider()
     });
+    summary.system = { ...(summary.system || {}), supportNoticeTo: getAdminEmail() || (process.env.ADMIN_DASHBOARD_EMAILS || '').split(/[,;\s]+/).find(x => x.includes('@')) || null, lastEmailError: getLastEmailError() };
     res.set('Cache-Control', 'no-store');
     return res.json(summary);
   } catch (err: any) {
