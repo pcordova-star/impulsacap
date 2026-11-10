@@ -1349,7 +1349,7 @@ export function computeRoadmap(input: RoadmapInput): { steps: RoadmapStep[]; com
     }
     if (d.link === 'pitch') {
       const scriptDone = blockStatus('title_pitch', formulation).done;
-      return { id, label: d.label, done: confirmed, confirmable: true, detail: confirmed ? 'Grabado' : `${d.detail || ''}${scriptDone ? ' Guion listo en el formulador: grábalo y márcalo.' : ' Primero escribe el guion en el formulador.'}`.trim(), go: { label: scriptDone ? 'Ver guion' : 'Escribir guion', target: 'formulator#section:title_pitch' } };
+      return { id, label: d.label, done: confirmed, confirmable: true, detail: confirmed ? 'Grabado' : `${d.detail || ''}${scriptDone ? ' Guion listo: grábalo aquí con el teleprompter, súbelo como enlace y márcalo.' : ' Primero escribe el guion en el formulador.'}`.trim(), go: { label: scriptDone ? 'Grabar con teleprompter' : 'Escribir guion', target: scriptDone ? 'formulator#section:record' : 'formulator#section:title_pitch' } };
     }
     return { id, label: d.label, done: confirmed, confirmable: true, detail: confirmed ? 'Listo' : d.detail || 'Márcalo cuando lo tengas' };
   });

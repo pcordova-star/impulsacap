@@ -6,6 +6,7 @@ import { isSemillaInicia } from '../data/semillaWinners';
 import React, { useState, useEffect, useMemo } from 'react';
 import { consume, onRequest } from '../utils/navFocus';
 import { BudgetWizard, type BudgetAccountData, type BudgetField } from './BudgetWizard';
+import { PitchRecorder } from './PitchRecorder';
 import { notifySaved } from '../utils/guideEvents';
 import { askFeedback } from '../utils/feedbackEvents';
 import { SectionHelper } from './SectionHelpers';
@@ -39,7 +40,8 @@ import {
   FileText,
   Calculator,
   Calendar,
-  AlertTriangle
+  AlertTriangle,
+  Video,
 } from 'lucide-react';
 
 interface AiFormulatorProps {
@@ -52,6 +54,8 @@ interface AiFormulatorProps {
   onSaveFormulation?: (formulation: FormulationOutput) => void;
   onSendToAudit: (formulation: FormulationOutput, fund: ChileanFund) => void;
   onNavigateTab?: (tab: string) => void;
+  /** Se llama al descargar el video del pitch (para ofrecer marcar el documento como listo) */
+  onVideoRecorded?: () => void;
 }
 
 interface SectionDefinition {
@@ -289,6 +293,7 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
   initialFormulation,
   expediente,
   onSaveSectionAnswers,
+  onVideoRecorded,
   onSaveFormulation,
   onSendToAudit,
   onNavigateTab
@@ -404,6 +409,7 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
 
   // Secciones con los nombres y la ponderación del formulario oficial del fondo elegido
   const fundRules = useMemo(() => getFundRules(currentFund), [currentFund]);
+  const [recorderOpen, setRecorderOpen] = useState(false);
   const sectionsView = useMemo<SectionDefinition[]>(() => SECTIONS.map(sec => {
     const lbl = blockLabel(currentFund, sec.id as FormBlock);
     const official = fundRules.formSections.find(fs => fs.blocks.includes(sec.id as FormBlock));
@@ -521,6 +527,7 @@ export const AiFormulator: React.FC<AiFormulatorProps> = ({
   // Pedido de sección desde otra pantalla (p. ej. "Configurar presupuesto" en la Hoja de Ruta)
   useEffect(() => {
     const openSection = (id: string) => {
+      if (id === 'record') { setCurrentSectionIndex(Math.max(0, SECTIONS.findIndex(sec => sec.id === 'title_pitch'))); setRecorderOpen(true); return; }
       let idx = SECTIONS.findIndex(sec => sec.id === id);
       if (id === 'next') {
         idx = SECTIONS.findIndex((sec, i) => i === 7
@@ -1274,6 +1281,32 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
                 })}
               </div>
             </div>
+
+            {/* Grabar el pitch con teleprompter (solo en la sección del video) */}
+            {currentSection.id === 'title_pitch' && fundRules.pitch && (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-rose-950/30 border border-rose-500/40">
+                <div className="text-xs text-slate-300">
+                  <p className="text-sm font-bold text-white">Graba tu video aquí mismo, leyendo el guion</p>
+                  <p>Teleprompter con el texto de abajo, corte automático a los {fundRules.pitch.seconds} segundos y descarga del video. No se sube a ningún lado.</p>
+                </div>
+                <button
+                  type="button"
+                  disabled={!(generatedTexts.title_pitch || '').trim() && !Object.values(answersBySection.title_pitch || {}).some(v => String(v).trim())}
+                  onClick={() => setRecorderOpen(true)}
+                  className="shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-sm font-black cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Video className="w-4 h-4" /> Grabar mi pitch
+                </button>
+              </div>
+            )}
+            <PitchRecorder
+              open={recorderOpen}
+              onClose={() => setRecorderOpen(false)}
+              script={(generatedTexts.title_pitch || '').trim() || Object.values(answersBySection.title_pitch || {}).filter(v => String(v).length > 40).join('\n\n')}
+              maxSeconds={fundRules.pitch?.seconds || 60}
+              fundName={currentFund.name}
+              onDownloaded={() => onVideoRecorded?.()}
+            />
 
             {/* Generated / Editable Technical Text */}
             <div className="space-y-3 pt-4 border-t border-slate-800/80">
