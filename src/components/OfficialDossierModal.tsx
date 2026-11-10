@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { ChileanFund, FormBlock } from '../types/funds';
 import { ExpedienteData } from '../types/expediente';
@@ -31,6 +31,9 @@ import {
 } from 'lucide-react';
 import { InkiLogo } from './InkiLogo';
 
+const TIP_SEEN_KEY = 'impulsacap_dossier_tip_seen';
+const TIP_OFF_KEY = 'impulsacap_dossier_print_tip_off';
+
 interface OfficialDossierModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -52,6 +55,18 @@ export const OfficialDossierModal: React.FC<OfficialDossierModalProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  // Burbuja: el PDF es para revisar; para llenar el portal conviene copiar cada sección
+  const [portalTip, setPortalTip] = useState<null | 'open' | 'print'>(null);
+  const [highlightCopy, setHighlightCopy] = useState(false);
+  useEffect(() => {
+    if (!isOpen) { setPortalTip(null); return; }
+    let seen = false;
+    try { seen = localStorage.getItem(TIP_SEEN_KEY) === '1'; } catch { /* sin almacenamiento */ }
+    if (!seen) {
+      setPortalTip('open');
+      try { localStorage.setItem(TIP_SEEN_KEY, '1'); } catch { /* sin almacenamiento */ }
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -128,8 +143,9 @@ export const OfficialDossierModal: React.FC<OfficialDossierModalProps> = ({
   const CopyBtn: React.FC<{ k: string; text: string }> = ({ k, text }) => text ? (
     <button
       type="button"
+      data-copy-portal
       onClick={() => { navigator.clipboard?.writeText(text).then(() => { setCopiedKey(k); setTimeout(() => setCopiedKey(c => (c === k ? null : c)), 2000); }).catch(() => {}); }}
-      className="ml-2 align-middle inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold normal-case cursor-pointer print:hidden"
+      className={`ml-2 align-middle inline-flex items-center gap-1 px-2 py-0.5 rounded-md ${highlightCopy ? 'ring-4 ring-emerald-300 animate-pulse' : ''} bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold normal-case cursor-pointer print:hidden`}
     >
       {copiedKey === k ? '✓ Copiado' : 'Copiar para el portal'}
     </button>
@@ -146,7 +162,16 @@ export const OfficialDossierModal: React.FC<OfficialDossierModalProps> = ({
   // Imprimir solo el expediente, completo y paginado (sin la app de fondo ni el recorte de la ventana)
   // (el CSS de impresión en index.css oculta todo lo que no es el expediente mientras está abierto)
   const handlePrint = () => {
-    window.print();
+    let off = false;
+    try { off = localStorage.getItem(TIP_OFF_KEY) === '1'; } catch { /* sin almacenamiento */ }
+    if (off || portalTip === 'print') { setPortalTip(null); setTimeout(() => window.print(), 50); return; }
+    setPortalTip('print');
+  };
+  const showCopyButtons = () => {
+    setPortalTip(null);
+    setHighlightCopy(true);
+    setTimeout(() => setHighlightCopy(false), 4000);
+    setTimeout(() => (document.querySelector('.dossier-print-root [data-copy-portal]') as HTMLElement | null)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60);
   };
 
   const handleCopyMarkdown = () => {
@@ -302,7 +327,31 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="relative flex items-center gap-2">
+            {portalTip && (
+              <div role="dialog" aria-label="Consejo para llenar el portal" className="absolute right-0 top-full mt-3 z-20 w-[min(20rem,calc(100vw-2rem))] rounded-2xl bg-white text-slate-800 shadow-2xl ring-1 ring-slate-200 p-4 space-y-2.5 text-left print:hidden">
+                <span aria-hidden="true" className="absolute -top-1.5 right-10 w-3 h-3 rotate-45 bg-white ring-1 ring-slate-200 [clip-path:polygon(0_0,100%_0,0_100%)]" />
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm font-black text-slate-900">💡 ¿Vas a llenar el portal?</p>
+                  <button type="button" onClick={() => setPortalTip(null)} aria-label="Cerrar consejo" className="p-0.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"><X className="w-4 h-4" /></button>
+                </div>
+                <p className="text-xs leading-relaxed text-slate-600">
+                  El PDF sirve para <strong>revisar o compartir</strong>. Para llenar el formulario oficial es más fácil usar el botón verde <strong className="text-emerald-700">«Copiar para el portal»</strong> de cada sección y pegarlo en el portal, sección por sección.
+                </p>
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <button type="button" onClick={showCopyButtons} className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold cursor-pointer">Mostrarme los botones</button>
+                  {portalTip === 'print'
+                    ? <button type="button" onClick={handlePrint} className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold cursor-pointer">Imprimir igual</button>
+                    : <button type="button" onClick={() => setPortalTip(null)} className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold cursor-pointer">Entendido</button>}
+                </div>
+                {portalTip === 'print' && (
+                  <label className="flex items-center gap-1.5 text-[11px] text-slate-500 cursor-pointer select-none">
+                    <input type="checkbox" className="accent-emerald-600" onChange={e => { try { e.target.checked ? localStorage.setItem(TIP_OFF_KEY, '1') : localStorage.removeItem(TIP_OFF_KEY); } catch { /* sin almacenamiento */ } }} />
+                    No volver a mostrar al imprimir
+                  </label>
+                )}
+              </div>
+            )}
             <button
               onClick={handlePrint}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md shadow-cyan-600/25 transition-all cursor-pointer"
