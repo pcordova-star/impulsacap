@@ -122,6 +122,18 @@ export const OfficialDossierModal: React.FC<OfficialDossierModalProps> = ({
     : { className: '' };
   const GoHint: React.FC<{ show: boolean; text: string }> = ({ show, text }) => show ? <span className="ml-auto shrink-0 text-[11px] font-bold text-amber-300 print:hidden">{text} →</span> : null;
 
+  // Copiar una sección para pegarla en el formulario del portal
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const CopyBtn: React.FC<{ k: string; text: string }> = ({ k, text }) => text ? (
+    <button
+      type="button"
+      onClick={() => { navigator.clipboard?.writeText(text).then(() => { setCopiedKey(k); setTimeout(() => setCopiedKey(c => (c === k ? null : c)), 2000); }).catch(() => {}); }}
+      className="ml-2 align-middle inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold normal-case cursor-pointer print:hidden"
+    >
+      {copiedKey === k ? '✓ Copiado' : 'Copiar para el portal'}
+    </button>
+  ) : null;
+
   const handleGoToFormulator = (sectionKey?: string) => {
     onClose();
     if (onNavigateToSection && sectionKey) {
@@ -615,6 +627,7 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
             <div className="space-y-1">
               <h3 className="text-xs font-bold text-slate-300 uppercase print:text-black">
                 3.1. Título del Proyecto
+                <CopyBtn k="title" text={formulation?.projectTitle?.trim() || ''} />
               </h3>
               {formulation?.projectTitle?.trim() ? (
                 <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs text-white font-semibold leading-relaxed print:border-black print:bg-white print:text-black">
@@ -627,6 +640,7 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
             <div className="space-y-1">
               <h3 className="text-xs font-bold text-slate-300 uppercase print:text-black">
                 3.2. Pitch o resumen del proyecto
+                <CopyBtn k="pitch" text={formulation?.pitchSummary30s?.trim() || ''} />
               </h3>
               {formulation?.pitchSummary30s?.trim() ? (
                 <p className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-200 leading-relaxed italic print:border-black print:bg-white print:text-black">
@@ -647,6 +661,7 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
                 <div key={block} className="space-y-1">
                   <h3 className="text-xs font-bold text-slate-300 uppercase print:text-black">
                     3.{idx + 3}. {title}
+                    <CopyBtn k={block} text={text || ''} />
                   </h3>
                   {!text ? renderPendingSectionBanner(title, block) : showTamGrid ? (
                     <div className="space-y-2">

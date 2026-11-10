@@ -615,7 +615,7 @@ export const FUND_RULES: Record<string, FundRules> = {
     coFinance: { text: 'Subsidio de $15.000.000 (90% del costo total). El equipo aporta 10%.' },
     partners: 'Entidad Patrocinadora asignada por el programa.',
     guarantee: { required: false, text: 'Según las bases de la generación.' },
-    portal: { name: 'Start-Up Chile', url: 'https://www.startupchile.org' },
+    portal: { name: 'la plataforma de postulación de Start-Up Chile', url: 'https://startupchile.org/postula/' },
     duration: '4 meses.',
     budget: BUDGETS.startup_chile
   },
@@ -647,7 +647,7 @@ export const FUND_RULES: Record<string, FundRules> = {
     coFinance: { text: 'Subsidio de $30.000.000: Corfo cubre 80% del costo total (90% si la líder es mujer). Extensión posible de $20.000.000.', femalePct: 90 },
     partners: 'Entidad Patrocinadora asignada por el programa.',
     guarantee: { required: false, text: 'Según las bases de la generación.' },
-    portal: { name: 'Start-Up Chile', url: 'https://www.startupchile.org' },
+    portal: { name: 'la plataforma de postulación de Start-Up Chile', url: 'https://startupchile.org/postula/' },
     duration: 'Programa de 4 meses; ejecución del subsidio en 6 meses (brochure BIG 13).',
     budget: BUDGETS.startup_chile
   },
@@ -758,7 +758,7 @@ export const FUND_RULES: Record<string, FundRules> = {
     coFinance: { text: 'Subsidio de hasta $75.000.000: Corfo cubre 50% del costo total (60% si la líder del equipo es mujer). El resto lo aporta la empresa en dinero.', femalePct: 60 },
     partners: 'Entidad Patrocinadora que firma contrato con la empresa si es seleccionada.',
     guarantee: { required: false, text: 'Según las bases de la generación.' },
-    portal: { name: 'Start-Up Chile', url: 'https://www.startupchile.org' },
+    portal: { name: 'la plataforma de postulación de Start-Up Chile', url: 'https://startupchile.org/postula/' },
     duration: 'Programa de 6 meses; ejecución del subsidio en 8 meses (brochure BIG 13).',
     budget: BUDGETS.startup_chile
   },

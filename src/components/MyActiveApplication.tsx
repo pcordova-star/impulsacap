@@ -1,6 +1,7 @@
 import { guideFor } from '../data/requirementGuides';
 import { askConfirm } from '../utils/confirmDialog';
 import { ReadinessCard } from './ReadinessCard';
+import { SubmitGuide } from './SubmitGuide';
 import { EvaluationGuide } from './EvaluationGuide';
 import { stepMinutes, fmtMinutes, isRecommendedItem } from '../data/effort';
 import { getFundRules, computeRoadmap, coFinancePctFor } from '../data/fundStandards';
@@ -894,6 +895,19 @@ export const MyActiveApplication: React.FC<MyActiveApplicationProps> = ({
                           })}
                         </div>
                       </div>
+
+                      {/* Paso 6: qué se hace, en orden, para enviar en el portal oficial */}
+                      {step.id === 'step_submit' && (
+                        <SubmitGuide
+                          fund={selectedFund}
+                          portalName={fundRules.portal.name}
+                          portalUrl={fundRules.portal.url}
+                          sections={fundRules.formSections.map(fs => fs.title)}
+                          docs={fundRules.applicationDocs.map(d => d.label)}
+                          onOpenDossier={() => setShowDossierModal(true)}
+                          submitted={Boolean(roadmap.steps.find(s => s.id === 'step_submit')?.items.find(i => i.id === 'portal')?.done)}
+                        />
+                      )}
 
                       {/* Bottom action bar inside expanded step */}
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1 text-xs">
