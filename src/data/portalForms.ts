@@ -170,7 +170,7 @@ const SUC_BIG13: PortalForm = {
         { id: 'leader_exp', n: '8', portalLabel: "Describe the Team Leader's experience and its relevance to this startup.", es: 'Experiencia del líder y por qué es relevante para esta startup.', kind: 'text', max: 300 },
         { id: 'leader_why', n: '9', portalLabel: 'Why is the Team Leader the right person to make the startup successful?', es: '¿Por qué el líder es la persona indicada?', kind: 'text', max: 300 },
         { id: 'leader_prev', n: '10-11', portalLabel: 'Has the Team Leader founded other startups? Tell us more (years, exit)', es: '¿Fundó otras startups antes? Si es sí: cuál, cuántos años estuvo y si tuvo una venta o salida (exit).', kind: 'fact' },
-        { id: 'leader_facts', n: '12-21', portalLabel: 'C-level, position, languages, founder, ≥10% ownership, time invested, exclusive dedication, residence in Chile, prior Corfo/ANID funding', es: 'Cargo (por ejemplo CEO), idiomas, si es fundador, si tiene 10% o más de la empresa, cuánto tiempo le dedica hoy, dedicación exclusiva durante el programa, si vivirá en Chile y si recibió fondos de Corfo o ANID por otro proyecto.', kind: 'fact' }
+        { id: 'leader_facts', n: '12-21', portalLabel: 'C-level, position, languages, founder, ≥10% ownership, time invested, exclusive dedication, residence in Chile, prior Corfo/ANID funding', es: 'Cargo (por ejemplo CEO), idiomas, si es fundador, si tiene 10% o más de la empresa y qué porcentaje exacto (escribe solo el número, sin el signo %), cuánto tiempo le dedica hoy, dedicación exclusiva durante el programa, si vivirá en Chile y si recibió fondos de Corfo o ANID por otro proyecto.', kind: 'fact' }
       ]
     },
     {
