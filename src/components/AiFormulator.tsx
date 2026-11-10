@@ -1,3 +1,5 @@
+import { portalFormFor } from '../data/portalForms';
+import { request as requestNav } from '../utils/navFocus';
 import { TeamCvImport } from './ProfileAutofill';
 import { askConfirm } from '../utils/confirmDialog';
 import { CompletarPanel } from './CompletarPanel';
@@ -990,6 +992,12 @@ ${fullFormulation.budgetBreakdown?.map(b => `- ${b.account}: Subsidio $${b.corfo
           <p className="text-xs text-slate-400">
             Postulación por: <strong className="text-slate-200">{profile.companyName || 'Empresa'}</strong> • RUT: {profile.rut || (profile.rutInProgress ? 'En trámite' : 'Pendiente')}
           </p>
+          {portalFormFor(currentFund.id) && (
+            <div className="mt-2 rounded-xl bg-cyan-500/10 border border-cyan-400/40 p-2.5 flex flex-wrap items-center gap-2 text-xs text-cyan-100">
+              <span>El portal de este fondo pide respuestas cortas (300 a 700 caracteres) y preguntas de opción. Aquí redactas el fondo de tu proyecto; para llenar el portal usa el formulario pregunta por pregunta.</span>
+              <button type="button" onClick={() => requestNav('portalForm', 'open')} className="px-2.5 py-1 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold cursor-pointer">Abrir formulario del portal</button>
+            </div>
+          )}
         </div>
 
         {/* Dentro de una postulación el fondo es fijo (cambiar de fondo = otra postulación) */}

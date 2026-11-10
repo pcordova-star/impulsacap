@@ -1492,6 +1492,100 @@ Responde ÚNICAMENTE en formato JSON con la siguiente estructura:
   }
 });
 
+// Formulario espejo del portal oficial: respuestas cortas, pregunta por pregunta, con el límite real de caracteres
+function trimToMax(text: string, max: number): string {
+  const t = String(text || '').trim();
+  if (!max || t.length <= max) return t;
+  const cut = t.slice(0, max);
+  const lastStop = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('.\n'), cut.endsWith('.') ? cut.length - 1 : -1);
+  return (lastStop > max * 0.6 ? cut.slice(0, lastStop + 1) : cut.replace(/\s+\S*$/, '')).trim();
+}
+
+app.post('/api/gemini/portal-answers', requireAuth, requireActivePlan, guardAi('portal-answers'), async (req, res) => {
+  try {
+    const { profile, fund, sectionTitle, questions, sources } = req.body || {};
+    if (!profile || !fund || !Array.isArray(questions) || questions.length === 0) {
+      return res.status(400).json({ error: 'Faltan datos para redactar las respuestas.' });
+    }
+    const qs = questions.slice(0, 20).map((q: any) => ({
+      id: String(q.id || '').slice(0, 40),
+      kind: q.kind === 'choice' || q.kind === 'multi' ? q.kind : 'text',
+      label: String(q.portalLabel || '').slice(0, 400),
+      es: String(q.es || '').slice(0, 600),
+      max: Math.min(Math.max(Number(q.max) || 500, 50), 2000),
+      options: Array.isArray(q.options) ? q.options.slice(0, 40).map((o: any) => String(o).slice(0, 120)) : [],
+      maxPicks: Math.min(Math.max(Number(q.maxPicks) || 1, 1), 10),
+      hint: String(q.hint || '').slice(0, 300)
+    })).filter((q: any) => q.id);
+
+    const project = profile.projectProfile || {};
+    const srcText = sources && typeof sources === 'object'
+      ? Object.entries(sources).map(([k, v]) => `### ${String(k).slice(0, 60)}\n${String(v || '').slice(0, 2500)}`).join('\n\n')
+      : '';
+
+    const qText = qs.map((q: any) => q.kind === 'text'
+      ? `- id "${q.id}" (TEXTO, máximo ${q.max} caracteres): ${q.label}\n  En simple: ${q.es}${q.hint ? `\n  Ayuda: ${q.hint}` : ''}`
+      : `- id "${q.id}" (${q.kind === 'multi' ? `ELEGIR HASTA ${q.maxPicks}` : 'ELEGIR UNA'}): ${q.label}\n  En simple: ${q.es}\n  Opciones exactas: ${q.options.map((o: string) => `"${o}"`).join(', ')}`
+    ).join('\n');
+
+    const prompt = `Eres un experto en postulaciones a ${fund.name} (${fund.agency}). Vas a responder preguntas del formulario oficial del portal, sección "${String(sectionTitle || '').slice(0, 80)}". La postulación es en ESPAÑOL (las preguntas del portal están en inglés).
+
+DATOS DE LA EMPRESA:
+- Nombre: ${profile.companyName || 'No informado'} · Tipo: ${profile.companyType || 'No informado'} · Región: ${profile.region || 'No informada'} · Sector: ${profile.sector || 'No informado'}
+- Etapa: ${profile.trlStage || 'No informada'} · Ventas 12 meses: ${salesText(profile.annualSalesCLP, profile.salesBracket)}
+PERFIL DEL PROYECTO (escrito por la persona):
+- Qué hace: ${project.whatItDoes || 'No informado'}
+- Problema y cliente: ${project.problemAndTarget || 'No informado'}
+- Cómo se resuelve hoy y diferencia: ${project.currentSolutionAndDiff || 'No informado'}
+- Avance y tracción: ${project.currentProgress || 'No informado'}
+- Equipo: ${project.teamDetails || 'No informado'}
+- Modelo de negocio: ${project.businessModel || 'No informado'}
+- Uso del financiamiento: ${project.fundingPurpose || 'No informado'}
+- Sitio web: ${project.websiteOrSocial || 'No informado'}
+
+TEXTOS YA REDACTADOS EN LA PLATAFORMA (úsalos como fuente; están más largos de lo que permite el portal):
+${srcText || 'Ninguno todavía.'}
+
+PREGUNTAS:
+${qText}
+
+REGLAS:
+1. Cada respuesta de TEXTO debe tener MENOS caracteres que su máximo (cuenta espacios). Directa, concreta, sin relleno ni títulos, en español claro.
+2. Usa SOLO la información entregada. No inventes clientes, cifras, socios, logros ni montos. Si falta un dato indispensable, escribe [COMPLETAR: pregunta simple] en ese punto.
+3. En preguntas de ELEGIR, responde con las opciones EXACTAS de la lista (copiadas igual) y una razón breve en español.
+4. Nunca describas el negocio como consultoría o asesoría personalizada si es un producto tecnológico.
+
+Responde SOLO en JSON: {"answers": {"<id>": {"text": "…"} | {"picks": ["…"], "reason": "…"}}}`;
+
+    const response = await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: prompt,
+      config: { responseMimeType: 'application/json', temperature: 0.2 }
+    });
+    const parsed = JSON.parse(response.text || '{}');
+    const raw = parsed?.answers && typeof parsed.answers === 'object' ? parsed.answers : {};
+    const corpus = `${JSON.stringify(req.body)}\n${fundRulesForPrompt(fund)}`;
+    const answers: Record<string, any> = {};
+    for (const q of qs) {
+      const a = raw[q.id];
+      if (!a) continue;
+      if (q.kind === 'text') {
+        const grounded = groundFigures(String(a.text || ''), corpus);
+        answers[q.id] = { text: trimToMax(grounded.text, q.max) };
+      } else {
+        const picks = (Array.isArray(a.picks) ? a.picks : [a.picks]).map((p: any) => String(p || '').trim())
+          .map((p: string) => q.options.find((o: string) => o.toLowerCase() === p.toLowerCase()) || '')
+          .filter(Boolean).slice(0, q.kind === 'multi' ? q.maxPicks : 1);
+        if (picks.length) answers[q.id] = { picks, reason: String(a.reason || '').slice(0, 300) };
+      }
+    }
+    return res.json({ answers });
+  } catch (error: any) {
+    console.error('Error in /api/gemini/portal-answers:', error?.message);
+    return res.status(503).json({ error: 'El servicio de IA no está disponible. Intenta nuevamente en unos minutos.' });
+  }
+});
+
 app.post('/api/gemini/audit', requireAuth, requireActivePlan, guardAi('audit'), async (req, res) => {
   try {
     const { fund, formulationText, projectSummary, profile, projectProfile: directProj, taxFolderData } = req.body;

@@ -2,6 +2,8 @@ import React from 'react';
 import { ExternalLink, FileText, ArrowRight } from 'lucide-react';
 import type { ChileanFund } from '../types/funds';
 import { upcomingForFund, fmtShortDate } from '../data/upcomingCalls';
+import { portalFormFor } from '../data/portalForms';
+import { request as requestNav } from '../utils/navFocus';
 
 /**
  * Paso 6 en lenguaje simple: qué se hace, en orden, para enviar la postulación en el portal oficial.
@@ -18,6 +20,7 @@ export const SubmitGuide: React.FC<{
 }> = ({ fund, portalName, portalUrl, sections, docs, onOpenDossier, submitted }) => {
   if (submitted) return null;
   const up = upcomingForFund(fund.id);
+  const mirror = portalFormFor(fund.id);
   return (
     <div className="rounded-2xl bg-slate-950/70 border border-emerald-500/40 p-4 space-y-3 text-xs text-slate-200">
       <div>
@@ -37,7 +40,15 @@ export const SubmitGuide: React.FC<{
         <li className="flex gap-2.5">
           <span className="w-5 h-5 rounded-full bg-emerald-500 text-slate-950 font-black flex items-center justify-center shrink-0">2</span>
           <div>
-            <p className="font-bold text-white">Abre tu expediente aquí, en otra pestaña o ventana</p>
+            <p className="font-bold text-white">{mirror ? 'Abre el formulario del portal aquí, pregunta por pregunta' : 'Abre tu expediente aquí, en otra pestaña o ventana'}</p>
+            {mirror && (
+              <>
+                <button type="button" onClick={() => requestNav('portalForm', 'open')} className="mt-1 mr-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold cursor-pointer">
+                  <FileText className="w-3.5 h-3.5" /> Formulario de {mirror.name}
+                </button>
+                <p className="text-slate-400 mt-1">Las mismas preguntas del portal, en el mismo orden, con respuestas que caben en su límite de caracteres y qué opción marcar. Para revisar todo junto, también está el expediente:</p>
+              </>
+            )}
             <button type="button" onClick={onOpenDossier} className="mt-1 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold cursor-pointer">
               <FileText className="w-3.5 h-3.5" /> Abrir mi expediente
             </button>

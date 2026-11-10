@@ -32,6 +32,8 @@ export interface ApplicationItem {
   rejectionReview?: RejectionReview | null;
   /** Postulación nueva que reutiliza una anterior no adjudicada */
   reapplyContext?: ReapplyContext | null;
+  /** Respuestas del formulario espejo del portal oficial (por id de pregunta) */
+  portalAnswers?: Record<string, { text?: string; picks?: string[]; reason?: string; done?: boolean; updatedAt?: string }>;
 }
 
 export type ApplicationOutcome = 'adjudicada' | 'no_adjudicada';

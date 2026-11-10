@@ -1,4 +1,6 @@
-import { splitTarget, goToTarget, setReturnContext, request as requestNav } from '../utils/navFocus';
+import { splitTarget, goToTarget, setReturnContext, request as requestNav, consume as consumeNav, onRequest as onNavRequest } from '../utils/navFocus';
+import { portalFormFor, PortalAnswer } from '../data/portalForms';
+import { PortalFormMirror } from './PortalFormMirror';
 import { remainingMinutes, readyToSubmit, fmtMinutes, isRecommendedItem } from '../data/effort';
 import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { showToast } from '../utils/toast';
@@ -177,6 +179,20 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
   }, [activeSubTab]);
 
   // Encabezado compacto al bajar: solo pestañas y nombre del fondo, para no tapar el contenido
+  // Formulario espejo del portal oficial (si este fondo lo tiene)
+  const portalForm = portalFormFor(fund?.id);
+  const [showPortalForm, setShowPortalForm] = useState(false);
+  useEffect(() => {
+    if (consumeNav('portalForm')) setShowPortalForm(true);
+    return onNavRequest('portalForm', () => setShowPortalForm(true));
+  }, []);
+  const portalSources = useMemo(() => {
+    const out: Record<string, string> = {};
+    Object.entries(application?.generatedTextsBySection || {}).forEach(([k, v]) => { if (String(v || '').trim()) out[k] = String(v); });
+    if (application?.formulation?.projectTitle) out['Título'] = application.formulation.projectTitle;
+    return out;
+  }, [application?.generatedTextsBySection, application?.formulation?.projectTitle]);
+
   const headerSentinelRef = useRef<HTMLDivElement | null>(null);
   const [compactHeader, setCompactHeader] = useState(false);
   useEffect(() => {
@@ -452,6 +468,15 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
 
         {activeSubTab === 'expediente' && (
           <div className="p-6 sm:p-8 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-6">
+            {portalForm && (
+              <div className="rounded-2xl bg-cyan-50 border border-cyan-200 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-black text-slate-900">Formulario de {portalForm.name}, pregunta por pregunta</p>
+                  <p className="text-xs text-slate-600 mt-0.5">Las mismas preguntas del portal, en el mismo orden, con respuestas que caben en su límite de caracteres, qué opción marcar y lo que tienes que poner tú.</p>
+                </div>
+                <button type="button" onClick={() => setShowPortalForm(true)} className="shrink-0 px-4 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white font-bold text-xs cursor-pointer">Abrir el formulario</button>
+              </div>
+            )}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
               <div>
                 <div className="flex items-center gap-2">
@@ -532,6 +557,20 @@ export const PostulationWorkspace: React.FC<PostulationWorkspaceProps> = ({
             Ir a Mis postulaciones
           </button>
         </div>
+      )}
+
+      {portalForm && application && (
+        <PortalFormMirror
+          open={showPortalForm}
+          onClose={() => setShowPortalForm(false)}
+          form={portalForm}
+          fund={fund}
+          profile={profile}
+          sources={portalSources}
+          answers={(application.portalAnswers || {}) as Record<string, PortalAnswer>}
+          onSave={answers => onUpdateApplicationFields?.(application.id, { portalAnswers: answers })}
+          onNeedPlan={() => { setShowPortalForm(false); routeTab('my-company#mi-plan'); }}
+        />
       )}
 
       {/* Official Dossier Modal */}
