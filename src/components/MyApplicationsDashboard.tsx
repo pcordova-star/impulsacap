@@ -8,6 +8,7 @@ import { usePlan } from '../hooks/usePlan';
 import { resolveFund, fundFromConvocatoria } from '../utils/convocatoriaFund';
 import { rankCatalogFunds } from '../utils/fundRanking';
 import { computeJourney, fundFit } from '../data/journey';
+import { getFundRules } from '../data/fundStandards';
 import { NewsTeaser } from './NewsView';
 import { regionFit } from '../utils/region';
 import { apiFetch } from '../utils/apiFetch';
@@ -23,6 +24,7 @@ import {
   FileText, 
   Clock, 
   ArrowRight, 
+  Video, 
   Plus, 
   Archive, 
   RefreshCw, 
@@ -189,7 +191,11 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
     const steps = rm.steps.map(st => st.done);
     const nextIndex = steps.findIndex(x => !x);
     const cur = j.current;
+    // Video pitch: si las bases lo piden, acceso directo al mismo grabador del formulador (o al guion si falta)
+    const pitchDoc = fund ? getFundRules(fund).applicationDocs.find(d => d.link === 'pitch') : undefined;
+    const pitchItem = pitchDoc ? rm.steps.flatMap(st => st.items).find(it => it.id === `doc_${pitchDoc.id}` && it.go) : undefined;
     return {
+      pitch: pitchItem ? { done: pitchItem.done, target: pitchItem.go!.target, scriptReady: pitchItem.go!.target.endsWith(':record'), label: pitchItem.label } : null,
       completedCount: rm.completed,
       percentage: rm.percentage,
       nextAction: cur ? (cur.next ? `${cur.title}: ${cur.next}` : cur.title) : 'Postulación lista',
@@ -582,6 +588,23 @@ export const MyApplicationsDashboard: React.FC<MyApplicationsDashboardProps> = (
                       )}
                     </div>
                   </div>
+
+                  {/* Acceso directo al grabador del video pitch (mismo que en el formulador) */}
+                  {progress.pitch && app.status !== 'enviada' && (
+                    <button
+                      type="button"
+                      onClick={() => onContinueApplication(app.id, progress.pitch!.target)}
+                      className="w-full p-3 rounded-2xl border border-violet-200 bg-violet-50 hover:bg-violet-100 text-left flex items-center gap-3 cursor-pointer"
+                    >
+                      <span className="w-9 h-9 rounded-xl bg-violet-600 text-white flex items-center justify-center shrink-0"><Video className="w-4 h-4" /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[10px] font-bold uppercase tracking-wider text-violet-700">{progress.pitch.done ? 'Video pitch · listo' : 'Video pitch'}</span>
+                        <span className="block text-sm font-bold text-slate-900 truncate">{progress.pitch.done ? 'Volver a grabar con teleprompter' : progress.pitch.scriptReady ? 'Grabar con teleprompter' : 'Escribir el guion y luego grabarlo'}</span>
+                        <span className="block text-[11px] text-slate-500 truncate">{progress.pitch.label}</span>
+                      </span>
+                      <ArrowRight className="w-4 h-4 text-violet-700 shrink-0" />
+                    </button>
+                  )}
                 </div>
               </article>
             );
