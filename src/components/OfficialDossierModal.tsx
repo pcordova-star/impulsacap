@@ -50,6 +50,7 @@ export const OfficialDossierModal: React.FC<OfficialDossierModalProps> = ({
   onOpenSiiModal
 }) => {
   const [copied, setCopied] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -122,8 +123,7 @@ export const OfficialDossierModal: React.FC<OfficialDossierModalProps> = ({
     : { className: '' };
   const GoHint: React.FC<{ show: boolean; text: string }> = ({ show, text }) => show ? <span className="ml-auto shrink-0 text-[11px] font-bold text-amber-300 print:hidden">{text} →</span> : null;
 
-  // Copiar una sección para pegarla en el formulario del portal
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  // Copiar una sección para pegarla en el formulario del portal (el estado vive arriba, antes del return temprano)
   const CopyBtn: React.FC<{ k: string; text: string }> = ({ k, text }) => text ? (
     <button
       type="button"
