@@ -214,6 +214,8 @@ export default function App() {
 
   // Authenticated Company Session - STRICTLY initialized via onAuthStateChanged
   const [currentUser, setCurrentUser] = useState<CompanyUser | null>(null);
+  // Sube cuando termina de cargar el perfil desde la nube (para sincronizar el nombre de la barra)
+  const [profileHydratedTick, setProfileHydratedTick] = useState(0);
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
   const [authModalMessage, setAuthModalMessage] = useState<string>('');
@@ -418,6 +420,7 @@ export default function App() {
             .finally(() => {
               if (activeUserIdRef.current !== hydratingUid) return;
               profileHydratedRef.current = true;
+              setProfileHydratedTick(t => t + 1);
               // Si el perfil del navegador es el más reciente (por ejemplo, se editó mientras cargaba),
               // se sube a la nube ahora para no perder esos cambios
               if (!mergedFromRemote) {
@@ -461,7 +464,7 @@ export default function App() {
     setCurrentUser(next);
     try { localStorage.setItem(`impulsacap_user_meta_${next.id}`, JSON.stringify(next)); } catch { /* sin almacenamiento */ }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile.companyName, currentUser?.id]);
+  }, [profile.companyName, currentUser?.id, profileHydratedTick]);
 
   // Auto-save changes strictly under current user scope (solo después de cargar el perfil de Firestore)
   useEffect(() => {
