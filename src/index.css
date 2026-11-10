@@ -60,3 +60,12 @@
 @media (prefers-reduced-motion: reduce) {
   .animate-toast-in { animation: none; }
 }
+
+/* Expediente: al imprimir, solo el expediente, completo y con saltos de página normales */
+@media print {
+  body:has(> .dossier-print-root) > :not(.dossier-print-root) { display: none !important; }
+  body:has(> .dossier-print-root) { background: #fff !important; height: auto !important; overflow: visible !important; }
+  body .dossier-print-root * { overflow: visible !important; max-height: none !important; }
+  body .dossier-print-root section, body .dossier-print-root h3 { break-after: avoid; }
+  @page { margin: 14mm 12mm; }
+}

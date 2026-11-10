@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ChileanFund, FormBlock } from '../types/funds';
 import { ExpedienteData } from '../types/expediente';
 import { validateRut } from '../utils/rutValidator';
@@ -142,6 +143,8 @@ export const OfficialDossierModal: React.FC<OfficialDossierModalProps> = ({
     onNavigateTab?.('formulator');
   };
 
+  // Imprimir solo el expediente, completo y paginado (sin la app de fondo ni el recorte de la ventana)
+  // (el CSS de impresión en index.css oculta todo lo que no es el expediente mientras está abierto)
   const handlePrint = () => {
     window.print();
   };
@@ -272,9 +275,9 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
     </div>
   );
 
-  return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md p-2 sm:p-6 flex items-center justify-center animate-fade-in print:p-0 print:bg-white print:fixed-none">
-      <div className="w-full max-w-4xl rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl flex flex-col max-h-[92vh] overflow-hidden print:max-h-none print:border-none print:bg-white print:text-black print:shadow-none">
+  return createPortal(
+    <div className="dossier-print-root fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md p-2 sm:p-6 flex items-center justify-center animate-fade-in print:static print:block print:overflow-visible print:p-0 print:bg-white print:backdrop-blur-none">
+      <div className="w-full max-w-4xl rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl flex flex-col max-h-[92vh] overflow-hidden print:block print:max-w-none print:max-h-none print:overflow-visible print:rounded-none print:border-none print:bg-white print:text-black print:shadow-none">
         
         {/* Modal Top Control Bar (Hidden on print) */}
         <div className="p-4 sm:px-6 sm:py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between gap-3 shrink-0 print:hidden">
@@ -1049,6 +1052,7 @@ ${hasRealBudget ? `Subsidio Solicitado: $${totalCorfo.toLocaleString('es-CL')} C
 
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
